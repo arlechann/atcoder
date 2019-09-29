@@ -1,0 +1,12 @@
+BasedOnStyle: LLVM
+AccessModifierOffset: 0
+AlignEscapedNewlinesLeft: true
+AllowShortFunctionsOnASingleLine: Inline
+AlwaysBreakTemplateDeclarations: true
+IndentCaseLabels: true
+IndentWidth: 4
+KeepEmptyLinesAtTheStartOfBlocks: false
+PointerAlignment: Left
+SpaceBeforeParens: Never
+TabWidth: 4
+UseTab: Always
