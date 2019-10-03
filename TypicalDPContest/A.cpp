@@ -38,6 +38,45 @@ inline int toInt(string s) {
 	return v;
 }
 
+int solve(int n, VI p, int max) {
+	VI2D dp(n + 1, VI(max + 1, 0));
+	REP(i, n + 1) {
+		REP(j, max + 1) {
+			if(i == 0 && j == 0) {
+				dp[0][0] = 1;
+			} else if(i == 0) {
+				dp[0][j] = 0;
+			} else if(j == 0) {
+				dp[i][0] = 1;
+			} else if(j - p[i - 1] < 0) {
+				dp[i][j] = dp[i - 1][j];
+			} else {
+				dp[i][j] = dp[i - 1][j] | dp[i - 1][j - p[i - 1]];
+			}
+		}
+	}
+
+	/*
+		REP(i, n + 1) {
+			REP(j, max + 1) { printf("%d ", dp[i][j]); }
+			putchar('\n');
+		}
+	*/
+
+	int result = 0;
+	REP(i, max + 1) { result += dp[n][i]; }
+	return result;
+}
+
 int main() {
+	int n;
+	scanf("%d", &n);
+	VI p(n);
+	int max = 0;
+	EACH(e, p) {
+		scanf("%d", &e);
+		max += e;
+	}
+	printf("%d\n", solve(n, p, max));
 	return 0;
 }
