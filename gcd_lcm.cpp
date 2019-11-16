@@ -1,8 +1,12 @@
+#include <functional>
+
+using namespace std;
+
+// lcm ここから
+// gcd ここから
 int gcd(int a, int b) {
 	if(a < b) {
-		int tmp = a;
-		a = b;
-		b = tmp;
+		swap(a, b);
 	}
 
 	int r = a % b;
@@ -14,7 +18,9 @@ int gcd(int a, int b) {
 
 	return b;
 }
+// gcd ここまで
 
 int lcm(int a, int b) {
 	return a * b / gcd(a, b); // オーバーフロー注意
 }
+// lcm ここまで
