@@ -21,8 +21,8 @@
 #define AALL(a, n) (a), a + n
 #define FILL(a, n) memset((a), n, sizeof(a))
 #define FILLZ(a) FILL(a, 0)
-#define MODNUM (1e9 + 7)
-#define MOD(x) ((x) % static_cast<int>(MODNUM))
+#define MODNUM (static_cast<int>(1e9 + 7))
+#define MOD(x) ((x) % MODNUM)
 
 using namespace std;
 
