@@ -18,7 +18,7 @@
 #define RANGE(i, a, b) for(int i = (a); i < (b); i++)
 #define EACH(e, a) for(auto&& e : a)
 #define ALL(a) (a).begin(), (a).end()
-#define AALL(a, n) (a), a + n
+#define AALL(a, n) (a), ((a) + (n))
 #define FILL(a, n) memset((a), n, sizeof(a))
 #define FILLZ(a) FILL(a, 0)
 #define MODNUM (static_cast<int>(1e9 + 7))
