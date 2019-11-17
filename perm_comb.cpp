@@ -61,6 +61,10 @@ T gcd(T a, T b) {
 	return b;
 }
 
+<<<<<<< HEAD
+=======
+// たぶんO(logn)くらい
+>>>>>>> c4c0301acb65c14262c17c763587824a30dd6dfe
 ll combination(int n, int r) {
 	if(n < r || n < 0 || r < 0) {
 		return 0LL;
