@@ -4,12 +4,13 @@ using namespace std;
 
 // lcm ここから
 // gcd ここから
-int gcd(int a, int b) {
+template <typename T>
+T gcd(T a, T b) {
 	if(a < b) {
 		swap(a, b);
 	}
 
-	int r = a % b;
+	T r = a % b;
 	while(r != 0) {
 		a = b;
 		b = r;
@@ -20,7 +21,8 @@ int gcd(int a, int b) {
 }
 // gcd ここまで
 
-int lcm(int a, int b) {
+template <typename T>
+T lcm(T a, T b) {
 	return a * b / gcd(a, b); // オーバーフロー注意
 }
 // lcm ここまで
