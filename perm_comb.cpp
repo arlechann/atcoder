@@ -10,6 +10,8 @@
 using namespace std;
 
 using ll = long long;
+using VI = vector<int>;
+using VI2D = vector<vector<int>>;
 
 // permutation ここから
 ll permutation(int n, int k) {
@@ -82,17 +84,17 @@ ll combination(int n, int r) {
 // combination ここまで
 
 int main() {
-	vector<int> v = {1, 2, 3, 4, 5};
-	vector<vector<int>> a;
+	VI v = {1, 2, 3, 4, 5};
+	VI2D a;
 
 	ALL_PERM(v, {
 		a.push_back(v);
-		if(v == vector<int>{1, 5, 4, 3, 2}) {
+		if(v == VI{1, 5, 4, 3, 2}) {
 			// return true;
 		}
 	});
 
-	for_each(a.begin(), a.end(), [](vector<int> x) {
+	for_each(a.begin(), a.end(), [](VI x) {
 		for_each(x.begin(), x.end(), [](int n) { cout << n << " "; });
 		cout << endl;
 	});
