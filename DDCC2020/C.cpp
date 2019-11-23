@@ -48,7 +48,6 @@ int main() {
 	int h, w, k;
 	scanf("%d %d %d", &h, &w, &k);
 	VI2D cake(h, VI(w, 0));
-	vector<pair<int, int>> strawberry;
 	getchar();
 	REP(i, h) {
 		REP(j, w) {
@@ -56,104 +55,52 @@ int main() {
 			c = getchar();
 			if(c == '#') {
 				cake[i][j] = 1;
-				strawberry.push_back(pair<int, int>(i, j));
 			}
 		}
 		getchar();
 	}
 	VI2D result(h, VI(w, 0));
-	REP(i, k) { result[strawberry[i].first][strawberry[i].second] = i + 1; }
-	REP(i, k) {
-		int x1, y1, x2, y2;
-		pair<int, int> s = strawberry[i];
-		x1 = s.second;
-		y1 = s.first;
-		x2 = s.second;
-		y2 = s.first;
 
-		if(x2 != w - 1) {
-			int i = x2 + 1;
-			while(true) {
-				if(result[y2][i] != 0) {
-					x2 = i - 1;
-					break;
-				}
-				if(i == w - 1) {
-					x2 = i;
-					break;
-				}
-				i++;
-			}
-		}
-
-		if(y2 != h - 1) {
-			int i = y2 + 1;
-			while(true) {
-				bool ok = true;
-				RANGE(xx, x1, x2 + 1) {
-					if(result[i][xx] != 0) {
-						ok = false;
-						break;
-					}
-				}
-				if(!ok) {
-					y2 = i - 1;
-					break;
-				}
-				if(i == h - 1) {
-					y2 = i;
-					break;
-				}
-				i++;
-			}
-		}
-
-		if(x1 != 0) {
-			int i = x1 - 1;
-
-			while(true) {
-				bool ok = true;
-				RANGE(yy, y1, y2 + 1) {
-					if(result[yy][i] != 0) {
-						ok = false;
-						break;
-					}
-				}
-				if(!ok) {
-					x1 = i + 1;
-					break;
-				}
-				if(i == 0) {
-					x1 = i;
-					break;
+	int s = 0;
+	REP(i, h) {
+		bool empty = true;
+		REP(j, w) {
+			if(cake[i][j] == 1) {
+				s++;
+				if(empty) {
+					empty = false;
+					REP(x, j) { result[i][x] = s; }
 				}
 			}
-		}
-
-		if(y1 != 0) {
-			int i = y1 - 1;
-			while(true) {
-				bool ok = true;
-				RANGE(xx, x1, x2 + 1) {
-					if(result[i][xx] != 0) {
-						ok = false;
-						break;
-					}
-				}
-				if(!ok) {
-					y1 = i + 1;
-					break;
-				}
-				if(i == 0) {
-					y1 = i;
-					break;
-				}
-				i--;
+			if(!empty) {
+				result[i][j] = s;
 			}
 		}
+	}
 
-		RANGE(ii, y1, y2 + 1) {
-			RANGE(jj, x1, x2 + 1) { result[ii][jj] = i + 1; }
+	REP(i, h) {
+		bool empty = true;
+		REP(j, w) {
+			if(result[i][j] != 0) {
+				empty = false;
+				break;
+			}
+		}
+		if(empty && i != 0) {
+			REP(j, w) { result[i][j] = result[i - 1][j]; }
+		}
+	}
+
+	for(int i = h - 1; i >= 0; i--) {
+		bool empty = true;
+		REP(j, w) {
+			if(result[i][j] != 0) {
+				empty = false;
+				break;
+			}
+		}
+		if(empty && i != h - 1) {
+			REP(j, w) { result[i][j] = result[i + 1][j]; }
 		}
 	}
 
