@@ -14,8 +14,8 @@
 #include <utility>
 #include <vector>
 
-#define REP(i, n) for(int i = 0, i##_MACRO = (n); i < (i##_MACRO); i++)
-#define RANGE(i, a, b) for(int i = (a); i < (b); i++)
+#define REP(i, n) for(int i = 0, i##_MACRO = (n); i < i##_MACRO; i++)
+#define RANGE(i, a, b) for(int i = (a), i##_MACRO = (b); i < i##_MACRO; i++)
 #define EACH(e, a) for(auto&& e : a)
 #define ALL(a) (a).begin(), (a).end()
 #define AALL(a, n) (a), ((a) + (n))
