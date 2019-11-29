@@ -3,6 +3,8 @@ AccessModifierOffset: 0
 AlignEscapedNewlinesLeft: true
 AllowShortFunctionsOnASingleLine: Inline
 AlwaysBreakTemplateDeclarations: true
+BinPackArguments: false
+BinPackParameters: false
 IndentCaseLabels: true
 IndentWidth: 4
 KeepEmptyLinesAtTheStartOfBlocks: false
