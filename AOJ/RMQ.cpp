@@ -81,9 +81,11 @@ class SegmentTree {
 	SegmentTree(const vector<T> a)
 		: SegmentTree(a, [](T a, T b) { return a + b; }, 0) {}
 
-	void update(const size_t index, const T value) {
+	void update(const size_t index, const T value, const F f = [](T a, T b) {
+		return b;
+	}) {
 		size_t i = index + size - 1;
-		this->tree[i] = value;
+		this->tree[i] = f(this->tree[i], value);
 		while(i > 0) {
 			i = (i - 1) / 2;
 			this->tree[i] = this->apply(i);
@@ -114,16 +116,16 @@ class SegmentTree {
 			return this->tree[node];
 		}
 
-		return min(find_impl(query_left,
-							 query_right,
-							 node * 2 + 1,
-							 node_left,
-							 node_left + (node_right - node_left) / 2),
-				   find_impl(query_left,
-							 query_right,
-							 node * 2 + 2,
-							 node_left + (node_right - node_left) / 2,
-							 node_right));
+		return this->merge(find_impl(query_left,
+									 query_right,
+									 node * 2 + 1,
+									 node_left,
+									 node_left + (node_right - node_left) / 2),
+						   find_impl(query_left,
+									 query_right,
+									 node * 2 + 2,
+									 node_left + (node_right - node_left) / 2,
+									 node_right));
 	}
 };
 
