@@ -47,29 +47,28 @@ inline int toInt(string s) {
 }
 
 class UnionFind {
-	vector<size_t> parents;
-	vector<size_t> rank;
+	std::vector<size_t> parents;
+	std::vector<size_t> rank;
 
 	public:
 	UnionFind(size_t size) : parents(size), rank(size, 0) {
-		iota(parents.begin(), parents.end(), 0);
+		std::iota(this->parents.begin(), this->parents.end(), 0);
 	}
 
 	bool merge(size_t a, size_t b) {
-		size_t aroot = this->root(a);
-		size_t broot = this->root(b);
-		if(aroot == broot) {
+		size_t ar = this->root(a);
+		size_t br = this->root(b);
+		if(ar == br) {
 			return false;
 		}
-		if(rank[a] > rank[b]) {
-			swap(a, b);
+		if(this->rank[ar] < this->rank[br]) {
+			std::swap(ar, br);
 		}
-		if(rank[a] == rank[b]) {
-			rank[b]++;
+		if(this->rank[ar] == this->rank[br]) {
+			this->rank[ar]++;
 		}
-		return this->parents[aroot] = broot;
+		return this->parents[br] = ar;
 	}
-
 	bool unite(size_t a, size_t b) { return this->merge(a, b); }
 
 	bool is_same(size_t a, size_t b) { return this->root(a) == this->root(b); }
