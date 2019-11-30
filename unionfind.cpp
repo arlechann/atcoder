@@ -5,10 +5,11 @@ using namespace std;
 
 class UnionFind {
 	vector<size_t> parents;
+	vector<size_t> rank;
 
 	public:
-	UnionFind(size_t size) : parents(size) {
-		iota(parents.begin(), parents.end(), 0);
+	UnionFind(size_t size) : parents(size), rank(size, 0) {
+		iota(this->parents.begin(), this->parents.end(), 0);
 	}
 
 	bool merge(size_t a, size_t b) {
@@ -17,10 +18,19 @@ class UnionFind {
 		if(aroot == broot) {
 			return false;
 		}
-		return parents[aroot] = broot;
+		if(this->rank[a] > this->rank[b]) {
+			swap(a, b);
+		}
+		if(this->rank[a] == this->rank[b]) {
+			this->rank[b]++;
+		}
+		return this->parents[aroot] = broot;
 	}
 
-	bool is_same(size_t a, size_t b) { return root(a) == root(b); }
+	bool unite(size_t a, size_t b) { return this->merge(a, b); }
+
+	bool is_same(size_t a, size_t b) { return this->root(a) == this->root(b); }
+	bool is_union(size_t a, size_t b) { return this->is_same(a, b); }
 
 	private:
 	size_t root(int n) {
@@ -28,6 +38,6 @@ class UnionFind {
 			return n;
 		}
 
-		return root(this->parents[n]);
+		return this->root(this->parents[n]);
 	}
 };

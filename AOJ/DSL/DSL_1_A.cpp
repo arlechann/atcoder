@@ -48,9 +48,10 @@ inline int toInt(string s) {
 
 class UnionFind {
 	vector<size_t> parents;
+	vector<size_t> rank;
 
 	public:
-	UnionFind(size_t size) : parents(size) {
+	UnionFind(size_t size) : parents(size), rank(size, 0) {
 		iota(parents.begin(), parents.end(), 0);
 	}
 
@@ -60,10 +61,19 @@ class UnionFind {
 		if(aroot == broot) {
 			return false;
 		}
-		return parents[aroot] = broot;
+		if(rank[a] > rank[b]) {
+			swap(a, b);
+		}
+		if(rank[a] == rank[b]) {
+			rank[b]++;
+		}
+		return this->parents[aroot] = broot;
 	}
 
-	bool is_same(size_t a, size_t b) { return root(a) == root(b); }
+	bool unite(size_t a, size_t b) { return this->merge(a, b); }
+
+	bool is_same(size_t a, size_t b) { return this->root(a) == this->root(b); }
+	bool is_union(size_t a, size_t b) { return this->is_same(a, b); }
 
 	private:
 	size_t root(int n) {
@@ -71,7 +81,7 @@ class UnionFind {
 			return n;
 		}
 
-		return root(this->parents[n]);
+		return this->root(this->parents[n]);
 	}
 };
 
