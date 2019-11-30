@@ -1,9 +1,6 @@
 #include <functional>
 #include <vector>
 
-#define EACH(e, a) for(auto&& e : a)
-#define ALL(a) (a).begin(), (a).end()
-
 using namespace std;
 
 int roundup_pow2(int n) {
@@ -28,7 +25,7 @@ class SegmentTree {
 
 	public:
 	SegmentTree(const vector<T>& a, const F f, const T id)
-		: tree(vector<T>(roundup_pow2(a.size()) * 2 - 1, id)),
+		: tree(roundup_pow2(a.size()) * 2 - 1, id),
 		  size(roundup_pow2(a.size())), merge(f), identity(id) {
 		int offset = this->size - 1;
 		for(int i = 0; i < a.size(); i++) {
