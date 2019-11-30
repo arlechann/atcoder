@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <boost/optional.hpp>
 #include <climits>
 #include <cmath>
 #include <cstdio>
