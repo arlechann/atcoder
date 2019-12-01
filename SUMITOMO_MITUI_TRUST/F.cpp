@@ -86,6 +86,6 @@ int main() {
 	abt[0] = abs(abt[0]);
 
 	ll result = (abt[0] + (abti - 1)) / abti;
-	printf("%lld\n", result * 2 - (abt[0] % abti ? 1 : 2));
+	printf("%lld\n", result * 2 - (abt[0] % abti ? 1 : 0));
 	return 0;
 }
