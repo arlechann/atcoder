@@ -59,14 +59,14 @@ struct Edge {
 
 using Graph = std::vector<std::vector<Edge>>;
 
-std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
+std::pair<Graph, Weight> prim(const Graph& graph, size_t s) {
 	size_t n = graph.size();
 	std::vector<bool> used(n, false);
-	std::vector<Weight> distances(n, INF);
+	Weight total = 0;
+	Graph mst(n);
 
-	distances[s] = 0;
 	std::priority_queue<Edge> pq;
-	pq.push(Edge(s, 0));
+	pq.push(Edge(-1, s, 0));
 	while(!pq.empty()) {
 		Edge edge = pq.top();
 		pq.pop();
@@ -74,36 +74,32 @@ std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
 			continue;
 		}
 		used[edge.to] = true;
+		total += edge.cost;
+		if(edge.from != -1) {
+			mst[edge.from].push_back(edge);
+		}
 		for(auto&& e : graph[edge.to]) {
-			Weight alt = edge.cost + e.cost;
-			if(alt < distances[e.to]) {
-				distances[e.to] = alt;
-				pq.push(Edge(e.to, alt));
+			if(!used[e.to]) {
+				pq.push(e);
 			}
 		}
 	}
 
-	return distances;
+	return std::pair<Graph, Weight>(mst, total);
 }
 
 int main() {
-	int v, e, r;
-	scanf("%d %d %d", &v, &e, &r);
+	int v, e;
+	scanf("%d %d", &v, &e);
+	int s, t, w;
 	Graph graph(v);
 	REP(i, e) {
-		int s, t, d;
-		scanf("%d %d %d", &s, &t, &d);
-		graph[s].push_back(Edge(t, d));
-	}
-	VI dists = dijkstra(graph, r);
-
-	EACH(e, dists) {
-		if(e == INF) {
-			puts("INF");
-		} else {
-			printf("%d\n", e);
-		}
+		scanf("%d %d %d", &s, &t, &w);
+		graph[s].push_back(Edge(s, t, w));
+		graph[t].push_back(Edge(t, s, w));
 	}
 
+	pair<Graph, Weight> mst = prim(graph, 0);
+	printf("%d\n", mst.second);
 	return 0;
 }
