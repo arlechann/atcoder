@@ -57,10 +57,15 @@ struct Edge {
 	bool operator<(const Edge& rhs) const { return this->cost > rhs.cost; }
 };
 
-using Graph = std::vector<std::vector<Edge>>;
+struct Graph {
+	size_t node;
+	std::vector<std::vector<Edge>> edges;
+
+	Graph(size_t n) : node(n), edges(n) {}
+};
 
 std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
-	size_t n = graph.size();
+	size_t n = graph.node;
 	std::vector<bool> used(n, false);
 	std::vector<Weight> distances(n, INF);
 
@@ -74,7 +79,7 @@ std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
 			continue;
 		}
 		used[edge.to] = true;
-		for(auto&& e : graph[edge.to]) {
+		for(auto&& e : graph.edges[edge.to]) {
 			Weight alt = edge.cost + e.cost;
 			if(alt < distances[e.to]) {
 				distances[e.to] = alt;
@@ -93,7 +98,7 @@ int main() {
 	REP(i, e) {
 		int s, t, d;
 		scanf("%d %d %d", &s, &t, &d);
-		graph[s].push_back(Edge(t, d));
+		graph.edges[s].push_back(Edge(t, d));
 	}
 	VI dists = dijkstra(graph, r);
 

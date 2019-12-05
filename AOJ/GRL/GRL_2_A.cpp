@@ -57,10 +57,44 @@ struct Edge {
 	bool operator<(const Edge& rhs) const { return this->cost > rhs.cost; }
 };
 
-using Graph = std::vector<std::vector<Edge>>;
+struct Graph {
+	size_t node;
+	std::vector<std::vector<Edge>> edges;
 
-std::pair<Graph, Weight> prim(const Graph& graph, size_t s) {
-	size_t n = graph.size();
+	Graph(size_t n) : node(n), edges(n) {}
+};
+
+std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
+	size_t n = graph.node;
+	std::vector<bool> used(n, false);
+	std::vector<Weight> distances(n, INF);
+
+	distances[s] = 0;
+	std::priority_queue<Edge> pq;
+	pq.push(Edge(s, 0));
+	while(!pq.empty()) {
+		Edge edge = pq.top();
+		pq.pop();
+		if(used[edge.to]) {
+			continue;
+		}
+		used[edge.to] = true;
+		for(auto&& e : graph.edges[edge.to]) {
+			Weight alt = edge.cost + e.cost;
+			if(alt < distances[e.to]) {
+				distances[e.to] = alt;
+				pq.push(Edge(e.to, alt));
+			}
+		}
+	}
+
+	return distances;
+}
+
+// dijkstra ここまで
+
+std::pair<Weight, Graph> prim(const Graph& graph, size_t s) {
+	size_t n = graph.node;
 	std::vector<bool> used(n, false);
 	Weight total = 0;
 	Graph mst(n);
@@ -76,16 +110,16 @@ std::pair<Graph, Weight> prim(const Graph& graph, size_t s) {
 		used[edge.to] = true;
 		total += edge.cost;
 		if(edge.from != -1) {
-			mst[edge.from].push_back(edge);
+			mst.edges[edge.from].push_back(edge);
 		}
-		for(auto&& e : graph[edge.to]) {
+		for(auto&& e : graph.edges[edge.to]) {
 			if(!used[e.to]) {
 				pq.push(e);
 			}
 		}
 	}
 
-	return std::pair<Graph, Weight>(mst, total);
+	return std::pair<Weight, Graph>(total, mst);
 }
 
 int main() {
@@ -95,11 +129,11 @@ int main() {
 	Graph graph(v);
 	REP(i, e) {
 		scanf("%d %d %d", &s, &t, &w);
-		graph[s].push_back(Edge(s, t, w));
-		graph[t].push_back(Edge(t, s, w));
+		graph.edges[s].push_back(Edge(s, t, w));
+		graph.edges[t].push_back(Edge(t, s, w));
 	}
 
-	pair<Graph, Weight> mst = prim(graph, 0);
-	printf("%d\n", mst.second);
+	pair<Weight, Graph> mst = prim(graph, 0);
+	printf("%d\n", mst.first);
 	return 0;
 }
