@@ -40,6 +40,21 @@ const double PI = acos(-1.0);
 const int dx[] = {-1, 0, 1, 0};
 const int dy[] = {0, -1, 0, 1};
 
+template <typename T>
+int sign(T x) {
+	return x < 0 ? -1 : x > 0 ? 1 : 0;
+}
+
+template <>
+int sign(double x) {
+	return x < -EPS ? -1 : x > EPS ? 1 : 0;
+}
+
+template <typename T>
+T square(T x) {
+	return x * x;
+}
+
 inline int toInt(string s) {
 	int v;
 	istringstream sin(s);
