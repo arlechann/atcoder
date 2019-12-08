@@ -24,7 +24,7 @@
 #define AALL(a, n) (a), ((a) + (n))
 #define FILL(a, n) memset((a), n, sizeof(a))
 #define FILLZ(a) FILL(a, 0)
-#define MODNUM (static_cast<int>(1e9 + 7))
+#define MODNUM (static_cast<unsigned long long>(1e9 + 7))
 #define MOD(x) ((x) % MODNUM)
 
 using namespace std;
@@ -62,21 +62,39 @@ inline int toInt(string s) {
 	return v;
 }
 
-ll modsum(ll a, ll b) {
-	return MOD(a + b);
+ll mod_pow(ll a, ll n) {
+#ifndef MOD
+	static_assert(false, "MOD() is not defined.");
+#endif
+
+	ll ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret = MOD(ret * a);
+		}
+		a = MOD(a * a);
+		n /= 2;
+	}
+	return ret;
 }
 
 int main() {
-	int n;
-	scanf("%d", &n);
+	ll n;
+	scanf("%lld", &n);
 	vector<ll> a(n);
 	EACH(e, a) { scanf("%lld", &e); }
 
-	ll result = 0LL;
-	REP(i, n) {
-		for(int j = i + 1; j < n; j++) {
-			result = modsum(result, a[i] ^ a[j]);
+	ll result = 0;
+	REP(i, 60) {
+		ll one = 0;
+		ll zero = 0;
+
+		REP(j, n) {
+			((a[j] & 1) ? one : zero) += 1;
+			a[j] >>= 1;
 		}
+
+		result = MOD(result + MOD(MOD(one * zero) * mod_pow(2, i)));
 	}
 
 	printf("%lld\n", result);
