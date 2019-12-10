@@ -43,11 +43,18 @@ int main() {
 	scanf("%d", &n);
 	VI l(n);
 	EACH(e, l) { scanf("%d", &e); }
-	sort(ALL(l));
-	EACH(e, l) { printf("%d ", e); }
-	putchar('\n');
 
+	sort(ALL(l));
 	int result = 0;
+	for(auto i = l.begin() + 2; i < l.end(); i++) {
+		for(auto j = l.begin(); j < i - 1; j++) {
+			int lower = *i - *j + 1;
+			int upper = *i + *j - 1;
+			result += distance(lower_bound(j + 1, i, lower),
+							   upper_bound(j + 1, i, upper));
+		}
+	}
+
 	printf("%d\n", result);
 	return 0;
 }
