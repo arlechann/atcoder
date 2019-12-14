@@ -61,29 +61,58 @@ inline int toInt(string s) {
 	return v;
 }
 
-int match(char* t, char* p) {
-	int n = strlen(t), m = strlen(p);
-	int M[0x100];
-	fill(M, M + 0x100, 0);
-	int count = 0;
-	for(int i = 0; i < m; ++i)
-		M[p[i]] |= (1 << i);
-	for(int i = 0, S = 0; i < n; ++i) {
-		S = ((S << 1) | 1) & M[t[i]];
-		if(S & (1 << (m - 1))) {
-			++count; // match at t[i-m+1 ... i]
-		}
-	}
-	return count;
-}
-
 VI solve(string s) {
 	VI result;
-	int c[3];
-	c[0] = match(s.c_str(), "twone");
-	c[1] = match(s.c_str(), "two");
-	c[2] = match(s.c_str(), "one");
-	return
+	char* twone = "twone";
+	char* two = "two";
+	char* one = "one";
+	int i = 0;
+	while(i < s.size()) {
+		int j = 0;
+		while(true) {
+			if(i + j >= s.size() || s[i + j] != twone[j]) {
+				if(j != 0) {
+					j--;
+				}
+				break;
+			}
+			if(j == 4) {
+				s.replace(i, 5, "-----");
+				result.push_back(i + 2);
+				break;
+			}
+			j++;
+		}
+		i += j;
+		i++;
+	}
+	i = 0;
+	while(i < s.size()) {
+		int j = 0;
+		char* comp;
+		if(s[i] == two[0]) {
+			comp = two;
+		} else {
+			comp = one;
+		}
+		while(true) {
+			if(i + j >= s.size() || s[i + j] != comp[j]) {
+				if(j != 0) {
+					j--;
+				}
+				break;
+			}
+			if(j == 2) {
+				s.replace(i, 3, "---");
+				result.push_back(i + 1);
+				break;
+			}
+			j++;
+		}
+		i += j;
+		i++;
+	}
+	return result;
 }
 
 int main() {
