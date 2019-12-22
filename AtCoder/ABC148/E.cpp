@@ -70,6 +70,12 @@ int main() {
 		return 0;
 	}
 
+	ll result = 0;
+	ll div = 10;
+	while(div <= n) {
+		result += n / div;
+		div *= 5;
+	}
 	printf("%lld\n", result);
 
 	return 0;
