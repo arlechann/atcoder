@@ -10,18 +10,21 @@ const double EPS = 1e-10;
 
 // gs_search ここから
 // bin_search ここから
+// 終了判定
 template <typename T,
 		  typename enable_if<is_integral<T>::value>::type* = nullptr>
 bool finds(T left, T right) {
 	return right - left > 1;
 }
 
+// 終了判定(浮動小数)
 template <typename T,
 		  typename enable_if<is_floating_point<T>::value>::type* = nullptr>
 bool finds(T left, T right) {
 	return abs(right - left) > EPS;
 }
 
+// 二分探索
 template <typename T>
 T bin_search(T left, T right, auto pred) {
 	while(finds<T>(left, right)) {

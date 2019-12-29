@@ -7,6 +7,7 @@
 
 // コピペここから
 
+// エラトステネスの篩で生成された数列
 template <typename T>
 std::vector<T> prime_table(T n) {
 	std::vector<T> prime(n, 0);
@@ -28,6 +29,7 @@ std::vector<T> prime_table(T n) {
 	return prime;
 }
 
+// 素数リスト
 template <typename T>
 std::vector<T> prime_list(T n) {
 	std::vector<T> prime = prime_table(n);
@@ -35,6 +37,7 @@ std::vector<T> prime_list(T n) {
 	return prime;
 }
 
+// 素数判定
 constexpr bool is_prime(int n) {
 	if(n == 2) {
 		return true;
@@ -52,6 +55,7 @@ constexpr bool is_prime(int n) {
 	return true;
 }
 
+// 素因数分解
 std::map<long long, int> factor(long long n) {
 	std::map<long long, int> factor;
 
@@ -79,6 +83,7 @@ std::map<long long, int> factor(long long n) {
 	return factor;
 }
 
+// 素因数分解(素数表を用いる)
 std::map<long long, int> factor(long long n, std::vector<long long> prime) {
 	std::map<long long, int> factor;
 

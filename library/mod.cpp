@@ -12,7 +12,6 @@ ll mod_pow(ll a, ll n) {
 #ifndef MOD
 	static_assert(false, "MOD() is not defined.");
 #endif
-
 	ll ret = 1;
 	while(n != 0) {
 		if(n % 2) {
@@ -26,6 +25,7 @@ ll mod_pow(ll a, ll n) {
 // mod_pow ここまで
 
 // mod_comb ここから
+// modを取りつつ二項係数を計算する関数を返す
 auto make_mod_comb() {
 #ifndef MODNUM
 	static_assert(false, "MODNUM is not defined.");
@@ -33,7 +33,6 @@ auto make_mod_comb() {
 #ifndef MOD
 	static_assert(false, "MOD() is not defined.");
 #endif
-
 	const int COMB_MAX = 10000000;
 	vector<ll> fact(COMB_MAX);
 	vector<ll> fact_inv(COMB_MAX);

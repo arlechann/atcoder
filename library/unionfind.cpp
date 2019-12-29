@@ -2,6 +2,7 @@
 #include <numeric>
 #include <vector>
 
+// UnionFind(disjoint set)
 class UnionFind {
 	std::vector<size_t> parents;
 	std::vector<size_t> rank;
@@ -11,6 +12,7 @@ class UnionFind {
 		std::iota(this->parents.begin(), this->parents.end(), 0);
 	}
 
+	// 併合
 	bool merge(size_t a, size_t b) {
 		size_t ar = this->root(a);
 		size_t br = this->root(b);
@@ -27,6 +29,7 @@ class UnionFind {
 	}
 	bool unite(size_t a, size_t b) { return this->merge(a, b); }
 
+	// 同集合か判定
 	bool is_same(size_t a, size_t b) { return this->root(a) == this->root(b); }
 	bool is_union(size_t a, size_t b) { return this->is_same(a, b); }
 
@@ -40,6 +43,7 @@ class UnionFind {
 	}
 };
 
+// 重み付きUnionFind
 template <typename T = int>
 class WeightedUnionFind {
 	std::vector<size_t> parents;
@@ -53,6 +57,7 @@ class WeightedUnionFind {
 		std::iota(this->parents.begin(), this->parents.end(), 0);
 	}
 
+	// 併合
 	bool merge(size_t a, size_t b, T w) {
 		size_t ar = this->root(a);
 		size_t br = this->root(b);
@@ -73,9 +78,11 @@ class WeightedUnionFind {
 	}
 	bool unite(size_t a, size_t b, T w) { return this->merge(a, b, w); }
 
+	// 同集合か判定
 	bool is_same(size_t a, size_t b) { return this->root(a) == this->root(b); }
 	bool is_union(size_t a, size_t b) { return this->is_same(a, b); }
 
+	// 二要素感の距離(同集合に属していなければboost::none)
 	boost::optional<T> diff(size_t a, size_t b) {
 		if(!this->is_same(a, b)) {
 			return boost::none;

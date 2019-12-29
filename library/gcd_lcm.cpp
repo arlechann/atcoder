@@ -4,6 +4,7 @@ using namespace std;
 
 // lcm ここから
 // gcd ここから
+// 最大公約数を返す
 template <typename T>
 T gcd(T a, T b) {
 	if(a < b) {
@@ -21,6 +22,7 @@ T gcd(T a, T b) {
 }
 // gcd ここまで
 
+// 最小公倍数を返す
 template <typename T>
 T lcm(T a, T b) {
 	return a * b / gcd(a, b); // オーバーフロー注意

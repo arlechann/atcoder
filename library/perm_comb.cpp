@@ -14,6 +14,7 @@ using VI = vector<int>;
 using VI2D = vector<vector<int>>;
 
 // permutation ここから
+// 順列
 ll permutation(int n, int k) {
 	if(n < k || n < 0 || k < 0) {
 		return 0LL;
@@ -26,12 +27,12 @@ ll permutation(int n, int k) {
 // premutation ここまで
 
 // ALL_PERM ここから
+// 引数の関数にすべての順列を渡して実行する 実行した関数がtrueを返すと打ち切る
 #define ALL_PERM(v, lambda)                     \
 	call_with_all_permutations(v, [&](auto v) { \
 		lambda;                                 \
 		return false;                           \
 	})
-
 template <typename T, typename F>
 void call_with_all_permutations(T a, F proc) {
 #ifndef ALL
@@ -63,6 +64,7 @@ T gcd(T a, T b) {
 	return b;
 }
 
+// 二項係数
 ll combination(int n, int r) {
 	if(n < r || n < 0 || r < 0) {
 		return 0LL;

@@ -15,10 +15,13 @@ int roundup_pow2(int n) {
 	return 1 << i;
 }
 
+// セグメント木(一点更新、区間取得)
 template <typename T>
 class SegmentTree {
 	using F = function<T(T, T)>;
+	// 二項演算
 	F merge;
+	// 単位元
 	T identity;
 	vector<T> tree;
 	size_t size;
@@ -35,9 +38,11 @@ class SegmentTree {
 			this->tree[i] = this->apply(i);
 		}
 	}
+	// モノイド(Z,+)
 	SegmentTree(const vector<T> a)
 		: SegmentTree(a, [](T a, T b) { return a + b; }, 0) {}
 
+	// 更新 指定がなければ置き換え
 	void update(const size_t index, const T value, const F f = [](T a, T b) {
 		return b;
 	}) {
@@ -49,8 +54,10 @@ class SegmentTree {
 		}
 	}
 
+	// 一点取得
 	T find(const size_t index) { return this->tree[index + size - 1]; }
 
+	// 区間取得
 	T find(const size_t query_left, const size_t query_right) const {
 		return this->find_impl(query_left, query_right, 0, 0, this->size);
 	}

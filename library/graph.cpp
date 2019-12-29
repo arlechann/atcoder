@@ -10,6 +10,7 @@ const int INF = 2e9;
 
 using Weight = int;
 
+// 辺
 struct Edge {
 	size_t from;
 	size_t to;
@@ -19,6 +20,7 @@ struct Edge {
 	bool operator<(const Edge& rhs) const { return this->cost > rhs.cost; }
 };
 
+// グラフ G=(V,E)
 struct Graph {
 	size_t node;
 	std::vector<std::vector<Edge>> edges;
@@ -26,6 +28,7 @@ struct Graph {
 	Graph(size_t n) : node(n), edges(n) {}
 };
 
+// 最短経路探索(非負閉路)
 std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
 	size_t n = graph.node;
 	std::vector<bool> used(n, false);
@@ -49,12 +52,11 @@ std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
 			}
 		}
 	}
-
 	return distances;
 }
-
 // dijkstra ここまで
 
+// 最小全域木
 std::pair<Weight, Graph> prim(const Graph& graph, size_t s) {
 	size_t n = graph.node;
 	std::vector<bool> used(n, false);
@@ -83,5 +85,4 @@ std::pair<Weight, Graph> prim(const Graph& graph, size_t s) {
 
 	return std::pair<Weight, Graph>(total, mst);
 }
-
 // prim ここまで
