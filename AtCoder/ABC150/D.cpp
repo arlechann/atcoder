@@ -63,13 +63,39 @@ inline int toInt(string s) {
 	return v;
 }
 
-set<ll> solve(set<ll>& p, int index, vector<set<ll>>& sets) {
-	if(index == sets.size()) {
-		return p;
+// lcm ここから
+// gcd ここから
+// 最大公約数を返す
+template <typename T>
+T gcd(T a, T b) {
+	if(a < b) {
+		swap(a, b);
 	}
-	set<ll> ret;
-	set_intersection(ALL(p), ALL(sets[index]), inserter(ret, ret.end()));
-	return solve(ret, index + 1, sets);
+
+	T r = a % b;
+	while(r != 0) {
+		a = b;
+		b = r;
+		r = a % b;
+	}
+
+	return b;
+}
+// gcd ここまで
+
+// 最小公倍数を返す
+template <typename T>
+T lcm(T a, T b) {
+	return a / gcd(a, b) * b;
+}
+// lcm ここまで
+
+int div_num(int n) {
+	int i;
+	for(i = 0; !(n & 1); i++) {
+		n >>= 1;
+	}
+	return i;
 }
 
 int main() {
@@ -77,27 +103,15 @@ int main() {
 	scanf("%d %d", &n, &m);
 	vector<ll> a(n);
 	EACH(e, a) { scanf("%lld", &e); }
-	sort(ALL(a), greater<ll>());
-	a.erase(unique(ALL(a)), a.end());
-	EACH(e, a) { printf("%d ", e); }
-	putchar('\n');
-	vector<set<ll>> multiples(a.size());
-	REP(i, a.size()) {
-		int j = 0;
-		while(true) {
-			if(static_cast<ll>(a[i] * (j + 0.5)) > m) {
-				break;
-			}
-			multiples[i].insert(a[i] * (j + 0.5));
-			j++;
+	int d = div_num(a[0]);
+	EACH(e, a) {
+		if(div_num(e) != d) {
+			puts("0");
+			return 0;
 		}
-		EACH(e, multiples[i]) { printf("%d ", e); }
-		putchar('\n');
 	}
-
-	set<ll> result = solve(multiples[0], 0, multiples);
-	EACH(e, result) { printf("%d ", e); }
-	putchar('\n');
-	printf("%ld\n", result.size());
+	ll l = accumulate(ALL(a), 1LL, lcm<ll>) / 2LL;
+	ll result = (m / l + 1LL) / 2LL;
+	printf("%lld\n", result);
 	return 0;
 }
