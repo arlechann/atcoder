@@ -25,6 +25,6 @@ T gcd(T a, T b) {
 // 最小公倍数を返す
 template <typename T>
 T lcm(T a, T b) {
-	return a * b / gcd(a, b); // オーバーフロー注意
+	return a / gcd(a, b) * b;
 }
 // lcm ここまで
