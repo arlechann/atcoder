@@ -51,6 +51,16 @@ int sign(double x) {
 }
 
 template <typename T>
+void chmax(T& m, T x) {
+	m = std::max(m, x);
+}
+
+template <typename T>
+void chmin(T& m, T x) {
+	m = std::min(m, x);
+}
+
+template <typename T>
 T square(T x) {
 	return x * x;
 }
