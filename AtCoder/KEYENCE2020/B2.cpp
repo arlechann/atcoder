@@ -24,8 +24,7 @@
 #define AALL(a, n) (a), ((a) + (n))
 #define FILL(a, n) memset((a), n, sizeof(a))
 #define FILLZ(a) FILL(a, 0)
-#define INT(x) (static_cast<int>(x))
-#define MODNUM (INT(1e9 + 7))
+#define MODNUM (static_cast<int>(1e9 + 7))
 #define MOD(x) ((x) % MODNUM)
 
 using namespace std;
@@ -73,6 +72,39 @@ inline int toInt(string s) {
 	return v;
 }
 
+struct Interval {
+	int s;
+	int e;
+	Interval() {}
+	Interval(int s, int e) : s(s), e(e) {}
+};
+
+bool operator<(const Interval& lhs, const Interval& rhs) {
+	return lhs.e < rhs.e;
+}
+
+std::vector<Interval> interval_scheduling(std::vector<Interval> intervals) {
+	std::vector<Interval> schedule;
+	sort(intervals.begin(), intervals.end());
+	int time = -INF;
+	for(Interval i : intervals) {
+		if(i.s >= time) {
+			schedule.push_back(i);
+			time = i.e;
+		}
+	}
+	return schedule;
+}
+
 int main() {
+	int n;
+	scanf("%d", &n);
+	VI x(n);
+	VI l(n);
+	REP(i, n) { scanf("%d %d", &x[i], &l[i]); }
+	vector<Interval> intervals(n);
+	REP(i, n) { intervals[i] = Interval(x[i] - l[i], x[i] + l[i]); }
+	vector<Interval> schedule = interval_scheduling(intervals);
+	printf("%d\n", schedule.size());
 	return 0;
 }
