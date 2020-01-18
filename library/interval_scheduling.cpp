@@ -21,7 +21,7 @@ std::vector<Interval> interval_scheduling(std::vector<Interval> intervals) {
 	sort(intervals.begin(), intervals.end());
 	int time = -INF;
 	for(Interval i : intervals) {
-		if(i.s >= time) {
+		if(i.s >= time) { // 端点の重複を許可
 			schedule.push_back(i);
 			time = i.e;
 		}
