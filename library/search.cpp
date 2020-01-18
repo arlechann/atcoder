@@ -8,8 +8,6 @@ using namespace std;
 
 const double EPS = 1e-10;
 
-// gs_search ここから
-// bin_search ここから
 // 終了判定
 template <typename T,
 		  typename enable_if<is_integral<T>::value>::type* = nullptr>
@@ -37,10 +35,10 @@ T bin_search(T left, T right, auto pred) {
 	}
 	return left;
 }
-// bin_search ここまで
 
 // 黄金分割探索
-const double GOLDEN_RATIO = (1 + sqrt(5)) / 2;
+// 凸関数の極値を求める
+const double GOLDEN_RATIO = (1 + sqrt(5)) / 2; // 黄金比
 double gs_search(double left, double right, auto func) {
 	double nl, nr;
 	nl = (left * GOLDEN_RATIO + right) / (GOLDEN_RATIO + 1.0);
@@ -57,19 +55,4 @@ double gs_search(double left, double right, auto func) {
 		}
 	}
 	return nl;
-}
-// gs_search ここまで
-
-int main() {
-	vector<int> v{0, 0, 1, 1, 1, 2, 3, 4, 4, 5};
-	printf("%d\n",
-		   bin_search(0, (int)v.size(), [&](auto x) { return v[x] <= 1; }));
-
-	auto f = [](double x) { return x * x / 3; };
-	printf("%f\n",
-		   f(bin_search(0.0, 1000.0, [&](auto x) { return f(x) < 100.0; })));
-
-	auto g = [](double x) { return -(x * x) + 5.5; };
-	printf("%f\n", g(gs_search(-100.0, 100.0, g)));
-	return 0;
 }

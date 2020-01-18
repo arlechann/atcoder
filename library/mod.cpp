@@ -1,8 +1,7 @@
 #include <vector>
 
-// mod_pow ここから
 long long mod_pow(long long a, long long n, long long mod) {
-	ll ret = 1;
+	long long ret = 1;
 	while(n != 0) {
 		if(n % 2) {
 			ret = (ret * a) % mod;
@@ -11,14 +10,12 @@ long long mod_pow(long long a, long long n, long long mod) {
 	}
 	return ret;
 }
-// mod_pow ここまで
 
 // modの逆元
 long long mod_inv(long long n, long long mod) {
 	return mod_pow(a, mod - 2, mod);
 }
 
-// mod_comb ここから
 // modを取りつつ二項係数を計算する関数を返す
 auto make_mod_comb(long long mod) {
 	const int COMB_MAX = 10000000;
@@ -44,4 +41,3 @@ auto make_mod_comb(long long mod) {
 		return (fact[n] * ((fact_inv[r] * fact_inv[n - r]) % mod)) % mod;
 	};
 }
-// mod_comb ここまで

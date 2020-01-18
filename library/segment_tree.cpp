@@ -1,8 +1,6 @@
 #include <functional>
 #include <vector>
 
-using namespace std;
-
 int roundup_pow2(int n) {
 	if(!(n & (n - 1))) {
 		return n;
@@ -19,7 +17,8 @@ int roundup_pow2(int n) {
 template <typename T>
 class SegmentTree {
 	using F = function<T(T, T)>;
-	// 二項演算
+
+	// 演算
 	F merge;
 	// 単位元
 	T identity;
@@ -42,7 +41,8 @@ class SegmentTree {
 	SegmentTree(const vector<T> a)
 		: SegmentTree(a, [](T a, T b) { return a + b; }, 0) {}
 
-	// 更新 指定がなければ置き換え
+	// 更新
+	// 関数の指定がなければ置き換え
 	void update(const size_t index, const T value, const F f = [](T a, T b) {
 		return b;
 	}) {

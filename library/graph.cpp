@@ -5,9 +5,6 @@
 
 const int INF = 2e9;
 
-// prim ここから
-// dijkstra ここから
-
 using Weight = int;
 
 // 辺
@@ -54,7 +51,6 @@ std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
 	}
 	return distances;
 }
-// dijkstra ここまで
 
 // 最小全域木
 std::pair<Weight, Graph> prim(const Graph& graph, size_t s) {
@@ -85,4 +81,3 @@ std::pair<Weight, Graph> prim(const Graph& graph, size_t s) {
 
 	return std::pair<Weight, Graph>(total, mst);
 }
-// prim ここまで

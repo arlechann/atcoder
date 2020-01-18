@@ -12,8 +12,8 @@ struct Point {
 
 // 迷路探索
 // 予め端は壁にしておく
-const wall = '#';  // 壁
-const space = '.'; // 通路
+const char wall = '#';  // 壁
+const char space = '.'; // 通路
 std::vector<std::vector<int>> bfs(const std::vector<std::vector<char>>& maze,
 								  Point s) {
 	const int h = maze.size();

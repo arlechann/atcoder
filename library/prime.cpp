@@ -7,7 +7,7 @@
 
 // コピペここから
 
-// エラトステネスの篩で生成された数列
+// エラトステネスの篩
 template <typename T>
 std::vector<T> prime_table(T n) {
 	std::vector<T> prime(n, 0);
@@ -99,21 +99,4 @@ std::map<long long, int> factor(long long n, std::vector<long long> prime) {
 	}
 
 	return factor;
-}
-
-// コピペここまで
-
-int main() {
-	for(auto&& e : prime_list(100)) {
-		std::cout << e << std::endl;
-	}
-	for(auto&& e : factor(1000000000LL - 1LL)) {
-		std::cout << e.first << "^" << e.second << std::endl;
-	}
-	for(auto&& e : factor(1000000007LL)) {
-		std::cout << e.first << "^" << e.second << std::endl;
-	}
-	std::cout << std::boolalpha << is_prime(1000000007LL) << std::endl;
-
-	return 0;
 }
