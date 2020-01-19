@@ -2,6 +2,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -9,32 +10,32 @@
 
 // エラトステネスの篩
 template <typename T>
-std::vector<T> prime_table(T n) {
-	std::vector<T> prime(n, 0);
+std::vector<T> sieve_of_eratosthenes(T n) {
+	std::vector<T> sieve(n, 0);
 
 	for(int i = 2; i < n; i++) {
-		prime[i] = i;
+		sieve[i] = i;
 	}
 
 	T i = 2;
 	while(i * i < n) {
-		if(prime[i]) {
+		if(sieve[i]) {
 			for(T j = i * i; j < n; j += i) {
-				prime[j] = 0;
+				sieve[j] = 0;
 			}
 		}
 		i++;
 	}
 
-	return prime;
+	return sieve;
 }
 
 // 素数リスト
 template <typename T>
 std::vector<T> prime_list(T n) {
-	std::vector<T> prime = prime_table(n);
-	prime.erase(std::remove(prime.begin(), prime.end(), 0), prime.end());
-	return prime;
+	std::vector<T> primes = sieve_of_eratosthenes(n);
+	primes.erase(std::remove(primes.begin(), primes.end(), 0), primes.end());
+	return primes;
 }
 
 // 素数判定
@@ -56,9 +57,8 @@ constexpr bool is_prime(int n) {
 }
 
 // 素因数分解
-std::map<long long, int> factor(long long n) {
-	std::map<long long, int> factor;
-
+std::unordered_map<long long, int> factor(long long n) {
+	std::unordered_map<long long, int> factors;
 	{
 		int i = 0;
 		while(n % 2 == 0) {
@@ -66,37 +66,41 @@ std::map<long long, int> factor(long long n) {
 			i++;
 		}
 		if(i != 0) {
-			factor[2] = static_cast<long long>(i);
+			factors[2] = static_cast<long long>(i);
 		}
 	}
-	for(long long i = 3; i <= n; i += 2) {
+	for(long long i = 3; i * i <= n; i += 2) {
 		int j = 0;
 		while(n % i == 0) {
 			n /= i;
 			j++;
 		}
 		if(j != 0) {
-			factor[i] = j;
+			factors[i] = j;
 		}
 	}
-
-	return factor;
+	if(n != 1) {
+		factors[n] = 1;
+	}
+	return factors;
 }
 
 // 素因数分解(素数表を用いる)
-std::map<long long, int> factor(long long n, std::vector<long long> prime) {
-	std::map<long long, int> factor;
-
-	for(int i = 0; static_cast<long long>(prime[i]) <= n; i++) {
+std::unordered_map<long long, int> factor(long long n,
+										  std::vector<long long>& primes) {
+	std::unordered_map<long long, int> factors;
+	for(int i = 0; primes[i] * primes[i] <= n; i++) {
 		int j = 0;
-		while(n % prime[i] == 0) {
-			n /= prime[i];
+		while(n % primes[i] == 0) {
+			n /= primes[i];
 			j++;
 		}
 		if(j != 0) {
-			factor[prime[i]] = j;
+			factors[primes[i]] = j;
 		}
 	}
-
-	return factor;
+	if(n != 1) {
+		factors[n] = 1;
+	}
+	return factors;
 }
