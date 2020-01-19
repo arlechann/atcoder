@@ -1,8 +1,9 @@
 #include <functional>
+#include <map>
+#include <vector>
 
 // 最大公約数を返す
-template <typename T>
-T gcd(T a, T b) {
+long long gcd(long long a, long long b) {
 	if(a < b) {
 		std::swap(a, b);
 	}
@@ -18,7 +19,6 @@ T gcd(T a, T b) {
 }
 
 // 最小公倍数を返す
-template <typename T>
-T lcm(T a, T b) {
+long long lcm(long long a, long long b) {
 	return a / gcd(a, b) * b;
 }
