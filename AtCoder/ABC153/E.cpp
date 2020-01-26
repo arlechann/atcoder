@@ -79,11 +79,16 @@ int main() {
 	VI a(n);
 	VI b(n);
 	REP(i, n) { scanf("%d %d", &a[i], &b[i]); }
-	VI2D dp(n + 1, VI(1, 0));
+	VI2D dp(n + 1, VI(h, INF));
 	REP(i, n) {
-		REP(mp, 1) {}
+		REP(j, h) {
+			if(j >= a[i]) {
+				dp[i + 1][j] = min(dp[i][j], dp[i + 1][j - a[i]] + b[i]);
+			} else {
+				dp[i + 1][j] = min(dp[i][j], b[i]);
+			}
+		}
 	}
-	int result;
-	printf("%d\n", result);
+	printf("%d\n", dp[n][h - 1]);
 	return 0;
 }
