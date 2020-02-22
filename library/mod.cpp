@@ -1,5 +1,7 @@
 #include <vector>
 
+// 繰り返し2乗法
+// 計算量 O(lonN)
 long long mod_pow(long long a, long long n, long long mod) {
 	long long ret = 1;
 	while(n != 0) {
@@ -11,12 +13,37 @@ long long mod_pow(long long a, long long n, long long mod) {
 	return ret;
 }
 
+// modの引き算
+long long mod_sub(long long a, long long b, long long mod) {
+	long long ret = a - b;
+	ret += ret < 0 ? mod : 0;
+	return ret;
+}
+
 // modの逆元
 long long mod_inv(long long n, long long mod) {
 	return mod_pow(n, mod - 2, mod);
 }
 
+// modの割り算
+long long mod_div(long long a, long long b, long long mod) {
+	return a * mod_inv(b, mod) % mod;
+}
+
+// modを取りつつ二項係数を計算する
+// 計算量 O(r)
+long long mod_comb(long long n, long long r, long long mod) {
+	int ret = 1;
+	r = std::min(r, n - r);
+	for(int i = 0; i < r; i++) {
+		ret = (ret * (n - i)) % mod;
+		ret = mod_div(ret, (i + 1), MODNUM);
+	}
+	return ret;
+}
+
 // modを取りつつ二項係数を計算する関数を返す
+// 計算量 前処理:O(n) クエリ:O(1)
 auto make_mod_comb(long long mod) {
 	const int COMB_MAX = 10000000;
 	vector<long long> fact(COMB_MAX);
