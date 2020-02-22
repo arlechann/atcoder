@@ -3,13 +3,30 @@
 #include <iostream>
 #include <vector>
 
+// 繰り返し2乗法
+// 計算量 O(logn)
+template <typename T>
+T pow(T a, int n) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+		}
+		a *= a;
+		n /= 2;
+	}
+	return ret;
+}
+
 // 順列
-long long permutation(int n, int k) {
+// 計算量 O(k)
+template <typename T>
+T permutation(int n, int k) {
 	if(n < k || n < 0 || k < 0) {
-		return 0LL;
+		return T(0);
 	}
 
-	long long ret = 1;
+	T ret = 1;
 	for(int i = 0; i < k; i++) {
 		ret *= n - i;
 	}
@@ -33,21 +50,17 @@ void call_with_all_permutations(T a, F proc) {
 }
 
 // 二項係数
-long long combination(int n, int r) {
+// 計算量 O(r)
+template <typename T>
+T combination(long long n, long long r) {
 	if(n < r || n < 0 || r < 0) {
-		return 0LL;
+		return T(0);
 	}
-	if(n == r || r == 0) {
-		return 1LL;
-	}
-	if(r > n / 2) {
-		r = n - r;
-	}
-
-	long long ret = 1;
-	for(int i = 1; i < r + 1; i++) {
-		ret *= (n - i + 1);
-		ret /= i;
+	T ret = 1;
+	r = std::min(r, n - r);
+	for(int i = 0; i < r; i++) {
+		ret *= (n - i);
+		ret /= i + 1;
 	}
 	return ret;
 }
