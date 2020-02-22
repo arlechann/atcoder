@@ -98,11 +98,12 @@ ll mod_sub(ll a, ll b) {
 }
 
 ll mod_comb(ll n, ll r) {
-	int a = 1;
-	int b = 1;
-	REP(i, r) { a = a * (n - i); }
-	REP(i, r) { b = b * (i + 1); }
-	return a * mod_inv(b, MODNUM);
+	int retval = 1;
+	chmin(r, n - r);
+	REP(i, r) {
+		retval = MOD(MOD(retval * (n - i)) * mod_inv((i + 1), MODNUM));
+	}
+	return retval;
 }
 
 int main() {
