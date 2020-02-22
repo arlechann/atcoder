@@ -13,7 +13,7 @@ long long mod_pow(long long a, long long n, long long mod) {
 
 // modの逆元
 long long mod_inv(long long n, long long mod) {
-	return mod_pow(a, mod - 2, mod);
+	return mod_pow(n, mod - 2, mod);
 }
 
 // modを取りつつ二項係数を計算する関数を返す
