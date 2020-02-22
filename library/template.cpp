@@ -8,12 +8,16 @@
 #include <iostream>
 #include <limits>
 #include <list>
+#include <map>
 #include <numeric>
 #include <queue>
+#include <set>
 #include <sstream>
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -25,8 +29,6 @@
 #define FILL(a, n) memset((a), n, sizeof(a))
 #define FILLZ(a) FILL(a, 0)
 #define INT(x) (static_cast<int>(x))
-#define MODNUM (INT(1e9 + 7))
-#define MOD(x) ((x) % MODNUM)
 
 using namespace std;
 
