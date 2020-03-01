@@ -68,6 +68,18 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+int roundup_pow2(int n) {
+	if(!(n & (n - 1))) {
+		return n;
+	}
+
+	int i = 1;
+	while((n >> i) != 0) {
+		i++;
+	}
+	return 1 << i;
+}
+
 template <typename T>
 class SegmentTree {
 	using F = function<T(T, T)>;
@@ -147,14 +159,34 @@ class SegmentTree {
 	}
 };
 
+int to_bitset(char c) {
+	return 1 << (c - 'a');
+}
+
 int main() {
 	int n;
 	string s;
-	vector<int> v(n);
 	cin >> n >> s;
-	REP(i, n) { v[i] = s[i]; }
-	SegmentTree<char> st();
+	vector<int> v(n);
+	REP(i, n) { v[i] = to_bitset(s[i]); }
+	SegmentTree<int> st(v, [](int a, int b) { return a | b; }, 0);
 	int q;
-
+	cin >> q;
+	VI results;
+	REP(i, q) {
+		int type;
+		cin >> type;
+		if(type == 1) {
+			int iq;
+			char c;
+			cin >> iq >> c;
+			st.update(iq - 1, to_bitset(c));
+		} else {
+			int l, r;
+			cin >> l >> r;
+			results.push_back(__builtin_popcount(st.find(l - 1, r)));
+		}
+	}
+	EACH(e, results) { cout << e << endl; }
 	return 0;
 }
