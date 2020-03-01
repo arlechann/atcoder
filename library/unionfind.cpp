@@ -39,7 +39,7 @@ class UnionFind {
 			return n;
 		}
 
-		return this->root(this->parents[n]);
+		return this->parents[n] = this->root(this->parents[n]);
 	}
 };
 
