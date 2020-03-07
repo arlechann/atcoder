@@ -68,15 +68,21 @@ constexpr T square(T x) {
 	return x * x;
 }
 
-bool check(const int p, const vector<vector<ll>>& v, string s) {
-	int n = s.size() - 1;
-	int sum = 0;
-	REP(i, n) {
-		cout << s.at(n - i) << endl;
-		sum += v[s.at(n - i) - '0'][i];
-		sum %= p;
+// 繰り返し2乗法
+// 計算量 O(logn)
+template <typename T>
+constexpr T pow(T a, int n, int p) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+			ret %= p;
+		}
+		a *= a;
+		a %= p;
+		n /= 2;
 	}
-	return sum == 0;
+	return ret;
 }
 
 int main() {
@@ -84,21 +90,25 @@ int main() {
 	string s;
 	cin >> n >> p;
 	cin >> s;
-	vector<vector<ll>> v(10, vector<ll>(n + 1));
-	REP(i, 10) {
-		v[i][0] = i % p;
-		REP(j, n) {
-			v[i][j + 1] = v[i][j] * 10;
-			v[i][j + 1] %= p;
+	ll result = 0;
+	if(p == 2 || p == 5) {
+		REP(i, n) {
+			if((s[i] - '0') % p == 0) {
+				result += i + 1;
+			}
 		}
-	}
-	int result = 0;
-	REP(i, n + 1) {
-		REP(j, i + 1) {
-			result += static_cast<int>(check(p, v, s.substr(j, i - j)));
+	} else {
+		vector<ll> u(n + 1);
+		unordered_map<int, int> cnt;
+		u[0] = 0;
+		cnt[0] = 1;
+		REP(i, n) {
+			u[i + 1] = u[i] + (s[n - i - 1] - '0') * pow(10, i, p);
+			u[i + 1] %= p;
+			result += cnt[u[i + 1]];
+			cnt[u[i + 1]]++;
 		}
 	}
 	cout << result << endl;
-	;
 	return 0;
 }
