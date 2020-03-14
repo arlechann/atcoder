@@ -69,8 +69,15 @@ constexpr T square(T x) {
 }
 
 int main() {
-	int a, b, c;
+	ll a, b, c;
 	cin >> a >> b >> c;
-	cout << (sqrtl(a) + sqrtl(b) < sqrtl(c) ? "Yes" : "No") << endl;
+	ll ab = 4 * a * b;
+	ll cab = square(c - a - b);
+	bool check = c - a - b > 0;
+	if(check && ab < cab) {
+		cout << "Yes" << endl;
+	} else {
+		cout << "No" << endl;
+	}
 	return 0;
 }
