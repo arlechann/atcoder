@@ -72,6 +72,10 @@ constexpr T square(T x) {
 int main() {
 	ull h, w;
 	cin >> h >> w;
+	if(h == 1 || w == 1) {
+		cout << 1 << endl;
+		return 0;
+	}
 	cout << (h * w + 1ULL) / 2ULL << endl;
 	return 0;
 }
