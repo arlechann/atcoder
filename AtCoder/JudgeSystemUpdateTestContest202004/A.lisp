@@ -1,0 +1,8 @@
+(let ((s (read))
+      (l (read))
+      (r (read)))
+  (if (and (<= l s) (<= s r))
+      (princ s)
+      (if (< s l)
+          (princ l)
+          (princ r))))
