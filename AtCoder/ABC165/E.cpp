@@ -71,27 +71,28 @@ constexpr T square(T x) {
 int main() {
 	int n, m;
 	cin >> n >> m;
-	vector<bool> used(n, false);
 	vector<pair<int, int>> pairs;
-	int left = m;
+	int left = m / 2 - 1;
+	int right = -1;
 	int i = 0;
 	while(true) {
-		left--;
-		// cout << "left: " << left << ", right: " << (left + i * 2 + 1) % n
-		//	 << endl;
-		int dr = (i * 2 + 1) % n;
-		int dl = left + (n - (left + i * 2 + 1));
-		while(used[dr] || used[dl]) {
-			i++;
-			dr = i * 2 + 1;
-			dl = left + (n - (left + i * 2 + 1));
-		}
-		used[dr] = used[dl] = true;
-		pairs.push_back(make_pair(left, (left + i * 2 + 1) % n));
-		if(left == 0) {
+		if(left < 0) {
 			break;
 		}
 		i++;
+		pairs.push_back(make_pair(left, left + i * 2));
+		right = left + i * 2;
+		left--;
+	}
+	left = right + ((m + 1) / 2);
+	i = 0;
+	while(true) {
+		if(left <= right) {
+			break;
+		}
+		i++;
+		pairs.push_back(make_pair(left, left + i * 2 - 1));
+		left--;
 	}
 	REP(i, m) {
 		cout << pairs[i].first + 1 << " " << pairs[i].second + 1 << endl;
