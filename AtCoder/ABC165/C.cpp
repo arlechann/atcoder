@@ -68,13 +68,32 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+int n, m, q;
+
+int solve(VI& a, VI& b, VI& c, VI& d, VI A, int i, int x) {
+	int result = 0;
+	if(i == n) {
+		REP(i, q) {
+			if(A[b[i] - 1] - A[a[i] - 1] == c[i]) {
+				result += d[i];
+			}
+		}
+		return result;
+	}
+	if(i != -1) {
+		A.push_back(x);
+	}
+	RANGE(j, x, m) { chmax(result, solve(a, b, c, d, A, i + 1, j)); }
+	return result;
+}
+
 int main() {
-	int n, m, q;
 	cin >> n >> m >> q;
 	VI a(q);
 	VI b(q);
 	VI c(q);
 	VI d(q);
 	REP(i, q) { cin >> a[i] >> b[i] >> c[i] >> d[i]; }
+	cout << solve(a, b, c, d, VI(), -1, 0) << endl;
 	return 0;
 }
