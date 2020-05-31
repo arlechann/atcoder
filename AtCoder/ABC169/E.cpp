@@ -79,32 +79,17 @@ struct interval {
 int main() {
 	int n;
 	cin >> n;
-	vector<pair<int, int>> ab(n);
-	vector<interval> intervals(n);
-	REP(i, n){
-		int a, b;
-		cin >> a >> b;
-		ab[i] = make_pair(a, b);
-		intervals[i] = interval(i, a, b);
-	}
+	VI a(n);
+	VI b(n);
+	REP(i, n) { cin >> a[i] >> b[i]; }
 
-	VI left_begin(n);
-	VI left_end(n);
-
-	sort(ALL(intervals), [](interval x, interval y){ return x.a < y.a; });
-	REP(i, n){
-		left_begin[i] = intervals[i].n;
-	}
-	sort(ALL(intervals), [](interval x, interval y){ return x.b < y.b; });
-	REP(i, n){
-		left_end[i] = intervals[i].n;
-	}
-
+	sort(ALL(a));
+	sort(ALL(b));
 	int result;
 	if(n % 2) {
-		result = ab[left_end[n / 2]].second - ab[left_begin[n / 2]].first + 1;
-	}else{
-		result = (ab[left_begin[(n + 1) / 2]].first + ab[left_begin[n / 2]].first) - (ab[left_end[(n + 1) / 2]].second - ab[left_end[n / 2]].second) - 1;
+		result = b[n / 2] - a[n / 2] + 1;
+	} else {
+		result = (b[n / 2] + b[(n - 1) / 2]) - (a[n / 2] + a[(n - 1) / 2]) + 1;
 	}
 
 	cout << result << endl;
