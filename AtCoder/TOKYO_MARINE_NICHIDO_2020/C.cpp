@@ -84,12 +84,17 @@ int main() {
 		VI b(n + 1, 0);
 		REP(j, n) {
 			b[max(j - a[j], 0)]++;
-			b[min(j + a[j] + 1, n + 1)]--;
+			b[min(j + a[j] + 1, n)]--;
 		}
 		int tmp = 0;
+		bool end = true;
 		REP(j, n) {
 			tmp += b[j];
 			a[j] = tmp;
+			end = end && a[j] == n;
+		}
+		if(end) {
+			break;
 		}
 	}
 
