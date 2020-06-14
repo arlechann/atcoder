@@ -73,8 +73,22 @@ int main() {
 	cin >> n;
 	VI a(n);
 	REP(i, n) { cin >> a[i]; }
-	unordered_set<int> s1, s2;
+	sort(ALL(a));
+	vector<bool> is_used(1000001, false);
 	int result = 0;
-	cout << result << endl;
+	int duplicate = 0;
+	REP(i, n) {
+		if(is_used[a[i]]) {
+			continue;
+		}
+		result++;
+		if(i < n - 1 && a[i] == a[i + 1]) {
+			duplicate++;
+		}
+		for(int j = 1; j * a[i] < 1000001; j++) {
+			is_used[j * a[i]] = true;
+		}
+	}
+	cout << result - duplicate << endl;
 	return 0;
 }
