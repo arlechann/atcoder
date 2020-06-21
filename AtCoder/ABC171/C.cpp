@@ -68,6 +68,21 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+// 繰り返し2乗法
+// 計算量 O(logn)
+template <typename T>
+constexpr T pow(T a, int n) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+		}
+		a *= a;
+		n /= 2;
+	}
+	return ret;
+}
+
 const ll first[] = {
 	1LL,
 	27LL,
@@ -81,26 +96,15 @@ const ll first[] = {
 	5646683826135LL,
 };
 
-string solve(int n, int i) {
-	if(i < 0) {
-		return string("");
-	}
-	char s[2];
-	s[1] = '\0';
-	s[0] = (n / first[i]) + 'a';
-	return string(s) + solve(n % first[i], i - 1);
-}
-
 int main() {
 	ll n;
 	cin >> n;
-	int i;
-	for(i = 9; i >= 0; i--) {
-		if(n >= first[i]) {
-			break;
-		}
+	string result = "";
+	while(n) {
+		n--;
+		result = string(1, n % 26 + 'a') + result;
+		n /= 26;
 	}
-	char s[2] = {static_cast<char>((n / first[i]) + 'a' - 1), '\0'};
-	cout << string(s) + solve(n % first[i], i - 1) << endl;
+	cout << result << endl;
 	return 0;
 }
