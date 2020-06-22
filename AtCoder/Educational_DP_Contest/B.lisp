@@ -55,10 +55,10 @@
                       if (minus-char-p b)
                         do (setf minus-p t))))
         (declare (boolean minus-p) (fixnum x))
-        (the fixnum (loop for b = (%read-byte)
-                          and y = x then (+ (* y 10) (to-number b))
-                          unless (number-char-p b)
-                            return (funcall (if minus-p #'- #'+) y)))))))
+        (loop for b = (%read-byte)
+              and y = x then (+ (* y 10) (to-number b))
+              unless (number-char-p b)
+                return (the fixnum (funcall (if minus-p #'- #'+) y)))))))
 
 (defun split (x str &optional (acc nil))
   (let ((pos (search x str))
@@ -77,4 +77,26 @@
   `(let ((y ,x))
     (format t "~A: ~A~%" ',x y)
     y))
+
+(defun make-solve (n k h)
+  (let ((dp (make-array n :initial-element nil)))
+    (setf (aref dp 0) 0)
+    (labels ((solve (pos)
+               (let ((memo (aref dp pos)))
+                 (if memo
+                     memo
+                     (let ((ret (loop for i from 1 to k
+                                      if (>= (- pos i) 0)
+                                        minimize (+ (solve (- pos i))
+                                                    (abs (- (aref h pos) (aref h (- pos i))))))))
+                       (setf (aref dp pos) ret)
+                       ret)))))
+      #'solve)))
+
+(let* ((n (read))
+       (k (read))
+       (h (make-array n :adjustable t :fill-pointer 0)))
+  (dotimes (i n)
+    (vector-push (read-integer) h))
+  (format t "~A~%" (funcall (make-solve n k h) (1- n))))
 
