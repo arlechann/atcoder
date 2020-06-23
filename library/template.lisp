@@ -15,7 +15,22 @@
 (eval-when (:compile-toplevel)
   #-swank (proclaim '(optimize (speed 3) (debug 0) (safety 0))))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (labels ((array-reference-reader (stream c n)
+             "Reader macro #&(array index) => (aref array index)"
+             (declare (ignore c n))
+             (let ((list (read stream)))
+               `(aref ,(car list) ,@(cdr list)))))
+    (setf *readtable* (copy-readtable))
+    (set-dispatch-macro-character #\# #\& #'array-reference-reader)))
+
 (defconstant mod-number 1000000007)
+
+(defmacro let-if (var cond tbody &optional fbody)
+  `(let ((,var ,cond))
+     (if ,var
+         ,tbody
+         ,fbody)))
 
 (defun unfold (p f g seed &optional (tail-gen (lambda () '())))
   (if (p seed)
@@ -77,4 +92,19 @@
   `(let ((y ,x))
     (format t "~A: ~A~%" ',x y)
     y))
+
+(defmacro defdp (name args &body body)
+  (let ((argc (length args)))
+    `(let ((dp (make-hash-table :test #'equal)))
+       (defun ,name ,args
+         (let-if memo (gethash ,@(if (= argc 1)
+                                     args
+                                     `((list ,@args)))
+                               dp)
+                 memo
+                 (setf (gethash ,@(if (= argc 1)
+                                      args
+                                      `((list ,@args)))
+                                dp)
+                       ,@body))))))
 
