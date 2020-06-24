@@ -25,6 +25,7 @@
     (set-dispatch-macro-character #\# #\& #'array-reference-reader)))
 
 (defconstant mod-number 1000000007)
+(defconstant inf 2000000000)
 
 (defmacro let-if (var cond tbody &optional fbody)
   `(let ((,var ,cond))
@@ -104,3 +105,26 @@
                    (setf (gethash ,key dp)
                          (progn ,@body))))))))
 
+(defparameter n (read-integer))
+(defparameter w-max (read-integer))
+(defparameter w (make-array n :element-type 'fixnum))
+(defparameter v (make-array n :element-type 'fixnum))
+(dotimes (i n)
+  (setf #&(w i) (read-integer))
+  (setf #&(v i) (read-integer)))
+
+(defdp solve ()
+  (let ((dp (make-array '(100 100000) :element-type 'fixnum)))
+    (dotimes (i n)
+      (dotimes (j (1+ w-max))
+        (setf #&(dp i j)
+              (max (+ (cond ((< (- j #&(w i)) 0) (- inf))
+                            ((= i 0) 0)
+                            (t #&(dp (1- i) (- j #&(w i)))))
+                      #&(v i))
+                   (if (= i 0)
+                       0
+                       #&(dp (1- i) j))))))
+    #&(dp (1- n) w-max)))
+
+(format t "~A~%" (the fixnum (solve)))
