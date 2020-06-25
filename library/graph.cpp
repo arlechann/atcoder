@@ -25,6 +25,34 @@ struct Graph {
 	Graph(size_t n) : node(n), edges(n) {}
 };
 
+// トポロジカルソート
+std::vector<int> topological_sort(std::vector<std::vector<int>> edges,
+								  std::vector<int> indegrees) {
+	int n = edges.size();
+	std::vector<int> sorted;
+	std::vector<bool> is_used(n, false);
+	std::queue<int> q;
+	for(int i = 0; i < n; i++) {
+		if(indegrees[i] == 0) {
+			q.push(i);
+		}
+	}
+
+	while(!q.empty()) {
+		int node = q.front();
+		q.pop();
+		sorted.push_back(node);
+		is_used[node] = true;
+		for(int& e : edges[node]) {
+			indegrees[e]--;
+			if(!is_used[e] && indegrees[e] == 0) {
+				q.push(e);
+			}
+		}
+	}
+	return sorted;
+}
+
 // 最短経路探索(非負閉路)
 std::vector<Weight> dijkstra(const Graph& graph, const size_t s) {
 	size_t n = graph.node;
