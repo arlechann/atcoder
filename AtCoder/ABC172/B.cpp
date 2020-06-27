@@ -71,5 +71,12 @@ constexpr T square(T x) {
 }
 
 int main() {
+	string s, t;
+	cin >> s;
+	cin >> t;
+	int n = s.size();
+	int result = 0;
+	REP(i, n) { result += s[i] == t[i] ? 0 : 1; }
+	cout << result << endl;
 	return 0;
 }

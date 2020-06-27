@@ -70,6 +70,51 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+// エラトステネスの篩
+template <typename T>
+std::vector<T> sieve_of_eratosthenes(T n) {
+	std::vector<T> sieve(n, 0);
+
+	for(int i = 2; i < n; i++) {
+		sieve[i] = i;
+	}
+
+	T i = 2;
+	while(i * i < n) {
+		if(sieve[i]) {
+			for(T j = i * i; j < n; j += i) {
+				sieve[j] = 0;
+			}
+		}
+		i++;
+	}
+
+	return sieve;
+}
+
+// 素数リスト
+template <typename T>
+std::vector<T> prime_list(T n) {
+	std::vector<T> primes = sieve_of_eratosthenes(n);
+	primes.erase(std::remove(primes.begin(), primes.end(), 0), primes.end());
+	return primes;
+}
+
+int memo[10000001];
+int fill_memo(VI& primes, int& n, int x, int i) {
+	int j = i;
+	while(x * primes[j] <= n) {
+		memo[x * primes[j]] = memo[x] + 1;
+		fill_memo(primes, n, x * primes[j], j);
+		j++;
+	}
+}
+
 int main() {
-	return 0;
+	int n;
+	cin >> n;
+	VI primes = prime_list(n + 100);
+	fill_memo(primes, n, 1, 0);
+	memo[1] = 1;
+	REP(i, n) { cout << memo[i] << endl; }
 }

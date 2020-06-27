@@ -71,5 +71,29 @@ constexpr T square(T x) {
 }
 
 int main() {
+	int n, m, k;
+	cin >> n >> m >> k;
+	VI a(n);
+	VI b(m);
+	REP(i, n) { cin >> a[i]; }
+	REP(i, m) { cin >> b[i]; }
+	vector<ll> as(n + 1);
+	vector<ll> bs(m + 1);
+	as[0] = bs[0] = 0;
+	REP(i, n) { as[i + 1] = as[i] + a[i]; }
+	REP(i, m) { bs[i + 1] = bs[i] + b[i]; }
+	int j = m;
+	int result = 0;
+	REP(i, n + 1) {
+		while(as[i] + bs[j] > k && j >= 0) {
+			j--;
+		}
+		if(j < 0) {
+			continue;
+		}
+		chmax(result, i + j);
+	}
+
+	cout << result << endl;
 	return 0;
 }

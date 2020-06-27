@@ -71,5 +71,8 @@ constexpr T square(T x) {
 }
 
 int main() {
+	int a;
+	cin >> a;
+	cout << a + a * a + a * a * a << endl;
 	return 0;
 }
