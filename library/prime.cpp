@@ -8,6 +8,22 @@
 
 // コピペここから
 
+// 約数列挙
+template <typename T>
+std::vector<T> divisor(T n) {
+	std::vector<T> divisors;
+	for(T i = 1; i * i <= n; i++) {
+		if(n % i != 0) {
+			continue;
+		}
+		divisors.push_back(i);
+		if(i * i != n) {
+			divisors.push_back(n / i);
+		}
+	}
+	return divisors;
+}
+
 // エラトステネスの篩
 template <typename T>
 std::vector<T> sieve_of_eratosthenes(T n) {
