@@ -112,30 +112,72 @@ int main() {
 
 	VI results(n_max + 1, 0);
 	RANGE(i, 1, n_max + 1) {
-		int y = i;
 		int j = 0;
+		int k = i;
 		while(true) {
 			j++;
-			if((y %= __builtin_popcount(y)) == 0) {
+			if((k %= __builtin_popcount(k)) == 0) {
 				results[i] = j;
 				break;
 			}
-			// if(results[y] != 0) {
-			// 	results[i] = results[y] + j;
-			// 	break;
-			// }
+			if(results[k] != 0) {
+				results[i] = results[k] + j;
+				break;
+			}
+		}
+	}
+
+	vector<vector<ll>> pow_table(2, vector<ll>(n_max + 1, 0));
+	int x_pcount = popcount(x);
+	REP(i, 2) {
+		REP(j, n_max + 1) {
+			if(j == 0) {
+				pow_table[i][0] = 1;
+				continue;
+			}
+			pow_table[i][j] = pow_table[i][j - 1] * 2;
+			if((x_pcount == 1 && i == 0) || (x_pcount == 0 && i == 0)) {
+				/* do nothing */;
+			} else {
+				pow_table[i][j] %= (x_pcount + (i == 0 ? -1 : 1));
+			}
+		}
+	}
+
+	int x_mod_pcount_minus1 = 0;
+	int modnum_pcount_minus1 = (x_pcount == 1) ? 1 : x_pcount - 1;
+	int x_mod_pcount_plus1 = 0;
+
+	if(x_pcount != 0) {
+		REP(i, n) {
+			if(x[n - (i + 1)] == '1') {
+				x_mod_pcount_minus1 += pow_table[0][i];
+				x_mod_pcount_minus1 %= modnum_pcount_minus1;
+			}
+		}
+	}
+	REP(i, n) {
+		if(x[n - (i + 1)] == '1') {
+			x_mod_pcount_plus1 += pow_table[1][i];
+			x_mod_pcount_plus1 %= x_pcount + 1;
 		}
 	}
 
 	REP(i, n) {
-		string xx = x;
-		if(xx[i] == '1') {
-			xx[i] = '0';
+		if(x[i] == '1') {
+			if(x_pcount == 1) {
+				cout << 0 << endl;
+			} else {
+				int index = (x_mod_pcount_minus1 - pow_table[0][n - (i + 1)]) %
+							modnum_pcount_minus1;
+				index += index < 0 ? (modnum_pcount_minus1) : 0;
+				cout << results[index] + 1 << endl;
+			}
 		} else {
-			xx[i] = '1';
+			int index = (x_mod_pcount_plus1 + pow_table[1][n - (i + 1)]) %
+						(x_pcount + 1);
+			cout << results[index] + 1 << endl;
 		}
-		int xxx = big_mod(xx, popcount(xx));
-		cout << results[xxx] + 1 << endl;
 	}
 
 	return 0;
