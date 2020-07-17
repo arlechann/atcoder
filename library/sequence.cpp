@@ -3,8 +3,8 @@
 #include <vector>
 
 template <typename T>
-std::unordered_map<size_t, T> group_count(std::vector<T>& v) {
-	std::unordered_map<size_t, T> c;
+std::unordered_map<T, size_t> group_count(std::vector<T>& v) {
+	std::unordered_map<T, size_t> c;
 	for(T& e : v) {
 		c[e]++;
 	}
