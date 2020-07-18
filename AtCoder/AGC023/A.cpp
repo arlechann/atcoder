@@ -35,10 +35,10 @@
 using namespace std;
 
 using ll = long long;
-using VI = std::vector<int>;
-using VI2D = std::vector<vector<int>>;
-using VLL = std::vector<long long>;
-using VLL2D = std::vector<vector<long long>>;
+using VI = vector<int>;
+using VI2D = vector<vector<int>>;
+using VLL = vector<long long>;
+using VLL2D = vector<vector<long long>>;
 
 constexpr int INF = 2e9;
 constexpr double EPS = 1e-10;
@@ -72,6 +72,33 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+template <typename T>
+std::unordered_map<T, size_t> group_count(std::vector<T>& v) {
+	std::unordered_map<T, size_t> c;
+	for(T& e : v) {
+		c[e]++;
+	}
+	return c;
+}
+
 int main() {
+	int n;
+	cin >> n;
+	VLL a(n);
+	REP(i, n) { cin >> a[i]; }
+
+	VLL s(n);
+	REP(i, n) { s[i] = (i == 0 ? 0 : s[i - 1]) + a[i]; }
+	std::unordered_map<ll, size_t> group = group_count(s);
+	ll result = 0;
+	EACH(e, group) {
+		if(e.first == 0) {
+			result += e.second * (e.second - 1) / 2 + e.second;
+		} else {
+			result += e.second * (e.second - 1) / 2;
+		}
+	}
+
+	cout << result << endl;
 	return 0;
 }
