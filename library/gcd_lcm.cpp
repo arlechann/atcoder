@@ -8,7 +8,7 @@ constexpr long long gcd(long long a, long long b) {
 		std::swap(a, b);
 	}
 
-	T r = a % b;
+	long long r = a % b;
 	while(r != 0) {
 		a = b;
 		b = r;
