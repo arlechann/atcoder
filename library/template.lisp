@@ -32,6 +32,13 @@
          ,tbody
          ,fbody)))
 
+(defmacro named-let (name binds &body body)
+  (let ((params (mapcar #'car binds))
+        (args (mapcar #'cadr binds)))
+    `(labels ((,name (,@params)
+                ,@body))
+       (,name ,@args))))
+
 (defun unfold (p f g seed &optional (tail-gen (lambda () '())))
   (if (p seed)
       (tail-gen seed)
