@@ -75,5 +75,18 @@ constexpr T square(T x) {
 int main() {
 	int k;
 	cin >> k;
+	VI count(k + 1, 0);
+	int x = 0;
+	RANGE(i, 1, k + 1) {
+		x = (x * 10 + 7) % k;
+		if(x == 0) {
+			cout << i << endl;
+			return 0;
+		}
+		if(count[x] > 0) {
+			break;
+		}
+	}
+	cout << -1 << endl;
 	return 0;
 }
