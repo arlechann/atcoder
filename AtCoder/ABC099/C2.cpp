@@ -108,5 +108,36 @@ constexpr T square(T x) {
 }
 
 int main() {
+	int n;
+	cin >> n;
+	VI operations = make_vector(0, 0);
+	operations.push_back(1);
+	operations.push_back(6);
+	int tmp;
+	for(int i = 1; (tmp = *(operations.end() - 1) * 6) < 100001; i++) {
+		operations.push_back(tmp);
+	}
+	operations.push_back(9);
+	for(int i = 1; (tmp = *(operations.end() - 1) * 9) < 100001; i++) {
+		operations.push_back(tmp);
+	}
+	sort(ALL(operations));
+	int m = operations.size();
+
+	vector<vector<int>> dp =
+		make_vector({n + 1, m + 1}, INF); // dp[合計][使える引き出し操作]
+	REP(i, m + 1) { dp[0][i] = 0; }
+	REP(i, n) {
+		REP(j, m) {
+			if(i + 1 < operations[j]) {
+				dp[i + 1][j + 1] = dp[i + 1][j];
+			} else {
+				dp[i + 1][j + 1] =
+					min(dp[i + 1 - operations[j]][j + 1] + 1, dp[i + 1][j]);
+			}
+		}
+	}
+
+	cout << dp[n][m] << endl;
 	return 0;
 }
