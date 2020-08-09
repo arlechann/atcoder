@@ -41,7 +41,7 @@ using VLL = std::vector<long long>;
 using VLL2D = std::vector<vector<long long>>;
 
 constexpr int INF = 2e9;
-constexpr double EPS = 1e-10;
+constexpr double EPS = 1e-15;
 constexpr double PI = acos(-1.0);
 
 constexpr int dx[] = {-1, 0, 1, 0};
@@ -141,39 +141,53 @@ int main() {
 				 10000000LL,
 				 100000000LL,
 				 1000000000LL,
-				 10000000000LL,
-				 100000000000LL};
-	auto a2 = make_vector(n, make_pair(0, 0));
+				 10000000000LL};
+	vector<pair<int, int>> a2(n);
 	REP(i, n) {
-		auto dot_pos = a[i].find('.');
-		int t = 0;
-		if(dot_pos != string::npos) {
-			t = a[i].size() - dot_pos - 1;
+		int dot = a[i].find('.');
+		int li = 0;
+		if(dot != string::npos) {
+			li = a[i].size() - dot - 1;
 		}
-		ll u = stod(a[i]) * pow10[t] + EPS;
-		a2[i].first = count_div2(u) - t;
-		a2[i].second = count_div5(u) - t;
+		ll u = stol(a[i].substr(0, dot));
+		ll tmp1 = u * pow10[9];
+		ll d;
+		if(dot == string::npos) {
+			d = 0;
+		} else {
+			d = stol(a[i].substr(dot + 1));
+		}
+		ll tmp2 = d * pow10[9 - li];
+		ll t = tmp1 + tmp2;
+		a2[i].first = count_div2(t);
+		a2[i].second = count_div5(t);
 	}
 
-	auto map = make_vector({80, 80}, 0);
-	REP(i, n) { map[a2[i].first + 40][a2[i].second + 40]++; }
+	auto map = make_vector({50, 50}, 0LL);
+	REP(i, n) { map[a2[i].first][a2[i].second]++; }
 
-	auto sum = make_vector({80 + 1, 80 + 1}, 0);
-	REP(i, 80) {
-		REP(j, 80) {
-			sum[i + 1][j + 1] =
-				sum[i][j + 1] + sum[i + 1][j] - sum[i][j] + map[i][j];
-		}
-	}
+	// REP(i, 50) {
+	// 	REP(j, 50) { cout << map[i][j] << " "; }
+	// 	cout << endl;
+	// }
 
 	ll result = 0;
-	REP(i, n) {
-		result += sum[80][80] + sum[-a2[i].first + 40][-a2[i].second + 40] -
-				  sum[80][-a2[i].second + 40] - sum[-a2[i].first + 40][80];
-		if(a2[i].first == 0 && a2[i].second == 0) {
-			result--;
+	REP(i, 50) {
+		REP(j, 50) {
+			REP(k, 50) {
+				REP(l, 50) {
+					if(i + k < 18 || j + l < 18) {
+						continue;
+					}
+					if(k == i && l == j) {
+						result += map[i][j] * (map[i][j] - 1);
+					} else {
+						result += map[k][l] * map[i][j];
+					}
+				}
+			}
 		}
 	}
-	cout << (result) / 2 << endl;
+	cout << result / 2 << endl;
 	return 0;
 }
