@@ -94,12 +94,12 @@ constexpr int sign(double x) {
 
 template <typename T, typename U>
 constexpr void chmax(T& m, U x) {
-	m = max(m, x);
+	m = max<T>(m, x);
 }
 
 template <typename T, typename U>
 constexpr void chmin(T& m, U x) {
-	m = min(m, x);
+	m = min<T>(m, x);
 }
 
 template <typename T>
