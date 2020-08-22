@@ -161,8 +161,6 @@ class Counter {
 	std::size_t operator[](T a) const&& { return std::move(this->m[a]); }
 };
 
-int field[300001][300001];
-
 int main() {
 	int h, w, m;
 	cin >> h >> w >> m;
@@ -174,6 +172,7 @@ int main() {
 		x[i]--;
 	}
 
+	unordered_map<int, unordered_map<int, int>> field;
 	REP(i, m) { field[y[i]][x[i]] = 1; }
 	auto row = Counter<int>(y).to_vector();
 	auto column = Counter<int>(x).to_vector();
@@ -190,24 +189,26 @@ int main() {
 	int i;
 	i = 0;
 	vector<pair<int, size_t>> row_list;
-	while(i < row.size() && row[i].second >= row_max - 1) {
+	while(i < row.size() && row[i].second == row_max) {
 		row_list.push_back(row[i]);
 		i++;
 	}
 	i = 0;
 	vector<pair<int, size_t>> column_list;
-	while(i < column.size() && column[i].second >= column_max - 1) {
+	while(i < column.size() && column[i].second == column_max) {
 		column_list.push_back(column[i]);
 		i++;
 	}
-	ll result = 0;
+	int intersection = 1;
 	REP(j, row_list.size()) {
 		REP(k, column_list.size()) {
-			chmax(result,
-				  row_list[j].second + column_list[k].second -
-					  field[row_list[j].first][column_list[k].first]);
+			if(field[row_list[j].first][column_list[k].first] == 0) {
+				intersection = 0;
+				goto loop;
+			}
 		}
 	}
-	cout << result << endl;
+loop:
+	cout << row_max + column_max - intersection << endl;
 	return 0;
 }
