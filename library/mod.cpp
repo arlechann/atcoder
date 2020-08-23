@@ -2,9 +2,8 @@
 #include <vector>
 
 // 計算量 前処理:O(n) クエリ:O(1)
-template <long long MOD = 1000000007>
+template <long long MOD = 1000000007, long long COMB_MAX = 1000000>
 class mod_comb {
-	constexpr int COMB_MAX = 1000000;
 	std::array<ModInt<MOD>, COMB_MAX> fact;
 	std::array<ModInt<MOD>, COMB_MAX> fact_inv;
 	std::array<ModInt<MOD>, COMB_MAX> inv;
@@ -25,12 +24,12 @@ class mod_comb {
 		return 0;
 	}
 
-	constexpr ModInt<MOD> operator()(long long n, long long r){
+	constexpr ModInt<MOD> operator()(long long n, long long r) {
 		if(n < r || n < 0 || r < 0) {
 			return ModInt<MOD>(0);
 		}
 
-		if(this->fact[0] == 0){
+		if(this->fact[0] == 0) {
 			this->init();
 		}
 		return fact[n] * fact_inv[r] * fact_inv[n - r];
@@ -50,7 +49,9 @@ class ModInt {
 
 	constexpr ModInt inv() const { return pow<ModInt<MOD>>(*this, MOD - 2); }
 
-	constexpr ModInt& operator=(const long long rhs) { return *this = ModInt(rhs); }
+	constexpr ModInt& operator=(const long long rhs) {
+		return *this = ModInt(rhs);
+	}
 	constexpr ModInt& operator+=(const ModInt rhs) {
 		return *this = ModInt(this->n + rhs.n);
 	}
@@ -60,12 +61,17 @@ class ModInt {
 	constexpr ModInt& operator*=(const ModInt rhs) {
 		return *this = ModInt(this->n * rhs.n);
 	}
-	constexpr ModInt& operator/=(const ModInt rhs) { return *this *= rhs.inv(); }
-	constexpr bool operator==(const ModInt rhs) const { return this->n == rhs.n; }
+	constexpr ModInt& operator/=(const ModInt rhs) {
+		return *this *= rhs.inv();
+	}
+	constexpr bool operator==(const ModInt rhs) const {
+		return this->n == rhs.n;
+	}
 };
 
 template <long long MOD>
-constexpr ModInt<MOD> operator+(const ModInt<MOD>& lhs, const ModInt<MOD>& rhs) {
+constexpr ModInt<MOD> operator+(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
 	return ModInt<MOD>(lhs) += rhs;
 }
 template <long long MOD>
@@ -78,7 +84,8 @@ constexpr ModInt<MOD> operator+(const long long& lhs, const ModInt<MOD>& rhs) {
 }
 
 template <long long MOD>
-constexpr ModInt<MOD> operator-(const ModInt<MOD>& lhs, const ModInt<MOD>& rhs) {
+constexpr ModInt<MOD> operator-(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
 	return ModInt<MOD>(lhs) -= rhs;
 }
 template <long long MOD>
@@ -91,7 +98,8 @@ constexpr ModInt<MOD> operator-(const long long& lhs, const ModInt<MOD>& rhs) {
 }
 
 template <long long MOD>
-constexpr ModInt<MOD> operator*(const ModInt<MOD>& lhs, const ModInt<MOD>& rhs) {
+constexpr ModInt<MOD> operator*(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
 	return ModInt<MOD>(lhs) *= rhs;
 }
 template <long long MOD>
@@ -104,7 +112,8 @@ constexpr ModInt<MOD> operator*(const long long& lhs, const ModInt<MOD>& rhs) {
 }
 
 template <long long MOD>
-constexpr ModInt<MOD> operator/(const ModInt<MOD>& lhs, const ModInt<MOD>& rhs) {
+constexpr ModInt<MOD> operator/(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
 	return ModInt<MOD>(lhs) /= rhs;
 }
 template <long long MOD>
