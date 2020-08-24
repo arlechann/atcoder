@@ -28,6 +28,31 @@ struct Graph {
 	}
 };
 
+// 幅優先探索(重み無しグラフ)
+std::vector<Weight> bfs(const Graph& graph, const size_t s) {
+	size_t n = graph.node;
+	std::vector<bool> used(n, false);
+	std::vector<Weight> distances(n, INF);
+
+	distances[s] = 0;
+	used[s] = true;
+	std::queue<Edge> q;
+	q.push(Edge(s, s, 0));
+	while(!q.empty()) {
+		Edge edge = q.front();
+		q.pop();
+		for(auto&& e : graph.edges[edge.to]) {
+			if(used[e.to]) {
+				continue;
+			}
+			distances[e.to] = distances[e.from] + 1;
+			q.push(Edge(e.from, e.to, 1));
+			used[e.to] = true;
+		}
+	}
+	return distances;
+}
+
 // トポロジカルソート
 std::vector<int> topological_sort(std::vector<std::vector<int>> edges,
 								  std::vector<int> indegrees) {
