@@ -23,6 +23,9 @@ struct Graph {
 	std::vector<std::vector<Edge>> edges;
 
 	Graph(size_t n) : node(n), edges(n) {}
+	void link(size_t from, size_t to, Weight cost = 1) {
+		edges[from].push_back(Edge(from, to, cost));
+	}
 };
 
 // トポロジカルソート
