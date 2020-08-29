@@ -101,22 +101,35 @@ std::unordered_map<long long, int> factor(long long n) {
 	return factors;
 }
 
-// 素因数分解(素数表を用いる)
-std::unordered_map<long long, int> factor(long long n,
-										  std::vector<long long>& primes) {
-	std::unordered_map<long long, int> factors;
-	for(int i = 0; primes[i] * primes[i] <= n; i++) {
-		int j = 0;
-		while(n % primes[i] == 0) {
-			n /= primes[i];
-			j++;
-		}
-		if(j != 0) {
-			factors[primes[i]] = j;
+// 高速素因数分解
+class Factor {
+	std::vector<int> divisors;
+
+	public:
+	Factor(int n) : divisors(n, 0) {
+		std::iota(this->divisors.begin(), this->divisors.end(), 0);
+		for(int i = 2; i * i < n; i++) {
+			if(this->divisors[i] != i) {
+				continue;
+			}
+			this->divisors[i] = i;
+			for(int j = i * i; j < n; j += i) {
+				if(this->divisors[j] == j) {
+					this->divisors[j] = i;
+				}
+			}
 		}
 	}
-	if(n != 1) {
-		factors[n] = 1;
+
+	std::unordered_map<int, int> operator()(int n) {
+		std::unordered_map<int, int> factors;
+		while(n != 1) {
+			int divisor = this->divisors[n];
+			while(n % divisor == 0) {
+				factors[divisor]++;
+				n /= divisor;
+			}
+		}
+		return factors;
 	}
-	return factors;
-}
+};
