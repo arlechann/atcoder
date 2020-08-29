@@ -160,18 +160,23 @@ int main() {
 		return 0;
 	}
 
-	int a_max = 0;
-	int a_min = INF;
+	auto sieve = sieve_of_eratosthenes(1000010);
+	VI count(1000010, 0);
 	REP(i, n) {
-		chmax(a_max, a[i]);
-		chmin(a_min, a[i]);
+		int num = a[i];
+		while(num != 1) {
+			int divisor = sieve[num];
+			while(num % divisor == 0) {
+				num /= divisor;
+			}
+			if(count[divisor] > 0) {
+				cout << "setwise coprime" << endl;
+				return 0;
+			}
+			count[divisor]++;
+		}
 	}
 
-	auto sieve = sieve_of_eratosthenes(a_max + 1);
-	if(n > st.size()) {
-		cout << "setwise coprime" << endl;
-		return 0;
-	}
 	cout << "pairwise coprime" << endl;
 	return 0;
 }
