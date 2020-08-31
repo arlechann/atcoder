@@ -111,3 +111,41 @@
                    (setf (gethash ,key dp)
                          (progn ,@body))))))))
 
+(defun definput-helper-integer (bind)
+  (let ((var (second bind)))
+    `(defparameter ,var (read))))
+
+(defun definput-helper-string (bind))
+(defun set-read-to-array (type array dimensions)
+  (let ((input (case (second type)
+                 ('integer #'read)
+                 ('string #'read-line)))
+        (size (array-total-size array)))
+    (dotimes (i size)
+      (setf (row-major-aref array i) (funcall input)))))
+
+(defun definput-helper-array (bind)
+  (destructuring-bind (type var dimensions) bind
+    (if (atom dimensions)
+        (setf dimensions (list dimensions)))
+    (debug-print dimensions)
+    `(prog1
+       (defparameter ,var (make-array (mapcar #'symbol-value ',dimensions)))
+       (set-read-to-array ',type ,var ',dimensions))))
+
+(defun definput-helper (bind)
+  (let ((type (first bind)))
+    (funcall (case type
+               ('integer #'definput-helper-integer)
+               ('string #'definput-helper-string)
+               (otherwise #'definput-helper-array))
+             bind)))
+
+(defmacro definput (binds)
+  (cons 'progn (mapcar #'definput-helper binds)))
+
+(definput
+  ((integer n)
+   (integer k)
+   ((array integer) x n)))
+
