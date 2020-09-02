@@ -56,6 +56,9 @@
 (defun chomp (str)
   (string-right-trim '(#\Return #\Linefeed) str))
 
+(defun diff (a b)
+  (abs (- a b)))
+
 (defun read-integer (&optional (in *standard-input*))
   (declare (inline read-byte))
   (labels ((number-char-p (b)
@@ -100,6 +103,53 @@
     (format t "~A: ~A~%" ',x y)
     y))
 
+(eval-when (:compile-toplevel)
+  (defun definput-helper-integer (bind)
+    (let ((var (second bind)))
+      `(defparameter ,var (read))))
+  
+  (defun definput-helper-string (bind))
+  (defun set-read-to-array (type array dimensions)
+    (let ((input (case (second type)
+                   ('integer #'read)
+                   ('string #'read-line)))
+          (size (array-total-size array)))
+      (dotimes (i size)
+        (setf (row-major-aref array i) (funcall input)))))
+  
+  (defun definput-helper-array (bind)
+    (destructuring-bind (type var dimensions) bind
+      (if (atom dimensions)
+          (setf dimensions (list dimensions)))
+      `(prog1
+         (defparameter ,var (make-array (mapcar #'symbol-value ',dimensions)))
+         (set-read-to-array ',type ,var ',dimensions))))
+  
+  (defun definput-helper-list (bind)
+    (let ((type (second (first bind)))
+          (var (second bind))
+          (size (third bind)))
+      `(defparameter ,var
+                     (named-let rec ((i ,size)
+                                     (acc nil))
+                       (if (zerop i)
+                           (nreverse acc)
+                           (rec (1- i)
+                                (cons (read) acc)))))))
+  
+  (defun definput-helper (bind)
+    (let ((type (first bind)))
+      (funcall (case type
+                 ('integer #'definput-helper-integer)
+                 ('string #'definput-helper-string)
+                 (otherwise (case (car type)
+                              ('array #'definput-helper-array)
+                              ('list #'definput-helper-list))))
+               bind))))
+
+(defmacro definput (binds)
+  (cons 'progn (mapcar #'definput-helper binds)))
+
 (defmacro defdp (name args &body body)
   (let ((argc (length args))
         (key (gensym)))
@@ -111,41 +161,5 @@
                    (setf (gethash ,key dp)
                          (progn ,@body))))))))
 
-(defun definput-helper-integer (bind)
-  (let ((var (second bind)))
-    `(defparameter ,var (read))))
-
-(defun definput-helper-string (bind))
-(defun set-read-to-array (type array dimensions)
-  (let ((input (case (second type)
-                 ('integer #'read)
-                 ('string #'read-line)))
-        (size (array-total-size array)))
-    (dotimes (i size)
-      (setf (row-major-aref array i) (funcall input)))))
-
-(defun definput-helper-array (bind)
-  (destructuring-bind (type var dimensions) bind
-    (if (atom dimensions)
-        (setf dimensions (list dimensions)))
-    (debug-print dimensions)
-    `(prog1
-       (defparameter ,var (make-array (mapcar #'symbol-value ',dimensions)))
-       (set-read-to-array ',type ,var ',dimensions))))
-
-(defun definput-helper (bind)
-  (let ((type (first bind)))
-    (funcall (case type
-               ('integer #'definput-helper-integer)
-               ('string #'definput-helper-string)
-               (otherwise #'definput-helper-array))
-             bind)))
-
-(defmacro definput (binds)
-  (cons 'progn (mapcar #'definput-helper binds)))
-
-(definput
-  ((integer n)
-   (integer k)
-   ((array integer) x n)))
+;;; ここまで
 
