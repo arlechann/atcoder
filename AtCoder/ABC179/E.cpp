@@ -107,6 +107,57 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+template <typename T>
+class Doubling {
+	std::size_t n;
+	std::size_t k;
+	std::vector<std::vector<T>> doubling;
+	std::vector<std::vector<ll>> sum;
+
+	public:
+	template <typename F>
+	Doubling(long long m, std::size_t n, F next)
+		: n(n), k(([=]() {
+			  std::size_t k = 1;
+			  while((1LL << k) < m) {
+				  k++;
+			  }
+			  return k;
+		  })()),
+		  doubling(k + 1, std::vector<T>(n)), sum(k + 1, std::vector<T>(n)) {
+		for(int i = 0; i < this->n; i++) {
+			this->doubling[0][i] = next(i);
+			this->sum[0][i] = i;
+		}
+		for(int i = 0; i < this->k; i++) {
+			for(int j = 0; j < this->n; j++) {
+				this->doubling[i + 1][j] =
+					this->doubling[i][this->doubling[i][j]];
+				this->sum[i + 1][j] =
+					this->sum[i][j] + this->sum[i][this->doubling[i][j]];
+			}
+		}
+	}
+
+	T operator()(std::size_t x, std::size_t p = 0) {
+		ll ret = 0;
+		for(std::size_t i = 0; i < this->k; i++) {
+			if(x & (1LL << i)) {
+				ret += this->sum[i][p];
+				p = this->doubling[i][p];
+			}
+		}
+		return ret;
+	}
+};
+
 int main() {
+	ll n, x, m;
+	cin >> n >> x >> m;
+
+	VLL2D sum(50, VLL(m));
+	auto doubling = Doubling<ll>(1e10, m, [=](ll i) { return i * i % m; });
+
+	cout << doubling(n, x) << endl;
 	return 0;
 }
