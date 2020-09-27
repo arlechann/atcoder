@@ -61,7 +61,7 @@ class LazySegmentTree {
 			if(i == this->size - 1) {
 				cout << "| ";
 			}
-			cout << this->lazy[i] << " ";
+			cout << this->lazy[i].first << " ";
 		}
 		cout << endl;
 	}
@@ -103,6 +103,8 @@ class LazySegmentTree {
 						  node_left + (node_right - node_left) / 2,
 						  node_right,
 						  value);
+		this->tree[node] =
+			this->merge(this->tree[node * 2 + 1], this->tree[node * 2 + 2]);
 	}
 
 	T find_impl(size_t query_left,
