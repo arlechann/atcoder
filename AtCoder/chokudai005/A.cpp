@@ -109,52 +109,70 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+unsigned int xor128() {
+	static unsigned int x = 123456789;
+	static unsigned int y = 362436069;
+	static unsigned int z = 521288629;
+	static unsigned int w = 88675123;
+	unsigned int t;
+	t = x ^ (x << 11);
+	x = y;
+	y = z;
+	z = w;
+	return w = (w ^ (w >> 19)) ^ (t ^ (t >> 8));
+}
+
 int id, n, k;
 
 inline int index(int y, int x) {
 	return x + y * n;
 }
 
-constexpr TIME_LIMIT_ms = 2950;
+constexpr int TIME_LIMIT_ms = 2800;
+constexpr int q_max = 300;
+int q;
+int y[q_max], x[q_max], c[q_max];
 
 struct State {
-	VI board;
-	int score;
-	int operation_count;
+	VI x;
+	VI y;
+	VI c;
+	int q;
 };
 
 void initialize(State& s) {
-	vector<string> s(n);
-	REP(i, n) { cin >> s[i]; }
-	s.board.resize(n * n);
-	REP(i, n) {
-		REP(j, n) {
-			int color = s[i][j] - '0';
-			s.board[index(i, j)] = color;
-		}
-	}
+	s.x.resize(q_max);
+	s.y.resize(q_max);
+	s.c.resize(q_max);
+	fill(ALL(s.x), n / 2);
+	fill(ALL(s.y), n / 2);
+	EACH(c, s.c) { c = xor128() % k + 1; }
 }
 
-void operate(State& s) {}
+void operate(State& s) {
+	int op_q = xor128() % q_max;
+	// int op_x = xor128() % n;
+	// int op_y = xor128() % n;
+	int op_c = xor128() % k + 1;
+	// s.x[op_q] = op_x;
+	// s.y[op_q] = op_y;
+	s.c[op_q] = op_c;
+}
 
-int eval(State& s) {}
-
-pair<VI, int> touch(VI board, int y, int x, int c, int point) {
-	int color_pre = board[index(y, x)];
-	if(c == color_pre) {
-		return {board, point - 1};
+void touch(VI& board, int op_y, int op_x, int op_c) {
+	int pre_c = board[index(op_y, op_x)];
+	if(op_c == pre_c) {
+		return;
 	}
 	queue<pair<int, int>> q;
-	int count = 0;
-	q.push({y, x});
+	q.push({op_y, op_x});
 	while(!q.empty()) {
 		auto p = q.front();
 		q.pop();
-		if(board[index(p.first, p.second)] != color_pre) {
+		if(board[index(p.first, p.second)] != pre_c) {
 			continue;
 		}
-		board[index(p.first, p.second)] = c;
-		count++;
+		board[index(p.first, p.second)] = op_c;
 		REP(i, 4) {
 			if((p.first + dy[i] < 0 || n <= p.first + dy[i]) ||
 			   (p.second + dx[i] < 0 || n <= p.second + dx[i])) {
@@ -163,25 +181,41 @@ pair<VI, int> touch(VI board, int y, int x, int c, int point) {
 			q.push({p.first + dy[i], p.second + dx[i]});
 		}
 	}
-	return {board, point + count * 100 - 1};
 }
 
-constexpr q_max = 100000;
-int q;
-int y[q_max], x[q_max], c[q_max];
+int eval(State& s, VI board) {
+	int result = -INF;
 
-int main() {
-	cin >> id >> n >> k;
+	REP(i, q_max) {
+		touch(board, s.y[i], s.x[i], s.c[i]);
+		VI count(k + 1, 0);
+		REP(i, n) {
+			REP(j, n) { count[board[index(i, j)]]++; }
+		}
+		int score = *max_element(ALL(count)) * 100 - (i + 1);
+		if(score > result) {
+			result = score;
+			s.q = i;
+		}
+	}
+	return result;
+}
 
+void sa(VI& board) {
 	State state;
 	initialize(state);
+	int pre_score = eval(state, board);
+
 	double start_temp, end_temp;
+	start_temp = 5;
+	end_temp = 5;
+
+	int best_score = pre_score;
+	State best_state = state;
+
 	chrono::system_clock::time_point start = chrono::system_clock::now();
 
-	random_device seed_gen;
-	mt19937_64 engine(seed_gen());
-
-	while(q <= op_max) {
+	while(true) {
 		chrono::system_clock::time_point end = chrono::system_clock::now();
 		double time = static_cast<double>(
 			std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
@@ -192,19 +226,44 @@ int main() {
 
 		State new_state = state;
 		operate(new_state);
-		int pre_score = eval(state);
-		int new_score = eval(new_state);
+		int new_score = eval(new_state, board);
 
 		double temp =
 			start_temp + (end_temp - start_temp) * time / TIME_LIMIT_ms;
-		double prob = exp((new_score - prev_score) / temp);
+		double prob = exp((new_score - pre_score) / temp);
 
-		if(prob > (engine() % INF / static_cast<double>(INF))) {
+		if(prob > (xor128() % INF / static_cast<double>(INF))) {
+			// cout << "score: " << pre_score << " => " << new_score << '\n';
 			state = new_state;
+			pre_score = new_score;
+			if(new_score > best_score) {
+				best_score = new_score;
+				best_state = new_state;
+			}
 		}
 	}
 
-	cout << q << endl;
-	REP(i, q) { cout << y[i] << " " << x[i] << " " << c[i] << endl; }
+	cout << best_state.q << '\n';
+	REP(i, best_state.q) {
+		cout << best_state.x[i] << " " << best_state.y[i] << " "
+			 << best_state.c[i] << '\n';
+	}
+	// cout << "best score: " << best_score << '\n';
+}
+
+int main() {
+	cin >> id >> n >> k;
+
+	vector<string> s(n);
+	REP(i, n) { cin >> s[i]; }
+	VI board(n * n);
+	REP(i, n) {
+		REP(j, n) {
+			int color = s[i][j] - '0';
+			board[index(i, j)] = color;
+		}
+	}
+
+	sa(board);
 	return 0;
 }
