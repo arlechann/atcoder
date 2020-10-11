@@ -34,7 +34,7 @@ constexpr T permutation(int n, int k) {
 }
 
 // 引数の関数にすべての順列を渡して実行する
-// trueを返すと打ち切る
+// falseを返すと打ち切る
 #define ALL_PERM(v, block)                      \
 	call_with_all_permutations(v, [&](auto v) { \
 		block;                                  \
@@ -43,7 +43,7 @@ constexpr T permutation(int n, int k) {
 template <typename T, typename F>
 void call_with_all_permutations(T a, F proc) {
 	do {
-		if(proc(a)) {
+		if(!proc(a)) {
 			return;
 		};
 	} while(std::next_permutation(a.begin(), a.end()));
@@ -64,4 +64,3 @@ constexpr T combination(long long n, long long r) {
 	}
 	return ret;
 }
-
