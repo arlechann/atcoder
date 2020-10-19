@@ -1,3 +1,11 @@
+#[allow(unused_imports)]
+use std::io::Read;
+#[allow(unused_imports)]
+use std::cmp::max;
+#[allow(unused_imports)]
+use std::cmp::min;
+
+#[allow(unused_macros)]
 macro_rules! read_line {
 	($(let $i:ident : $t:ty);*;) => {
 		let mut buf = String::new();
@@ -6,6 +14,20 @@ macro_rules! read_line {
 		$(
 			let $i: $t = iter.next().unwrap().parse().unwrap();
 		)*
+	};
+}
+
+macro_rules! read {
+	($i:ident) => {
+		$i.next().unwrap().parse().unwrap();
+	};
+}
+
+macro_rules! read_init {
+	(stdin, $i:ident) => {
+		let mut _buf = String::new();
+		std::io::stdin().read_to_string(&mut _buf).unwrap();
+		let mut $i = _buf.split_whitespace();
 	};
 }
 
@@ -59,9 +81,9 @@ impl<I: Iterator> CumulativeSumExt for I {}
 const MOD: usize = 1_000_000_007;
 
 fn main() {
-	read_line!{}
-
 	println!("{}", solve());
 }
 
-fn solve() -> u32 {}
+fn solve() -> usize {
+	todo!()
+}
