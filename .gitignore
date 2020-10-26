@@ -1,6 +1,7 @@
 # VScodeの設定
 /.vscode/
 /Cargo.toml
+/Cargo.lock
 
 # バイナリファイル
 /AOJ/CGL/CGL_1_A

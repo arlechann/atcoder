@@ -5,6 +5,7 @@ cat << EOF > .gitignore
 # VScodeの設定
 /.vscode/
 /Cargo.toml
+/Cargo.lock
 
 EOF
 
