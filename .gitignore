@@ -2,6 +2,7 @@
 /.vscode/
 /Cargo.toml
 /Cargo.lock
+/target/
 
 # バイナリファイル
 /AOJ/CGL/CGL_1_A
@@ -416,3 +417,5 @@
 /Codeforces/Round606Div2/B
 /Codeforces/Round606Div2/C
 /LICENSE
+/target/rls/debug/.fingerprint/atcoder-8ac3589bdccb8edb/test-bin-atcoder
+/target/rls/debug/.fingerprint/atcoder-ec1a8d7891fd58c3/bin-atcoder

@@ -6,6 +6,7 @@ cat << EOF > .gitignore
 /.vscode/
 /Cargo.toml
 /Cargo.lock
+/target/
 
 EOF
 
