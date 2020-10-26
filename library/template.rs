@@ -42,6 +42,7 @@ fn solve() -> usize {
 	todo!()
 }
 
+#[allow(dead_code)]
 mod imos {
 	struct Imos {
 		array: Vec<i64>,
@@ -65,7 +66,7 @@ mod imos {
 		fn apply(&self) -> Vec<i64> {
 			self.array
 				.iter()
-				.scan(0u32, |s, &e| {
+				.scan(0i64, |s, &e| {
 					*s = *s + e;
 					Some(*s)
 				})
@@ -74,14 +75,13 @@ mod imos {
 	}
 }
 
+#[allow(dead_code)]
 mod iter_utils {
-	#[allow(dead_code)]
 	struct CumulativeSum<I: Iterator> {
 		next: Option<u64>,
 		underlying: I,
 	}
 
-	#[allow(dead_code)]
 	impl<I> Iterator for CumulativeSum<I>
 	where
 		I: Iterator,
@@ -104,7 +104,6 @@ mod iter_utils {
 		}
 	}
 
-	#[allow(dead_code)]
 	trait CumulativeSumExt: Iterator {
 		fn cumulative_sum(self) -> CumulativeSum<Self>
 		where
@@ -118,6 +117,5 @@ mod iter_utils {
 		}
 	}
 
-	#[allow(dead_code)]
 	impl<I: Iterator> CumulativeSumExt for I {}
 }
