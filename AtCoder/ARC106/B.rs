@@ -1,7 +1,7 @@
 fn main() {
 	let mut solver = solve::Solver::new();
 	solver.input();
-	println!("{}", solver.solve());
+	println!("{}", if solver.solve() { "Yes" } else { "No" });
 }
 
 #[allow(dead_code)]
@@ -14,10 +14,18 @@ mod solve {
 	#[allow(unused_imports)]
 	use std::fmt::Debug;
 
+	#[allow(unused_imports)]
+	use union_find::UnionFind;
+
 	const MOD: u64 = 1_000_000_007;
 
 	#[derive(Default)]
 	pub struct Solver {
+		n: usize,
+		m: usize,
+		a: Vec<i64>,
+		b: Vec<i64>,
+		cd: Vec<(usize, usize)>,
 		input: input::Input,
 	}
 
@@ -27,11 +35,95 @@ mod solve {
 		}
 
 		pub fn input(&mut self) {
-			todo!();
+			self.n = self.input.read();
+			self.m = self.input.read();
+			self.a = (0..self.n).map(|_| self.input.read::<i64>()).collect();
+			self.b = (0..self.n).map(|_| self.input.read::<i64>()).collect();
+			self.cd = (0..self.m)
+				.map(|_| {
+					(
+						self.input.read::<usize>() - 1,
+						self.input.read::<usize>() - 1,
+					)
+				})
+				.collect();
 		}
 
-		pub fn solve(&self) -> usize {
-			todo!();
+		pub fn solve(&self) -> bool {
+			let mut uf: UnionFind = UnionFind::new(self.n);
+			for &(c, d) in self.cd.iter() {
+				uf.merge(c, d);
+			}
+
+			let mut connect_a = vec![0; self.n];
+			let mut connect_b = vec![0; self.n];
+			for i in 0..self.n {
+				let root = uf.root(i);
+				connect_a[root] += self.a[i];
+				connect_b[root] += self.b[i];
+			}
+
+			connect_a.iter().zip(connect_b.iter()).all(|(a, b)| a == b)
+		}
+	}
+}
+
+#[allow(dead_code)]
+mod union_find {
+	#[derive(Eq, PartialEq, Clone, Default, Debug)]
+	pub struct UnionFind {
+		len: usize,
+		parents: Vec<usize>,
+		rank: Vec<usize>,
+		size: Vec<usize>,
+	}
+
+	impl UnionFind {
+		pub fn new(n: usize) -> Self {
+			Self {
+				len: n,
+				parents: (0..n).collect(),
+				rank: vec![0; n],
+				size: vec![0; n],
+			}
+		}
+
+		pub fn merge(&mut self, a: usize, b: usize) {
+			let mut a_root: usize = self.root(a);
+			let mut b_root: usize = self.root(b);
+			if a_root == b_root {
+				return;
+			}
+			if self.rank[a_root] < self.rank[b_root] {
+				std::mem::swap(&mut a_root, &mut b_root);
+			}
+			if self.rank[a_root] == self.rank[b_root] {
+				self.rank[a_root] += 1;
+			}
+			self.size[a_root] += self.size[b_root];
+			self.parents[b_root] = a_root;
+		}
+
+		pub fn is_same(&mut self, a: usize, b: usize) -> bool {
+			self.root(a) == self.root(b)
+		}
+
+		pub fn size(&mut self, n: usize) -> usize {
+			let root: usize = self.root(n);
+			self.size[root]
+		}
+
+		pub fn len(&self) -> usize {
+			self.len
+		}
+
+		pub fn root(&mut self, node: usize) -> usize {
+			if self.parents[node] == node {
+				node
+			} else {
+				self.parents[node] = self.root(self.parents[node]);
+				self.parents[node]
+			}
 		}
 	}
 }
@@ -171,65 +263,5 @@ mod iter_utils {
 		}
 
 		impl<I: Iterator> CounterExt for I {}
-	}
-}
-
-#[allow(dead_code)]
-mod union_find {
-	#[derive(Eq, PartialEq, Clone, Default, Debug)]
-	pub struct UnionFind {
-		len: usize,
-		parents: Vec<usize>,
-		rank: Vec<usize>,
-		size: Vec<usize>,
-	}
-
-	impl UnionFind {
-		pub fn new(n: usize) -> Self {
-			Self {
-				len: n,
-				parents: (0..n).collect(),
-				rank: vec![0; n],
-				size: vec![0; n],
-			}
-		}
-
-		pub fn merge(&mut self, a: usize, b: usize) {
-			let mut a_root: usize = self.root(a);
-			let mut b_root: usize = self.root(b);
-			if a_root == b_root {
-				return;
-			}
-			if self.rank[a_root] < self.rank[b_root] {
-				std::mem::swap(&mut a_root, &mut b_root);
-			}
-			if self.rank[a_root] == self.rank[b_root] {
-				self.rank[a_root] += 1;
-			}
-			self.size[a_root] += self.size[b_root];
-			self.parents[b_root] = a_root;
-		}
-
-		pub fn is_same(&mut self, a: usize, b: usize) -> bool {
-			self.root(a) == self.root(b)
-		}
-
-		pub fn size(&mut self, n: usize) -> usize {
-			let root: usize = self.root(n);
-			self.size[root]
-		}
-
-		pub fn len(&self) -> usize {
-			self.len
-		}
-
-		fn root(&mut self, node: usize) -> usize {
-			if self.parents[node] == node {
-				node
-			} else {
-				self.parents[node] = self.root(self.parents[node]);
-				self.parents[node]
-			}
-		}
 	}
 }
