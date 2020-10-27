@@ -146,7 +146,7 @@ class WeightedUnionFind {
 	bool is_same(size_t a, size_t b) { return this->root(a) == this->root(b); }
 	bool is_union(size_t a, size_t b) { return this->is_same(a, b); }
 
-	// 二要素感の距離(同集合に属していなければboost::none)
+	// 二要素感の距離(同集合に属していなければ nullopt)
 	optional<T> diff(size_t a, size_t b) {
 		if(!this->is_same(a, b)) {
 			return nullopt;

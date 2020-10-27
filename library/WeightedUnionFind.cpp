@@ -20,10 +20,10 @@ class WeightedUnionFind {
 	bool merge(size_t a, size_t b, T w) {
 		size_t ar = this->root(a);
 		size_t br = this->root(b);
-		T dw = w + weight(a) - weight(b);
 		if(ar == br) {
 			return false;
 		}
+		T dw = w + this->weight(a) - this->weight(b);
 		if(this->rank[ar] < this->rank[br]) {
 			std::swap(ar, br);
 			dw = -dw;
@@ -42,11 +42,11 @@ class WeightedUnionFind {
 	bool is_union(size_t a, size_t b) { return this->is_same(a, b); }
 
 	// 二要素感の距離(同集合に属していなければboost::none)
-	boost::optional<T> diff(size_t a, size_t b) {
+	optional<T> diff(size_t a, size_t b) {
 		if(!this->is_same(a, b)) {
-			return boost::none;
+			return nullopt;
 		}
-		return boost::optional<T>(this->weight(b) - this->weight(a));
+		return optional<T>(this->weight(b) - this->weight(a));
 	}
 
 	private:
