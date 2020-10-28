@@ -16,18 +16,68 @@ mod solve {
 
 	const MOD: u64 = 1_000_000_007;
 
-	#[derive(Default)]
-	pub struct Solver {
-		input: input::Input,
+	macro_rules! def {
+		(
+			struct = $struct:ident;
+		 	method = $method:ident(&mut $self:ident);
+		 	$($i:ident: $tt:tt),*
+		) => {
+			#[derive(Default)]
+			pub struct $struct {
+				$(
+					$i: member_type!($tt),
+				)*
+				input: input::Input,
+			}
+
+			impl $struct {
+				pub fn $method(&mut $self) {
+					$(
+						$self.$i = read_type!($self; $tt);
+					)*
+				}
+			}
+		};
+	}
+
+	macro_rules! member_type {
+		([$tt:tt; $i:ident]) => {
+			Vec<member_type!($tt)>
+		};
+		([$tt:tt; $e:expr]) => {
+			Vec<member_type!($tt)>
+		};
+		(($($ty:ty),*)) => {
+			($(member_type!($ty),)*)
+		};
+		($ty:ty) => {
+			$ty
+		};
+	}
+
+	macro_rules! read_type {
+		($self:ident; [$tt:tt; $i:ident]) => {
+			(0..$self.$i).map(|_| read_type!($self; $tt)).collect()
+		};
+		($self:ident; [$tt:tt; $e:expr]) => {
+			(0..$e).map(|_| read_type!($self; $tt)).collect()
+		};
+		($self:ident; ($($ty:ty),*)) => {
+			($(read_type!($self; $ty),)*)
+		};
+		($self:ident; $ty:ty) => {
+			$self.input.read::<$ty>()
+		};
+	}
+
+	def! {
+		struct = Solver;
+		method = input(&mut self);
 	}
 
 	impl Solver {
 		pub fn new() -> Self {
 			Default::default()
-		}
-
-		pub fn input(&mut self) {
-			todo!();
 		}
 
 		pub fn solve(&self) -> usize {
@@ -109,7 +159,7 @@ mod imos {
 #[allow(dead_code)]
 mod iter_utils {
 	pub mod cumulative_sum {
-		struct CumulativeSum<I: Iterator> {
+		pub struct CumulativeSum<I: Iterator> {
 			next: Option<u64>,
 			underlying: I,
 		}
@@ -136,7 +186,7 @@ mod iter_utils {
 			}
 		}
 
-		trait CumulativeSumExt: Iterator {
+		pub trait CumulativeSumExt: Iterator {
 			fn cumulative_sum(self) -> CumulativeSum<Self>
 			where
 				Self: Sized,
