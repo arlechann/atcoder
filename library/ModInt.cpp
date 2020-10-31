@@ -131,6 +131,6 @@ std::ostream& operator<<(std::ostream& os, const ModInt<MOD>& x) {
 }
 
 template <long long MOD>
-std::istream& operator>>(std::istream& is, const ModInt<MOD>& x) {
+std::istream& operator>>(std::istream& is, ModInt<MOD>& x) {
 	return is >> x.n;
 }

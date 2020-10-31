@@ -217,20 +217,19 @@ std::ostream& operator<<(std::ostream& os, const ModInt<MOD>& x) {
 }
 
 template <long long MOD>
-std::istream& operator>>(std::istream& is, const ModInt<MOD>& x) {
+std::istream& operator>>(std::istream& is, ModInt<MOD>& x) {
 	return is >> x.n;
 }
 
 using mint = ModInt<998244353>;
 
 int main() {
-	ll a, b, c;
+	mint a, b, c;
 	cin >> a >> b >> c;
 
-	mint aa = a, bb = b, cc = c;
-	mint a_sum = (aa * (aa + 1)) / 2;
-	mint b_sum = (bb * (bb + 1)) / 2;
-	mint c_sum = (cc * (cc + 1)) / 2;
+	mint a_sum = (a * (a + 1)) / 2;
+	mint b_sum = (b * (b + 1)) / 2;
+	mint c_sum = (c * (c + 1)) / 2;
 
 	cout << a_sum * b_sum * c_sum << endl;
 	return 0;
