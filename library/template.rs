@@ -273,6 +273,29 @@ mod union_find {
 			self.len
 		}
 
+		pub fn groups(&mut self) -> Vec<Vec<usize>> {
+			for i in 0..self.len {
+				self.root(i);
+			}
+
+			let mut ret: Vec<Vec<usize>> = (0..self.len)
+				.map(|_| Vec::with_capacity(self.len))
+				.collect();
+			for i in 0..self.len {
+				ret[self.parents[i]].push(i);
+			}
+			ret.into_iter().filter(|v| !v.is_empty()).collect()
+		}
+
+		fn root(&mut self, node: usize) -> usize {
+			if self.parents[node] == node {
+				node
+			} else {
+				self.parents[node] = self.root(self.parents[node]);
+				self.parents[node]
+			}
+		}
+
 		fn root(&mut self, node: usize) -> usize {
 			if self.parents[node] == node {
 				node
