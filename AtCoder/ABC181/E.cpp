@@ -149,19 +149,15 @@ int main() {
 
 	ll result = LL_INF;
 	sort(ALL(w));
+	w.erase(unique(ALL(w)), w.end());
+	auto f = [](ll a, ll b) { return abs(a - b); };
 	REP(i, n) {
 		ll sum = cumsum_left[i / 2] + cumsum_right[i / 2];
 		ll bocchi = h[i];
-		ll min_diff_index = bin_search(0, m, [&](int x) {
-			if(x == m) {
-				return false;
-			}
-			if(x == 0) {
-				return true;
-			}
-			return abs(bocchi - w[x]) - abs(bocchi - w[x - 1]) < 0;
+		int min_diff_index = bin_search<ll>(0, w.size(), [&](int x) {
+			return f(bocchi, w[x]) - f(bocchi, w[x - 1]) <= 0;
 		});
-		chmin(result, sum + abs(bocchi - w[min_diff_index]));
+		chmin(result, sum + f(bocchi, w[min_diff_index]));
 		i++;
 	}
 
