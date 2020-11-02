@@ -295,14 +295,5 @@ mod union_find {
 				self.parents[node]
 			}
 		}
-
-		fn root(&mut self, node: usize) -> usize {
-			if self.parents[node] == node {
-				node
-			} else {
-				self.parents[node] = self.root(self.parents[node]);
-				self.parents[node]
-			}
-		}
 	}
 }
