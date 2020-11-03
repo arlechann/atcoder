@@ -225,6 +225,55 @@ mod iter_utils {
 }
 
 #[allow(dead_code)]
+mod prime {
+	use std::cmp::min;
+
+	pub struct SieveOfEratosthenes {
+		sieve: Vec<bool>,
+		index: usize,
+		len: usize,
+	}
+
+	impl Iterator for SieveOfEratosthenes {
+		type Item = bool;
+
+		fn next(&mut self) -> Option<bool> {
+			if let Some(&is_prime) = self.sieve.get(self.index) {
+				if is_prime {
+					for i in (self.index..self.len).step_by(self.index) {
+						self.sieve[i] = false;
+					}
+				}
+				self.index += 1;
+				Some(is_prime)
+			} else {
+				None
+			}
+		}
+	}
+
+	pub fn sieve_of_eratosthenes(n: usize) -> SieveOfEratosthenes {
+		let mut ret = SieveOfEratosthenes {
+			sieve: vec![true; n],
+			index: 0,
+			len: n,
+		};
+		for i in 0..(min(n, 2)) {
+			ret.sieve[i] = false;
+		}
+		ret
+	}
+
+	pub fn primes(n: usize) -> Vec<usize> {
+		sieve_of_eratosthenes(n)
+			.enumerate()
+			.filter(|&(_, p)| p)
+			.map(|(i, _)| i)
+			.collect::<Vec<_>>()
+	}
+}
+
+#[allow(dead_code)]
 mod union_find {
 	#[derive(Eq, PartialEq, Clone, Default, Debug)]
 	pub struct UnionFind {
