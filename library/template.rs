@@ -19,13 +19,19 @@ mod solve {
 	macro_rules! def {
 		(
 			struct = $struct:ident;
-		 	method = $method:ident(&mut $self:ident);
+			method = $method:ident(&mut $self:ident);
+			global = {
+				$($gi:ident: $gtt:ty),*
+			};
 		 	$($i:ident: $tt:tt),*
 		) => {
 			#[derive(Default)]
 			pub struct $struct {
 				$(
 					$i: member_type!($tt),
+				)*
+				$(
+					$gi: $gtt,
 				)*
 				input: input::Input,
 			}
@@ -73,6 +79,7 @@ mod solve {
 	def! {
 		struct = Solver;
 		method = input(&mut self);
+		global = {};
 	}
 
 	impl Solver {
