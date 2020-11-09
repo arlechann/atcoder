@@ -125,26 +125,26 @@ mod input {
 
 #[allow(dead_code)]
 mod imos {
-	struct Imos {
+	pub struct Imos {
 		array: Vec<i64>,
 		len: usize,
 	}
 
 	impl Imos {
-		fn with_capacity(len: usize) -> Self {
+		pub fn with_capacity(len: usize) -> Self {
 			Self {
 				array: vec![0; len],
 				len: len,
 			}
 		}
 
-		fn query(&mut self, left: usize, right: usize, value: i64) {
+		pub fn query(&mut self, left: usize, right: usize, value: i64) {
 			assert!(left < right);
 			self.array[left] += value;
 			self.array[right] -= value;
 		}
 
-		fn apply(&self) -> Vec<i64> {
+		pub fn apply(&self) -> Vec<i64> {
 			self.array
 				.iter()
 				.scan(0i64, |s, &e| {
@@ -158,6 +158,19 @@ mod imos {
 
 #[allow(dead_code)]
 mod iter_utils {
+	pub mod collect_vec {
+		pub trait CollectVecExt: Iterator {
+			fn collect_vec(self) -> Vec<Self::Item>
+			where
+				Self: Sized,
+			{
+				self.collect::<Vec<Self::Item>>()
+			}
+		}
+
+		impl<I: Iterator> CollectVecExt for I {}
+	}
+
 	pub mod cumulative_sum {
 		pub struct CumulativeSum<I: Iterator> {
 			next: Option<u64>,
@@ -200,6 +213,46 @@ mod iter_utils {
 		}
 
 		impl<I: Iterator> CumulativeSumExt for I {}
+	}
+
+	pub mod run_length {
+		pub struct RunLength<I: Iterator> {
+			before: Option<I::Item>,
+			underlying: I,
+		}
+
+		impl<I> Iterator for RunLength<I>
+		where
+			I: Iterator,
+			I::Item: Eq + PartialEq + Copy,
+		{
+			type Item = I::Item;
+
+			fn next(&mut self) -> Option<I::Item> {
+				while let Some(x) = self.underlying.next() {
+					if self.before.as_ref().filter(|&b| *b == x).is_none() {
+						self.before = Some(x);
+						return Some(x);
+					}
+				}
+				None
+			}
+		}
+
+		pub trait RunLengthExt: Iterator {
+			fn run_length(self) -> RunLength<Self>
+			where
+				Self: Sized,
+				Self::Item: Eq + PartialEq + Copy,
+			{
+				RunLength {
+					before: None,
+					underlying: self,
+				}
+			}
+		}
+
+		impl<I: Iterator> RunLengthExt for I {}
 	}
 
 	pub mod counter {
