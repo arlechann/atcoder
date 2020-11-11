@@ -331,6 +331,20 @@ mod prime {
 			.map(|(i, _)| i)
 			.collect::<Vec<_>>()
 	}
+
+	pub fn divisors(n: usize) -> Vec<usize> {
+		let mut v = vec![];
+		(1..=n)
+			.take_while(|i| i * i <= n)
+			.filter(|&i| n % i == 0)
+			.for_each(|i| {
+				v.push(i);
+				if i * i != n {
+					v.push(n / i);
+				}
+			});
+		v
+	}
 }
 
 #[allow(dead_code)]
