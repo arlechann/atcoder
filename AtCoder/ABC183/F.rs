@@ -80,15 +80,34 @@ mod solve {
 		struct = Solver;
 		method = input(&mut self);
 		global = {};
+		n: usize,
+		q: usize,
+		c: [usize; n],
+		query: [(usize, usize, usize); q]
 	}
+
+	use union_find::*;
 
 	impl Solver {
 		pub fn new() -> Self {
 			Default::default()
 		}
 
-		pub fn solve(&self) -> usize {
-			todo!();
+		pub fn solve(&self) -> String {
+			let mut uf = UnionFind::new(self.n);
+			uf.set_classes(&self.c);
+
+			let mut results: Vec<String> = vec![];
+			for &(t, a, b) in self.query.iter() {
+				if t == 1 {
+					uf.merge(a - 1, b - 1);
+				} else {
+					let count = uf.get_class(a - 1, b);
+					results.push(count.to_string());
+				}
+			}
+
+			results.join("\n")
 		}
 	}
 }
@@ -349,12 +368,15 @@ mod prime {
 
 #[allow(dead_code)]
 mod union_find {
+	use std::collections::BTreeMap;
+
 	#[derive(Eq, PartialEq, Clone, Default, Debug)]
 	pub struct UnionFind {
 		len: usize,
 		parents: Vec<usize>,
 		rank: Vec<usize>,
 		size: Vec<usize>,
+		classes: Vec<BTreeMap<usize, usize>>,
 	}
 
 	impl UnionFind {
@@ -364,7 +386,19 @@ mod union_find {
 				parents: (0..n).collect(),
 				rank: vec![0; n],
 				size: vec![0; n],
+				classes: vec![BTreeMap::new(); n],
 			}
+		}
+
+		pub fn set_classes(&mut self, c: &[usize]) {
+			for i in 0..self.len {
+				self.classes[i].insert(c[i], 1);
+			}
+		}
+
+		pub fn get_class(&mut self, n: usize, c: usize) -> usize {
+			let root = self.root(n);
+			self.classes[root].get(&c).unwrap_or(&0).clone()
 		}
 
 		pub fn merge(&mut self, a: usize, b: usize) {
@@ -380,6 +414,16 @@ mod union_find {
 				self.rank[a_root] += 1;
 			}
 			self.size[a_root] += self.size[b_root];
+			let kvs = self.classes[b_root]
+				.iter()
+				.map(|(&key, &value)| (key, value))
+				.collect::<Vec<_>>();
+			for &(key, value) in kvs.iter() {
+				self.classes[a_root]
+					.entry(key)
+					.and_modify(|e| *e += value)
+					.or_insert(value);
+			}
 			self.parents[b_root] = a_root;
 		}
 
