@@ -363,7 +363,7 @@ mod union_find {
 				len: n,
 				parents: (0..n).collect(),
 				rank: vec![0; n],
-				size: vec![0; n],
+				size: vec![1; n],
 			}
 		}
 
