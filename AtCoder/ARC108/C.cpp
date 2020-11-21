@@ -108,56 +108,35 @@ constexpr T square(T x) {
 }
 
 struct Edge {
+	size_t from;
 	size_t to;
 	int color;
-	bool can_paint;
-	Edge(size_t t, int c, bool p) : to(t), color(c), can_paint(p) {}
+	Edge(size_t f, size_t t, int c) : from(f), to(t), color(c) {}
 };
 
 vector<int> solve(vector<vector<Edge>>& edges) {
 	int n = edges.size();
 	vector<int> used(n, 0);
 	vector<int> colors(n, -1);
-	vector<unordered_set<int>> blacklist(n);
 
+	colors[0] = 0;
+	used[0] = 1;
 	queue<Edge> q;
-	q.push(Edge(0, -1, false));
+	q.push(Edge(0, 0, 0));
 	while(!q.empty()) {
 		Edge edge = q.front();
 		q.pop();
-		if(colors[edge.to] == -1) {
-			blacklist[edge.to].insert(edge.color);
-			for(auto&& e : edges[edge.to]) {
-				if(used[e.to]) {
-					continue;
-				}
-				blacklist[edge.to].insert(e.color);
+		for(auto&& e : edges[edge.to]) {
+			if(used[e.to]) {
+				continue;
+			}
+			if(colors[e.from] == e.color) {
+				colors[e.to] = (e.color + 1 % n);
+			} else {
 				colors[e.to] = e.color;
-				q.push(Edge(e.to, e.color, true));
-				used[e.to] = true;
 			}
-		} else {
-			for(auto&& e : edges[edge.to]) {
-				if(used[e.to]) {
-					continue;
-				}
-				if(colors[edge.to] != e.color) {
-					colors[e.to] = e.color;
-					q.push(Edge(e.to, e.color, true));
-				} else {
-					q.push(Edge(e.to, e.color, false));
-				}
-				used[e.to] = true;
-			}
-		}
-	}
-	REP(i, n) {
-		if(colors[i] == -1) {
-			REP(j, n) {
-				if(blacklist[i].find(j) == blacklist[i].end()) {
-					colors[i] = j;
-				}
-			}
+			q.push(e);
+			used[e.to] = true;
 		}
 	}
 	return colors;
@@ -175,7 +154,10 @@ int main() {
 	}
 
 	vector<vector<Edge>> edges(n);
-	REP(i, m) { edges[u[i]].push_back(Edge(v[i], c[i], false)); }
+	REP(i, m) {
+		edges[u[i]].push_back(Edge(u[i], v[i], c[i]));
+		edges[v[i]].push_back(Edge(v[i], u[i], c[i]));
+	}
 	auto colors = solve(edges);
 	EACH(e, colors) { cout << e + 1 << endl; }
 	return 0;
