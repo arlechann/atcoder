@@ -135,47 +135,54 @@ T bin_search(T left, T right, auto pred) {
 	return left;
 }
 
-int n;
-ll t;
-ll a[40];
-unordered_map<ll, bool> memo[41];
-
-bool dp(int n, ll time) {
-	cout << n << ", " << time << endl;
-	if(time == 0) {
-		return true;
-	}
-	if(n == 0) {
-		return false;
-	}
-	if(memo[n].find(time) != memo[n].end()) {
-		return memo[n][time];
-	}
-
-	bool ret;
-	ret = dp(n - 1, time - a[n - 1]) || dp(n - 1, time);
-	return memo[n][time] = ret;
-}
-
 int main() {
+	int n;
+	ll t;
 	cin >> n >> t;
+	VLL a(n);
 	REP(i, n) { cin >> a[i]; }
 
-	ll minimum = INF;
-	REP(i, n) { chmin(minimum, a[i]); }
+	VLL front(a.begin(), a.begin() + n / 2);
+	VLL back(a.begin() + n / 2, a.end());
+	int n1 = n / 2;
+	int n2 = n - n1;
 
-	if(x < minimum) {
-		cout << 0 << endl;
-		return false;
+	VLL front_enum;
+	REP(i, 1 << n1) {
+		ll sum = 0;
+		REP(j, n1) {
+			if((i & (1 << j)) != 0) {
+				sum += front[j];
+			}
+		}
+		front_enum.push_back(sum);
 	}
 
-	ll result = bin_search<ll>(0, t + 1, [&](ll x) {
-		cout << x << endl;
-		bool ret = dp(n, x);
-		REP(i, 41) { memo[i].clear(); }
-		return ret;
-	});
+	VLL back_enum;
+	REP(i, 1 << n2) {
+		ll sum = 0;
+		REP(j, n2) {
+			if((i & (1 << j)) != 0) {
+				sum += back[j];
+			}
+		}
+		back_enum.push_back(sum);
+	}
+	sort(ALL(back_enum));
 
+	ll result = 0;
+	EACH(e, front_enum) {
+		int index = bin_search<int>(-1, back_enum.size(), [&](int i) {
+			if(i == -1) {
+				return true;
+			} else {
+				return e + back_enum[i] <= t;
+			}
+		});
+		if(index != -1) {
+			chmax(result, e + back_enum[index]);
+		}
+	}
 	cout << result << endl;
 	return 0;
 }
