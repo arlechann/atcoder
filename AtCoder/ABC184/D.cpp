@@ -107,9 +107,29 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+double memo[101][101][101];
+
+double dp(int a, int b, int c) {
+	if(memo[a][b][c] != 0) {
+		return memo[a][b][c];
+	}
+
+	if(a == 100 || b == 100 || c == 100) {
+		return 0;
+	}
+
+	double ret = 0;
+	int sum = a + b + c;
+	ret += (dp(a + 1, b, c) + 1) * a / sum;
+	ret += (dp(a, b + 1, c) + 1) * b / sum;
+	ret += (dp(a, b, c + 1) + 1) * c / sum;
+	return memo[a][b][c] = ret;
+}
+
 int main() {
 	int a, b, c;
 	cin >> a >> b >> c;
 
+	cout << PRECISION(10) << dp(a, b, c) << endl;
 	return 0;
 }
