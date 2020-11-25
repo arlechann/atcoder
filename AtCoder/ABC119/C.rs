@@ -84,7 +84,7 @@ mod solve {
 		a: usize,
 		b: usize,
 		c: usize,
-		l: [usize, n]
+		l: [usize; n]
 	}
 
 	impl Solver {
@@ -93,8 +93,34 @@ mod solve {
 		}
 
 		pub fn solve(&self) -> usize {
-			todo!();
+			(0..(2 << (self.n * 2)))
+				.map(|i| {
+					let mut mp: usize = 0;
+					let mut v: Vec<usize> = vec![0; 3];
+					for k in 0..3 {
+						for j in 0..self.n {
+							if ((i >> (j * 2)) & 3) == k {
+								mp += 10;
+								v[k] += self.l[j];
+							}
+						}
+					}
+					(mp.saturating_sub(30), v)
+				})
+				.flat_map(|(mp, v)| {
+					if v.contains(&0) {
+						None
+					} else {
+						Some(mp + diff(v[0], self.a) + diff(v[1], self.b) + diff(v[2], self.c))
+					}
+				})
+				.min()
+				.unwrap()
 		}
+	}
+
+	fn diff(a: usize, b: usize) -> usize {
+		max(a, b) - min(a, b)
 	}
 }
 
