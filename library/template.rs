@@ -285,6 +285,51 @@ mod iter_utils {
 }
 
 #[allow(dead_code)]
+mod slice_utils {
+	pub mod bin_search {
+		pub trait LowerBoundExt<T: Eq + Ord> {
+			fn lower_bound(&self, x: T) -> usize;
+		}
+
+		impl<T: Eq + Ord> LowerBoundExt<T> for [T] {
+			fn lower_bound(&self, x: T) -> usize {
+				let mut ng: isize = 0;
+				let mut ok: isize = self.len() as isize;
+				while (ok - ng).abs() > 1 {
+					let middle = (ok + ng) / 2;
+					if self[middle as usize] >= x {
+						ok = middle;
+					} else {
+						ng = middle;
+					}
+				}
+				ok as usize
+			}
+		}
+
+		pub trait UpperBoundExt<T: Eq + Ord> {
+			fn upper_bound(&self, x: T) -> usize;
+		}
+
+		impl<T: Eq + Ord> UpperBoundExt<T> for [T] {
+			fn upper_bound(&self, x: T) -> usize {
+				let mut ng: isize = 0;
+				let mut ok: isize = self.len() as isize;
+				while (ok - ng).abs() > 1 {
+					let middle = (ok + ng) / 2;
+					if self[middle as usize] > x {
+						ok = middle;
+					} else {
+						ng = middle;
+					}
+				}
+				ok as usize
+			}
+		}
+	}
+}
+
+#[allow(dead_code)]
 mod prime {
 	use std::cmp::min;
 
