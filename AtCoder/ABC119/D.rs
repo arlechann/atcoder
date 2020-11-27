@@ -80,15 +80,83 @@ mod solve {
 		struct = Solver;
 		method = input(&mut self);
 		global = {};
+		a: usize,
+		b: usize,
+		q: usize,
+		s: [i64; a],
+		t: [i64; b],
+		x: [i64; q]
 	}
+
+	use iter_utils::collect_vec::*;
+	use slice_utils::bin_search::*;
 
 	impl Solver {
 		pub fn new() -> Self {
 			Default::default()
 		}
 
-		pub fn solve(&self) -> usize {
-			todo!();
+		pub fn solve(&self) -> String {
+			let shrine_to_temple = self
+				.s
+				.iter()
+				.copied()
+				.map(|s| {
+					let r = self.t.lower_bound(s);
+					if r == 0 {
+						(s - self.t[r]).abs()
+					} else if r == self.t.len() {
+						(s - self.t.last().unwrap()).abs()
+					} else {
+						min((s - self.t[r]).abs(), (s - self.t[r - 1]).abs())
+					}
+				})
+				.collect_vec();
+			let temple_to_shrine = self
+				.t
+				.iter()
+				.copied()
+				.map(|t| {
+					let r = self.s.lower_bound(t);
+					if r == 0 {
+						(t - self.s[r]).abs()
+					} else if r == self.s.len() {
+						(t - self.s.last().unwrap()).abs()
+					} else {
+						min((t - self.s[r]).abs(), (t - self.s[r - 1]).abs())
+					}
+				})
+				.collect_vec();
+
+			self.x
+				.iter()
+				.copied()
+				.map(|x| {
+					let shrine = self.s.lower_bound(x);
+					let temple = self.t.lower_bound(x);
+
+					let mut v = vec![];
+					if shrine == self.s.len() {
+						v.push((x - self.s[shrine - 1]).abs() + shrine_to_temple[shrine - 1]);
+					} else if shrine == 0 {
+						v.push((x - self.s[shrine]).abs() + shrine_to_temple[shrine])
+					} else {
+						v.push((x - self.s[shrine - 1]).abs() + shrine_to_temple[shrine - 1]);
+						v.push((x - self.s[shrine]).abs() + shrine_to_temple[shrine])
+					}
+					if temple == self.t.len() {
+						v.push((x - self.t[temple - 1]).abs() + temple_to_shrine[temple - 1]);
+					} else if temple == 0 {
+						v.push((x - self.t[temple]).abs() + temple_to_shrine[temple]);
+					} else {
+						v.push((x - self.t[temple - 1]).abs() + temple_to_shrine[temple - 1]);
+						v.push((x - self.t[temple]).abs() + temple_to_shrine[temple]);
+					}
+					v.into_iter().min().unwrap()
+				})
+				.map(|x| x.to_string())
+				.collect_vec()
+				.join("\n")
 		}
 	}
 }
@@ -281,6 +349,50 @@ mod iter_utils {
 		}
 
 		impl<I: Iterator> CounterExt for I {}
+	}
+}
+
+mod slice_utils {
+	pub mod bin_search {
+		pub trait LowerBoundExt<T: Eq + Ord> {
+			fn lower_bound(&self, x: T) -> usize;
+		}
+
+		impl<T: Eq + Ord> LowerBoundExt<T> for [T] {
+			fn lower_bound(&self, x: T) -> usize {
+				let mut ng: isize = 0;
+				let mut ok: isize = self.len() as isize;
+				while (ok - ng).abs() > 1 {
+					let middle = (ok + ng) / 2;
+					if self[middle as usize] >= x {
+						ok = middle;
+					} else {
+						ng = middle;
+					}
+				}
+				ok as usize
+			}
+		}
+
+		pub trait UpperBoundExt<T: Eq + Ord> {
+			fn upper_bound(&self, x: T) -> usize;
+		}
+
+		impl<T: Eq + Ord> UpperBoundExt<T> for [T] {
+			fn upper_bound(&self, x: T) -> usize {
+				let mut ng: isize = 0;
+				let mut ok: isize = self.len() as isize;
+				while (ok - ng).abs() > 1 {
+					let middle = (ok + ng) / 2;
+					if self[middle as usize] > x {
+						ok = middle;
+					} else {
+						ng = middle;
+					}
+				}
+				ok as usize
+			}
+		}
 	}
 }
 
