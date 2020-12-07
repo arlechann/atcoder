@@ -131,6 +131,25 @@ mod input {
 }
 
 #[allow(dead_code)]
+mod search {
+	fn bin_search<T, F>(mut ok: T, mut ng: T, pred: F) -> T
+	where
+		T: Clone+Eq+PartialEq+PartialOrd
+		F: Fn(T) -> bool,
+	{
+		while (ok - ng).abs() > 1 {
+			let middle = (ok + ng) / 2;
+			if pred(middle) {
+				ok = middle;
+			} else {
+				ng = middle;
+			}
+		}
+		ok
+	}
+}
+
+#[allow(dead_code)]
 mod imos {
 	pub struct Imos {
 		array: Vec<i64>,
@@ -293,8 +312,12 @@ mod slice_utils {
 
 		impl<T: Eq + Ord> LowerBoundExt<T> for [T] {
 			fn lower_bound(&self, x: T) -> usize {
-				let mut ng: isize = 0;
-				let mut ok: isize = self.len() as isize;
+				let n = self.len() as isize;
+				if n == 0 {
+					return 0;
+				}
+				let mut ng: isize = -1;
+				let mut ok: isize = n - 1;
 				while (ok - ng).abs() > 1 {
 					let middle = (ok + ng) / 2;
 					if self[middle as usize] >= x {
@@ -313,8 +336,12 @@ mod slice_utils {
 
 		impl<T: Eq + Ord> UpperBoundExt<T> for [T] {
 			fn upper_bound(&self, x: T) -> usize {
-				let mut ng: isize = 0;
-				let mut ok: isize = self.len() as isize;
+				let n = self.len() as isize;
+				if n == 0 {
+					return 0;
+				}
+				let mut ng: isize = -1;
+				let mut ok: isize = n - 1;
 				while (ok - ng).abs() > 1 {
 					let middle = (ok + ng) / 2;
 					if self[middle as usize] > x {
