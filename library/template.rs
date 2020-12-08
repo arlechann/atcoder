@@ -132,13 +132,21 @@ mod input {
 
 #[allow(dead_code)]
 mod search {
-	fn bin_search<T, F>(mut ok: T, mut ng: T, pred: F) -> T
+	use std::ops::*;
+	pub fn bin_search<T, F>(mut ok: T, mut ng: T, pred: F) -> T
 	where
-		T: Clone+Eq+PartialEq+PartialOrd
+		T: Copy
+			+ Eq
+			+ PartialEq
+			+ PartialOrd
+			+ Add<Output = T>
+			+ Sub<Output = T>
+			+ Div<Output = T>
+			+ From<i8>,
 		F: Fn(T) -> bool,
 	{
-		while (ok - ng).abs() > 1 {
-			let middle = (ok + ng) / 2;
+		while max(ok, ng) - min(ok, ng) > T::from(1) {
+			let middle = (ok + ng) / T::from(2);
 			if pred(middle) {
 				ok = middle;
 			} else {
@@ -146,6 +154,22 @@ mod search {
 			}
 		}
 		ok
+	}
+
+	fn min<T: Copy + PartialOrd>(a: T, b: T) -> T {
+		if a < b {
+			a
+		} else {
+			b
+		}
+	}
+
+	fn max<T: Copy + PartialOrd>(a: T, b: T) -> T {
+		if a > b {
+			a
+		} else {
+			b
+		}
 	}
 }
 
