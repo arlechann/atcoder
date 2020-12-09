@@ -92,15 +92,24 @@ mod solve {
 		}
 
 		pub fn solve(&self) -> String {
-			let mut c = self.c.clone();
-			c.sort();
+			let divisor_nums = self
+				.c
+				.iter()
+				.copied()
+				.map(|x| self.c.iter().filter(|&&y| x % y == 0).count() as u64)
+				.collect_vec();
+			let result = divisor_nums
+				.into_iter()
+				.map(|d| {
+					if d % 2 == 0 {
+						0.5
+					} else {
+						(d + 1) as f64 / (d as f64 * 2.0)
+					}
+				})
+				.sum::<f64>();
 
-			let mut dp = vec![0; self.n + 1];
-			for i in 0..n {
-				dp[i + 1] = (dp[i] + 1) * 1;
-			}
-
-			format!("{:.10}", 1.0)
+			format!("{:.12}", result)
 		}
 	}
 
