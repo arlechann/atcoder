@@ -91,9 +91,9 @@ mod solve {
 			Default::default()
 		}
 
-		pub fn solve(&self) -> f64 {
+		pub fn solve(&self) -> String {
 			if self.x % self.d != 0 || self.y % self.d != 0 {
-				return 0.0;
+				return "0.0".to_string();
 			}
 
 			let x = self.x.abs();
@@ -103,29 +103,37 @@ mod solve {
 			let jump_reminder = self.n as i64 - (min_jump_x + min_jump_y);
 
 			if jump_reminder < 0 || jump_reminder % 2 == 1 {
-				return 0.0;
+				return "0.0".to_string();
 			}
 
-			println!("{} {} {}", min_jump_x, min_jump_y, jump_reminder);
+			let comb = comb(self.n);
+			let mut result = 0.0;
+			for x_axis in 0..=jump_reminder / 2 {
+				let y_axis = jump_reminder / 2 - x_axis;
+				let up = (min_jump_y + y_axis) as usize;
+				let down = y_axis as usize;
+				let right = (min_jump_x + x_axis) as usize;
+				let left = x_axis as usize;
 
-			let mut result = 1.0;
-			for i in 1..=self.n as i64 {
-				println!("result: {}", result);
-				result *= i as f64;
-				if i <= min_jump_x {
-					result /= i as f64;
-				}
-				if i <= min_jump_y {
-					result /= i as f64;
-				}
-				if i <= jump_reminder {
-					result /= i as f64;
-				}
-				result /= 4.0;
+				let c =
+					comb[self.n][up + down] * comb[up + down][up] * comb[self.n - up - down][right];
+				result += c;
 			}
 
-			result
+			format!("{:.100}", result)
 		}
+	}
+
+	fn comb(n: usize) -> Vec<Vec<f64>> {
+		let mut dp = vec![vec![0.0; n + 1]; n + 1];
+		dp[0][0] = 1.0;
+		for i in 0..n {
+			dp[i + 1][0] = dp[i][0] / 2.0;
+			for j in 0..=i {
+				dp[i + 1][j + 1] = (dp[i][j] + dp[i][j + 1]) / 2.0;
+			}
+		}
+		dp
 	}
 }
 
