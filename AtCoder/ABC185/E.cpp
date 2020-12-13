@@ -115,16 +115,20 @@ int main() {
 	EACH(e, b) { cin >> e; }
 
 	auto dp = make_vector({n + 1, m + 1}, 0);
+	REP(j, m) { dp[0][j + 1] = dp[0][j] + 1; }
 	REP(i, n) {
+		dp[i + 1][0] = dp[i][0] + 1;
 		REP(j, m) {
 			if(a[i] == b[j]) {
-				dp[i + 1][j + 1] = dp[i][j] + 1;
+				dp[i + 1][j + 1] =
+					min({dp[i][j], dp[i + 1][j] + 1, dp[i][j + 1] + 1});
 			} else {
-				dp[i + 1][j + 1] = max(dp[i + 1][j], dp[i][j + 1]);
+				dp[i + 1][j + 1] =
+					min({dp[i][j], dp[i + 1][j], dp[i][j + 1]}) + 1;
 			}
 		}
 	}
 
-	cout << max(n, m) - dp[n][m] << endl;
+	cout << dp[n][m] << endl;
 	return 0;
 }
