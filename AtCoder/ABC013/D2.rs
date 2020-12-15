@@ -80,15 +80,38 @@ mod solve {
 		struct = Solver;
 		method = input(&mut self);
 		global = {};
+		n: usize,
+		m: usize,
+		d: usize,
+		a: [usize; m]
 	}
+
+	use doubling::Doubling;
+	use iter_utils::collect_vec::CollectVecExt;
 
 	impl Solver {
 		pub fn new() -> Self {
 			Default::default()
 		}
 
-		pub fn solve(&self) -> usize {
-			todo!();
+		pub fn solve(&self) -> String {
+			let map = {
+				let mut tmp = (0..self.n).collect_vec();
+				for &a in self.a.iter() {
+					tmp.swap(a - 1, a);
+				}
+				let mut map = vec![0; self.n];
+				for (i, e) in tmp.into_iter().enumerate() {
+					map[e] = i;
+				}
+				map
+			};
+
+			let doubling = Doubling::new(&map);
+			let result = (0..self.n)
+				.map(|i| (doubling.query(i, self.d) + 1).to_string())
+				.collect_vec();
+			result.join("\n")
 		}
 	}
 }
