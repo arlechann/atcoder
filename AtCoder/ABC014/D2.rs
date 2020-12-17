@@ -80,6 +80,62 @@ mod solve {
 		struct = Solver;
 		method = input(&mut self);
 		global = {};
+		n: usize,
+		xy: [(usize, usize); (self.n - 1)],
+		q: usize,
+		ab: [(usize, usize); q]
+	}
+
+	use doubling::Doubling;
+	use graph::*;
+
+	#[derive(Default, Debug)]
+	struct Tree {
+		root: Node,
+		parents: Vec<Node>,
+		depths: Vec<Depth>,
+		size: usize,
+	}
+
+	impl Tree {
+		fn new(edge_list: &[(usize, usize)], size: usize, root: usize) -> Self {
+			let mut edges = vec![vec![]; size];
+			for &(x, y) in edge_list.iter() {
+				edges[x - 1].push(y - 1);
+				edges[y - 1].push(x - 1);
+			}
+
+			let mut tree = Self {
+				root: Node(root),
+				parents: vec![Node(0); size],
+				depths: vec![Depth(0); size],
+				size: size,
+			};
+			tree.dfs(&edges, Node(0), Node(0), Depth(0));
+			tree
+		}
+
+		fn dfs(&mut self, edges: &[Vec<usize>], node: Node, prev: Node, depth: Depth) {
+			self.parents[node.0] = prev;
+			self.depths[node.0] = depth;
+			for &next in edges[node.0].iter() {
+				if next != prev.0 {
+					self.dfs(edges, Node(next), node, Depth(depth.0 + 1));
+				}
+			}
+		}
+	}
+
+	impl RootedTree for Tree {
+		fn root(&self) -> Node {
+			self.root
+		}
+		fn parents(&self) -> &[Node] {
+			self.parents.as_slice()
+		}
+		fn depths(&self) -> &[Depth] {
+			self.depths.as_slice()
+		}
 	}
 
 	impl Solver {
@@ -87,8 +143,15 @@ mod solve {
 			Default::default()
 		}
 
-		pub fn solve(&self) -> usize {
-			todo!();
+		pub fn solve(&mut self) -> String {
+			let mut result = Vec::with_capacity(self.q);
+			let tree = Tree::new(&self.xy, self.n, 0);
+			let doubling = Doubling::new(tree.parents());
+			for &(a, b) in self.ab.iter() {
+				let (_lca, distance) = tree.common_ancestor(&doubling, Node(a - 1), Node(b - 1));
+				result.push((distance.0 + 1).to_string());
+			}
+			result.join("\n")
 		}
 	}
 }
