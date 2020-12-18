@@ -559,10 +559,11 @@ mod union_find {
 #[allow(dead_code)]
 mod graph {
 	use super::doubling::Doubling;
-	use super::search::bin_search;
 	use std::cmp::Ordering;
 	use std::ops::Add;
 	use std::ops::Sub;
+
+	const USIZE_BITS: usize = 32;
 
 	#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Hash, Debug, Default)]
 	pub struct Node(pub usize);
@@ -624,21 +625,37 @@ mod graph {
 			self.depths()[node.0]
 		}
 
-		fn common_ancestor(&self, doubling: &Doubling<Node>, a: Node, b: Node) -> (Node, Weight) {
+		fn lowest_common_ancestor(
+			&self,
+			doubling: &Doubling<Node>,
+			a: Node,
+			b: Node,
+		) -> (Node, Weight) {
 			let a_depth = self.depth(a);
 			let b_depth = self.depth(b);
 			if a_depth > b_depth {
-				return self.common_ancestor(doubling, b, a);
+				return self.lowest_common_ancestor(doubling, b, a);
 			}
 
 			let depth_diff = b_depth.0 - a_depth.0;
-			let b = doubling.query(b, depth_diff);
-			let lca_depth = bin_search(a_depth.0 as isize, -1, |d| {
-				let a_ancestor = doubling.query(a, d as usize);
-				let b_ancestor = doubling.query(b, d as usize);
-				a_ancestor == b_ancestor
-			}) as usize;
-			let lca = doubling.query(a, lca_depth);
+			let mut a = a;
+			let mut b = doubling.query(b, depth_diff);
+			if a == b {
+				return (a, Weight(depth_diff as i64));
+			}
+
+			let mut lca_depth = 0;
+			for i in (0..=a_depth.0.next_power_of_two().trailing_zeros() as usize).rev() {
+				let a_tmp = doubling.query_power_of_two(a, i);
+				let b_tmp = doubling.query_power_of_two(b, i);
+				if a_tmp != b_tmp {
+					a = a_tmp;
+					b = b_tmp;
+					lca_depth += 1 << i;
+				}
+			}
+			let lca = self.parent(a);
+			lca_depth += 1;
 			(lca, Weight((lca_depth * 2 + depth_diff) as i64))
 		}
 	}
