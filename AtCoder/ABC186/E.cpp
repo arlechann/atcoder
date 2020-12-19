@@ -123,49 +123,29 @@ constexpr long long gcd(long long a, long long b) {
 	return b;
 }
 
-long long modinv(long long a, long long m) {
-	long long b = m, u = 1, v = 0;
-	while(b) {
-		long long t = a / b;
-		a -= t * b;
-		swap(a, b);
-		u -= t * v;
-		swap(u, v);
+tuple<ll, ll, ll> ext_gcd(ll a, ll b) {
+	if(b == 0) {
+		return make_tuple(1, 0, a);
 	}
-	u %= m;
-	if(u < 0)
-		u += m;
-	return u;
+	auto [y, x, d] = ext_gcd(b, a % b);
+	return make_tuple(x, y - a / b * x, d);
 }
 
 ll test_case() {
 	ll n, s, k;
 	cin >> n >> s >> k;
 
-	k %= n;
-	ll m = n % k;
-	ll x = n - s;
-	if(x % k == 0) {
-		return x / k;
-	}
-
-	ll diff = x % k;
-	ll c1 = x / k;
-	ll c2 = x / k;
-
-	ll m1 = n % k;
-	ll m2 = n - n % k;
-	if(m1 == 0) {
+	ll gcd_nk = gcd(n, k);
+	if(s % gcd_nk != 0) {
 		return -1;
 	}
-	ll g1 = gcd(m1, k);
-	ll g2 = gcd(m2, k);
-	if(diff % g1 != 0 && diff % g2 != 0) {
-		cout << "g:" << g1 << ",g2:" << g2 << endl;
-		return -1;
+	auto [x, y, a] = ext_gcd(k, n);
+	x *= -s / gcd_nk;
+	ll mod = n / gcd_nk;
+	while(x < 0) {
+		x += mod;
 	}
-	ll r = diff * modinv(m2, k);
-	return r * c2;
+	return x % mod;
 }
 
 int main() {
