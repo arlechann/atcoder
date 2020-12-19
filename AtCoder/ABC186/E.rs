@@ -46,6 +46,12 @@ mod solve {
 		};
 	}
 
+	macro_rules! input {
+		($self:ident; $($i:ident: $tt:tt),*) => {
+			$(let $i: member_type!($tt) = read_type!($self; $tt);)*
+		};
+	}
+
 	macro_rules! member_type {
 		([$tt:tt; $i:ident]) => {
 			Vec<member_type!($tt)>
@@ -80,15 +86,50 @@ mod solve {
 		struct = Solver;
 		method = input(&mut self);
 		global = {};
+		t: usize
 	}
+
+	use iter_utils::collect_vec::CollectVecExt;
 
 	impl Solver {
 		pub fn new() -> Self {
 			Default::default()
 		}
 
-		pub fn solve(&self) -> usize {
-			todo!();
+		pub fn solve(&mut self) -> String {
+			(0..self.t)
+				.map(|_| self.test_case().to_string())
+				.collect_vec()
+				.join("\n")
+		}
+
+		fn test_case(&mut self) -> i64 {
+			input! {
+				self;
+				n: i64,
+				s: i64,
+				k: i64
+			}
+
+			let (x, y, gcd_nk) = ext_gcd(k, n);
+			if s % gcd_nk != 0 {
+				return -1;
+			}
+			let mut x = x * (-s / gcd_nk);
+			let m = n / gcd_nk;
+			while x < 0 {
+				x += m;
+			}
+			x % m
+		}
+	}
+
+	fn ext_gcd(a: i64, b: i64) -> (i64, i64, i64) {
+		if b == 0 {
+			(1, 0, a)
+		} else {
+			let (y, x, d) = ext_gcd(b, a % b);
+			(x, y - a / b * x, d)
 		}
 	}
 }
@@ -241,6 +282,10 @@ mod doubling {
 				}
 			}
 			now
+		}
+
+		pub fn query_power_of_two(&self, now: T, mov: usize) -> T {
+			self.doubling[mov][now.into()]
 		}
 	}
 }

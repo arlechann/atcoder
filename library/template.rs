@@ -8,6 +8,8 @@ fn main() {
 mod solve {
 	use super::*;
 	#[allow(unused_imports)]
+	use iter_utils::collect_vec::CollectVecExt;
+	#[allow(unused_imports)]
 	use std::cmp::max;
 	#[allow(unused_imports)]
 	use std::cmp::min;
@@ -43,6 +45,12 @@ mod solve {
 					)*
 				}
 			}
+		};
+	}
+
+	macro_rules! input {
+		($self:ident; $($i:ident: $tt:tt),*) => {
+			$(let $i: member_type!($tt) = read_type!($self; $tt);)*
 		};
 	}
 
@@ -174,6 +182,35 @@ mod search {
 }
 
 #[allow(dead_code)]
+mod number_theory {
+	fn gcd(mut a: i64, mut b: i64) -> i64 {
+		if a < b {
+			std::mem::swap(&a, &b)
+		}
+		let r = a % b;
+		while r != 0 {
+			a = b;
+			b = r;
+			r = a % b;
+		}
+		b
+	}
+
+	fn lcm(a: i64, b: i64) -> i64 {
+		a / gcd(a, b) * b
+	}
+
+	fn ext_gcd(a: i64, b: i64) -> (i64, i64, i64) {
+		if b == 0 {
+			(1, 0, a)
+		} else {
+			let (y, x, d) = ext_gcd(b, a % b);
+			(x, y - a / b * x, d)
+		}
+	}
+}
+
+#[allow(dead_code)]
 mod imos {
 	pub struct Imos {
 		array: Vec<i64>,
@@ -241,6 +278,10 @@ mod doubling {
 				}
 			}
 			now
+		}
+
+		pub fn query_power_of_two(&self, now: T, mov: usize) -> T {
+			self.doubling[mov][now.into()]
 		}
 	}
 }
