@@ -18,6 +18,7 @@ mod solve {
 
 	const MOD: u64 = 1_000_000_007;
 
+	#[allow(unused_macros)]
 	macro_rules! def {
 		(
 			struct = $struct:ident;
@@ -48,12 +49,14 @@ mod solve {
 		};
 	}
 
+	#[allow(unused_macros)]
 	macro_rules! input {
 		($self:ident; $($i:ident: $tt:tt),*) => {
 			$(let $i: member_type!($tt) = read_type!($self; $tt);)*
 		};
 	}
 
+	#[allow(unused_macros)]
 	macro_rules! member_type {
 		([$tt:tt; $i:ident]) => {
 			Vec<member_type!($tt)>
@@ -69,6 +72,7 @@ mod solve {
 		};
 	}
 
+	#[allow(unused_macros)]
 	macro_rules! read_type {
 		($self:ident; [$tt:tt; $i:ident]) => {
 			(0..$self.$i).map(|_| read_type!($self; $tt)).collect()
@@ -185,9 +189,9 @@ mod search {
 mod number_theory {
 	fn gcd(mut a: i64, mut b: i64) -> i64 {
 		if a < b {
-			std::mem::swap(&a, &b)
+			std::mem::swap(&mut a, &mut b);
 		}
-		let r = a % b;
+		let mut r = a % b;
 		while r != 0 {
 			a = b;
 			b = r;
