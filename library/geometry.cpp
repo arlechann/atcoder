@@ -59,7 +59,8 @@ class Vec2d {
 
 	// 2つの位置ベクトル間のユークリッド距離
 	constexpr double distance(const Vec2d& rhs) const {
-		return std::sqrt(square(this->x() - rhs.x()) + square(this->y() - rhs.y()));
+		return std::sqrt(square(this->x() - rhs.x()) +
+						 square(this->y() - rhs.y()));
 	}
 
 	// 2つの位置ベクトル間のマンハッタン距離
@@ -68,7 +69,9 @@ class Vec2d {
 	}
 
 	// ベクトルとx軸のなす角
-	constexpr double argument() const { return std::atan2(this->y(), this->x()); }
+	constexpr double argument() const {
+		return std::atan2(this->y(), this->x());
+	}
 
 	// 反時計回りに回転したベクトル
 	constexpr Vec2d rotate(double rad) const {
@@ -134,7 +137,7 @@ constexpr int ccw(Vec2d a, Vec2d b, Vec2d c) {
 	if(ab.dot(ac) < 0) {
 		return 2; // c-a-b
 	}
-	if(ab.normal() < ac.normal()) {
+	if(ab.length() < ac.length()) {
 		return -2; // a-b-c
 	}
 	return 0; // a-c-b
