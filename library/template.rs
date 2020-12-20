@@ -705,3 +705,176 @@ mod graph {
 		}
 	}
 }
+
+#[allow(dead_code)]
+mod geometry {
+	use std::fmt::Debug;
+
+	pub trait Vector {
+		fn origin() -> Self;
+		fn det(&self, rhs: Self) -> f64;
+		fn dot(&self, rhs: Self) -> f64;
+		fn length(&self) -> f64;
+		fn len(&self) -> f64 {
+			self.length()
+		}
+		fn distance(&self, rhs: Self) -> f64;
+		fn argument(&self) -> f64;
+		fn rotate(&self, rad: f64) -> Self;
+		fn unit(&self) -> Self;
+		fn normal(&self) -> Self;
+		fn add(&self, rhs: Self) -> Self;
+		fn sub(&self, rhs: Self) -> Self;
+	}
+
+	#[derive(Copy, Clone, PartialEq, Debug)]
+	pub struct Vector2d {
+		x: f64,
+		y: f64,
+	}
+
+	impl Vector2d {
+		pub fn new(x: f64, y: f64) -> Self {
+			Self { x, y }
+		}
+	}
+
+	impl Vector for Vector2d {
+		fn origin() -> Self {
+			Self { x: 0.0, y: 0.0 }
+		}
+
+		fn det(&self, rhs: Self) -> f64 {
+			self.x * rhs.y - self.y * rhs.x
+		}
+
+		fn dot(&self, rhs: Self) -> f64 {
+			self.x * rhs.x + self.y * rhs.y
+		}
+
+		fn length(&self) -> f64 {
+			self.distance(Self::origin())
+		}
+
+		fn distance(&self, rhs: Self) -> f64 {
+			(self.x - rhs.x).hypot(self.y - rhs.y).abs()
+		}
+
+		fn argument(&self) -> f64 {
+			self.y.atan2(self.x)
+		}
+
+		fn rotate(&self, rad: f64) -> Self {
+			Self {
+				x: self.x * rad.cos() - self.y * rad.sin(),
+				y: self.x * rad.sin() + self.y * rad.cos(),
+			}
+		}
+
+		fn unit(&self) -> Self {
+			let len = self.len();
+			Self {
+				x: self.x / len,
+				y: self.y / len,
+			}
+		}
+
+		fn normal(&self) -> Self {
+			let len = self.len();
+			Self {
+				x: self.y / len,
+				y: -self.x / len,
+			}
+		}
+
+		fn add(&self, rhs: Self) -> Self {
+			Self {
+				x: self.x + rhs.x,
+				y: self.y + rhs.y,
+			}
+		}
+
+		fn sub(&self, rhs: Self) -> Self {
+			Self {
+				x: self.x - rhs.x,
+				y: self.y - rhs.y,
+			}
+		}
+	}
+
+	#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+	pub enum CCW {
+		Clockwise,
+		CounterClockwise,
+		ABC,
+		ACB,
+		CAB,
+	}
+
+	impl CCW {
+		pub fn ccw<T: Vector + Copy>(a: T, b: T, c: T) -> Self {
+			let ab = b.sub(a);
+			let ac = c.sub(a);
+			let det = ab.det(ac);
+			if det > 0.0 {
+				CCW::CounterClockwise
+			} else if det < 0.0 {
+				CCW::Clockwise
+			} else if ab.dot(ac) < 0.0 {
+				CCW::CAB
+			} else if ab.len() < ac.len() {
+				CCW::ABC
+			} else {
+				CCW::ACB
+			}
+		}
+	}
+
+	pub trait Line {}
+	pub trait LineSegment {
+		fn length(&self) -> f64;
+		fn is_crossing(&self, rhs: Self) -> bool;
+	}
+
+	#[derive(Copy, Clone, PartialEq, Debug)]
+	pub struct LineSegment2d<T: Vector + Copy + Clone + PartialEq + Debug>(T, T);
+
+	impl<T> LineSegment2d<T>
+	where
+		T: Vector + Copy + Clone + PartialEq + Debug,
+	{
+		pub fn new(a: T, b: T) -> Self {
+			Self(a, b)
+		}
+	}
+
+	impl<T> LineSegment for LineSegment2d<T>
+	where
+		T: Vector + Copy + Clone + PartialEq + Debug,
+	{
+		fn length(&self) -> f64 {
+			self.1.sub(self.0).length()
+		}
+
+		fn is_crossing(&self, rhs: Self) -> bool {
+			let a = self.0;
+			let b = self.1;
+			let c = rhs.0;
+			let d = rhs.1;
+
+			let ab = b.sub(a);
+			let cd = d.sub(c);
+			let ac = c.sub(a);
+			let ad = d.sub(a);
+			let ca = a.sub(c);
+			let cb = b.sub(c);
+
+			let det_ab_ac = ab.det(ac);
+			let det_ab_ad = ab.det(ad);
+			let det_cd_ca = cd.det(ca);
+			let det_cd_cb = cd.det(cb);
+
+			det_ab_ac * det_ab_ad < 0.0 && det_cd_ca * det_cd_cb < 0.0
+		}
+	}
+}
