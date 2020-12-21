@@ -878,3 +878,55 @@ mod geometry {
 		}
 	}
 }
+
+#[allow(dead_code)]
+mod binary_indexed_tree {
+	#[derive(Eq, PartialEq, Clone, Default, Debug)]
+	pub struct BIT {
+		len: usize,
+		tree: Vec<isize>,
+	}
+
+	impl BIT {
+		pub fn new(n: usize) -> Self {
+			let len = n + 1;
+			Self {
+				len: len,
+				tree: vec![0; len],
+			}
+		}
+
+		pub fn len(&self) -> usize {
+			self.len
+		}
+
+		pub fn add(&mut self, mut index: usize, value: isize) {
+			index += 1;
+			assert!(index < self.len);
+			while index < self.len {
+				self.tree[index] += value;
+				index += (index as isize & -(index as isize)) as usize;
+			}
+		}
+
+		pub fn get(&self, index: usize) -> isize {
+			assert!(index + 1 < self.len);
+			self.query(index, index + 1)
+		}
+
+		pub fn query(&self, left: usize, right: usize) -> isize {
+			assert!(right <= self.len);
+			self.sum(right) - self.sum(left)
+		}
+
+		fn sum(&self, mut index: usize) -> isize {
+			assert!(index < self.len);
+			let mut ret = 0;
+			while index > 0 {
+				ret += self.tree[index];
+				index -= (index as isize & -(index as isize)) as usize;
+			}
+			ret
+		}
+	}
+}

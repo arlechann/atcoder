@@ -97,6 +97,8 @@ mod solve {
 		f: [usize; n]
 	}
 
+	use binary_indexed_tree::BIT;
+
 	impl Solver {
 		pub fn new() -> Self {
 			Default::default()
@@ -109,74 +111,21 @@ mod solve {
 			let mut prev = vec![None; self.m];
 			let mut y = 0;
 			for i in 0..self.n {
-				let x = if let Some(j) = prev[self.f[i] - 1] {
+				let mut x = if let Some(j) = prev[self.f[i] - 1] {
 					y = max(j, y);
 					dp.query(max(j, y), i + 1)
 				} else {
 					dp.query(y, i + 1)
 				};
-				dp.add(i + 1, x);
+				while x < 0 {
+					x += MOD as isize;
+				}
+				dp.add(i + 1, x % MOD as isize);
 				// println!("i: {}, x: {}", i, x);
 				// println!("{:?}", dp);
 				prev[self.f[i] - 1] = Some(i + 1);
 			}
-			dp.get(self.n) as usize
-		}
-	}
-
-	#[derive(Eq, PartialEq, Clone, Default, Debug)]
-	pub struct BIT {
-		len: usize,
-		tree: Vec<i64>,
-	}
-
-	impl BIT {
-		pub fn new(n: usize) -> Self {
-			let len = n + 1;
-			Self {
-				len: len,
-				tree: vec![0; len],
-			}
-		}
-
-		pub fn len(&self) -> usize {
-			self.len
-		}
-
-		pub fn add(&mut self, mut index: usize, value: i64) {
-			index += 1;
-			assert!(index < self.len);
-			while index < self.len {
-				self.tree[index] += value % MOD;
-				self.tree[index] %= MOD;
-				index += (index as isize & -(index as isize)) as usize;
-			}
-		}
-
-		pub fn get(&self, index: usize) -> i64 {
-			assert!(index + 1 < self.len);
-			self.query(index, index + 1)
-		}
-
-		// [left, right)
-		pub fn query(&self, left: usize, right: usize) -> i64 {
-			assert!(right < self.len);
-			let mut ret = self.sum(right) - self.sum(left);
-			while ret < 0 {
-				ret += MOD;
-			}
-			ret % MOD
-		}
-
-		fn sum(&self, mut index: usize) -> i64 {
-			assert!(index < self.len);
-			let mut ret = 0;
-			while index > 0 {
-				ret += self.tree[index];
-				ret %= MOD;
-				index -= (index as isize & -(index as isize)) as usize;
-			}
-			ret
+			(dp.get(self.n) % MOD as isize) as usize
 		}
 	}
 }
