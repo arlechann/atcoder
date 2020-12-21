@@ -132,18 +132,28 @@ mod solve {
 
 #[allow(dead_code)]
 mod binary_indexed_tree {
+	use std::fmt::Debug;
+	use std::ops::Add;
+	use std::ops::AddAssign;
+	use std::ops::Sub;
+
 	#[derive(Eq, PartialEq, Clone, Default, Debug)]
-	pub struct BIT {
+	pub struct BIT<
+		T: Copy + Clone + Eq + PartialEq + Default + Debug + Add + Sub<Output = T> + AddAssign,
+	> {
 		len: usize,
-		tree: Vec<isize>,
+		tree: Vec<T>,
 	}
 
-	impl BIT {
+	impl<T> BIT<T>
+	where
+		T: Copy + Clone + Eq + PartialEq + Default + Debug + Add + Sub<Output = T> + AddAssign,
+	{
 		pub fn new(n: usize) -> Self {
 			let len = n + 1;
 			Self {
 				len: len,
-				tree: vec![0; len],
+				tree: vec![Default::default(); len],
 			}
 		}
 
@@ -151,7 +161,7 @@ mod binary_indexed_tree {
 			self.len
 		}
 
-		pub fn add(&mut self, mut index: usize, value: isize) {
+		pub fn add(&mut self, mut index: usize, value: T) {
 			index += 1;
 			assert!(index < self.len);
 			while index < self.len {
@@ -160,19 +170,19 @@ mod binary_indexed_tree {
 			}
 		}
 
-		pub fn get(&self, index: usize) -> isize {
+		pub fn get(&self, index: usize) -> T {
 			assert!(index + 1 < self.len);
 			self.query(index, index + 1)
 		}
 
-		pub fn query(&self, left: usize, right: usize) -> isize {
+		pub fn query(&self, left: usize, right: usize) -> T {
 			assert!(right <= self.len);
 			self.sum(right) - self.sum(left)
 		}
 
-		fn sum(&self, mut index: usize) -> isize {
+		fn sum(&self, mut index: usize) -> T {
 			assert!(index < self.len);
-			let mut ret = 0;
+			let mut ret = Default::default();
 			while index > 0 {
 				ret += self.tree[index];
 				index -= (index as isize & -(index as isize)) as usize;
