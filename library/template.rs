@@ -58,6 +58,9 @@ mod solve {
 
 	#[allow(unused_macros)]
 	macro_rules! member_type {
+		([char]) => {
+			Vec<char>
+		};
 		([$tt:tt; $i:ident]) => {
 			Vec<member_type!($tt)>
 		};
@@ -74,6 +77,9 @@ mod solve {
 
 	#[allow(unused_macros)]
 	macro_rules! read_type {
+		($self:ident; [char]) => {
+			read_type!($self; String).chars().collect::<Vec<_>>()
+		};
 		($self:ident; [$tt:tt; $i:ident]) => {
 			(0..$self.$i).map(|_| read_type!($self; $tt)).collect()
 		};
