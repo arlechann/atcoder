@@ -430,17 +430,21 @@ mod slice_utils {
 				if n == 0 {
 					return 0;
 				}
-				let mut ng: isize = -1;
-				let mut ok: isize = n - 1;
+				let mut ng: isize = n;
+				let mut ok: isize = 0;
 				while (ok - ng).abs() > 1 {
 					let middle = (ok + ng) / 2;
-					if self[middle as usize] >= x {
+					if self[middle as usize] < x {
 						ok = middle;
 					} else {
 						ng = middle;
 					}
 				}
-				ok as usize
+				if self[ok as usize] >= x {
+					ok as usize
+				} else {
+					ng as usize
+				}
 			}
 		}
 
@@ -454,17 +458,21 @@ mod slice_utils {
 				if n == 0 {
 					return 0;
 				}
-				let mut ng: isize = -1;
-				let mut ok: isize = n - 1;
+				let mut ng: isize = n;
+				let mut ok: isize = 0;
 				while (ok - ng).abs() > 1 {
 					let middle = (ok + ng) / 2;
-					if self[middle as usize] > x {
+					if self[middle as usize] <= x {
 						ok = middle;
 					} else {
 						ng = middle;
 					}
 				}
-				ok as usize
+				if self[ok as usize] > x {
+					ok as usize
+				} else {
+					ng as usize
+				}
 			}
 		}
 	}
