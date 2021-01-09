@@ -107,43 +107,27 @@ constexpr T square(T x) {
 	return x * x;
 }
 
-// 終了判定
-template <typename T,
-		  typename enable_if<is_integral<T>::value>::type* = nullptr>
-bool finds(T left, T right) {
-	return abs(right - left) > 1;
-}
-
-// 二分探索
+// 繰り返し2乗法
+// 計算量 O(logn)
 template <typename T>
-T bin_search(T left, T right, auto pred) {
-	while(finds<T>(left, right)) {
-		T middle = (left + right) / 2;
-		if(pred(middle)) {
-			left = middle;
-		} else {
-			right = middle;
+constexpr T pow(T a, T n, ll m) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+			ret %= m;
 		}
+		a *= a;
+		a %= m;
+		n /= 2;
 	}
-	return left;
+	return ret;
 }
 
 int main() {
 	ll n, m;
 	cin >> n >> m;
 
-	ll ng = (static_cast<ll>(1e18) + m - 1) / m;
-	ll x = bin_search<ll>(0, ng + 1, [&](auto x) {
-		if(x == 0) {
-			return true;
-		} else {
-			return n >= log10(m * x);
-		}
-	});
-
-	cout << x << endl;
-	cout << x * m << endl;
-	cout << PRECISION(16) << log10(m * x) << endl;
-	cout << x % m << endl;
+	cout << pow<ll>(10, n, m * m) / m % m << endl;
 	return 0;
 }
