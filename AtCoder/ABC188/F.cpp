@@ -107,75 +107,30 @@ constexpr T square(T x) {
 	return x * x;
 }
 
-// 終了判定
-template <typename T,
-		  typename enable_if<is_integral<T>::value>::type* = nullptr>
-bool finds(T left, T right) {
-	return right - left > 1;
-}
+unordered_map<ll, ll> memo;
 
-// 二分探索
-template <typename T>
-T bin_search(T left, T right, auto pred) {
-	while(finds<T>(left, right)) {
-		T middle = (left + right) / 2;
-		if(pred(middle)) {
-			left = middle;
-		} else {
-			right = middle;
-		}
+ll rec(ll& x, ll y) {
+	if(memo[y] != 0) {
+		return memo[y];
 	}
-	return left;
+
+	if(x >= y) {
+		return x - y;
+	}
+
+	ll ret;
+	if(y % 2 == 0) {
+		ret = min(y - x, rec(x, y / 2) + 1);
+	} else {
+		ret = min({y - x, rec(x, (y + 1) / 2) + 2, rec(x, (y - 1) / 2) + 2});
+	}
+	return memo[y] = ret;
 }
 
 int main() {
 	ll x, y;
 	cin >> x >> y;
 
-	if(x >= y) {
-		cout << x - y << endl;
-		return 0;
-	}
-
-	ll r = bin_search(-(x + 1) / 2, x, [&](auto d) {
-		ll x1 = x + d - 1;
-		int i1 = 0;
-		while(x1 * 2 <= y) {
-			x1 *= 2;
-			i1++;
-		}
-		ll up1 = x1 * 2 - y;
-		ll low1 = y - x1;
-		ll r1 = min(low1, up1 + 1) + i1;
-
-		ll x2 = x + d;
-		int i2 = 0;
-		while(x2 * 2 <= y) {
-			x2 *= 2;
-			i2++;
-		}
-		ll up2 = x2 * 2 - y;
-		ll low2 = y - x2;
-		ll r2 = min(low2, up2 + 1) + i2;
-
-		if(d > 0) {
-			return r1 >= r2 + 1;
-		} else {
-			return r1 + 1 >= r2;
-		}
-	});
-
-	cout << r << endl;
-
-	ll i = abs(r);
-	x += r;
-	while(x * 2 <= y) {
-		x *= 2;
-		i++;
-	}
-	ll up = x * 2 - y;
-	ll low = y - x;
-	ll result = min(low, up + 1) + i;
-	cout << result << endl;
+	cout << rec(x, y) << endl;
 	return 0;
 }
