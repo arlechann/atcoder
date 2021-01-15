@@ -132,10 +132,10 @@ mod solve {
 
 			let mut result = 0;
 			for i in 0..len {
-				result += if keta[i] < 1 {
-					up[i]
+				result += if keta[i] == 0 {
+					up[i] * ten[i]
 				} else if keta[i] == 1 {
-					(up[i] + 1) * down[i] + 1
+					up[i] * ten[i] + down[i] + 1
 				} else {
 					(up[i] + 1) * ten[i]
 				};
