@@ -107,6 +107,21 @@ constexpr T square(T x) {
 	return x * x;
 }
 
+// 繰り返し2乗法
+// 計算量 O(logn)
+template <typename T>
+constexpr T pow(T a, int n) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+		}
+		a *= a;
+		n /= 2;
+	}
+	return ret;
+}
+
 template <long long MOD = 1000000007>
 class ModInt {
 	public:
@@ -208,26 +223,6 @@ std::istream& operator>>(std::istream& is, ModInt<MOD>& x) {
 
 using mint = ModInt<998244353>;
 
-bool can_right(vector<vector<char>>& map, int h, int w) {
-	return map[h][w] == 'R' || map[h][w] == 'X';
-}
-
-bool can_down(vector<vector<char>>& map, int h, int w) {
-	return map[h][w] == 'D' || map[h][w] == 'X';
-}
-
-bool cannot_right(vector<vector<char>>& map, int h, int w) {
-	return map[h][w] == 'D';
-}
-
-bool cannot_down(vector<vector<char>>& map, int h, int w) {
-	return map[h][w] == 'R';
-}
-
-bool is_unmarked(vector<vector<char>>& map, int h, int w) {
-	return map[h][w] == '.';
-}
-
 int main() {
 	int h, w, k;
 	cin >> h >> w >> k;
@@ -243,71 +238,24 @@ int main() {
 	REP(i, k) { map[y[i]][x[i]] = c[i]; }
 
 	vector<vector<mint>> dp(h + 2, vector<mint>(w + 2, 0));
+	auto inv = mint(2) / 3;
+	dp[0][0] = pow<mint>(mint(3), h * w - k);
 	REP(i, h) {
 		REP(j, w) {
-			if(i == 0 && j == 0) {
-				dp[1][1] = 1;
-			} else if(i == 0) {
-				if(map[0][j - 1] == '.') {
-					dp[1][j + 1] = dp[1][j] * 2;
-				} else if(map[0][j - 1] == 'D') {
-					dp[i + 1][1] = 0;
-				} else {
-					dp[1][j + 1] = dp[1][j];
-				}
-			} else if(j == 0) {
-				if(map[i - 1][0] == '.') {
-					dp[i + 1][1] = dp[i][1] * 2;
-				} else if(map[i - 1][0] == 'R') {
-					dp[i + 1][1] = 0;
-				} else {
-					dp[i + 1][1] = dp[i][1];
-				}
+			if(map[i][j] == 'R') {
+				dp[i][j + 1] += dp[i][j];
+			} else if(map[i][j] == 'D') {
+				dp[i + 1][j] += dp[i][j];
+			} else if(map[i][j] == 'X') {
+				dp[i][j + 1] += dp[i][j];
+				dp[i + 1][j] += dp[i][j];
 			} else {
-				if(can_right(map, i, j - 1) && can_down(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i + 1][j] + dp[i][j + 1];
-				} else if(cannot_right(map, i, j - 1) &&
-						  cannot_down(map, i - 1, j)) {
-					dp[i + 1][j + 1] = 0;
-				} else if(cannot_right(map, i, j - 1) &&
-						  can_down(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i][j + 1];
-				} else if(can_right(map, i, j - 1) &&
-						  cannot_down(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i + 1][j];
-				} else if(can_right(map, i, j - 1) &&
-						  is_unmarked(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i + 1][j] * 3 + dp[i][j + 1] * 2;
-				} else if(is_unmarked(map, i, j - 1) &&
-						  can_down(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i + 1][j] * 2 + dp[i][j + 1] * 3;
-				} else if(cannot_right(map, i, j - 1) &&
-						  is_unmarked(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i][j + 1] * 2;
-				} else if(is_unmarked(map, i, j - 1) &&
-						  cannot_down(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i + 1][j] * 2;
-				} else if(is_unmarked(map, i, j - 1) &&
-						  is_unmarked(map, i - 1, j)) {
-					dp[i + 1][j + 1] = dp[i + 1][j] * 6 + dp[i][j + 1] * 6;
-				}
+				dp[i][j + 1] += dp[i][j] * inv;
+				dp[i + 1][j] += dp[i][j] * inv;
 			}
 		}
 	}
 
-	// REP(i, h) {
-	// 	REP(j, w) { cout << map[i][j]; }
-	// 	cout << endl;
-	// }
-	// REP(i, h + 1) {
-	// 	REP(j, w + 1) { cout << dp[i][j] << " "; }
-	// 	cout << endl;
-	// }
-
-	if(map[h - 1][w - 1] == '.') {
-		cout << dp[h][w] * 3 << endl;
-	} else {
-		cout << dp[h][w] << endl;
-	}
+	cout << dp[h - 1][w - 1] << endl;
 	return 0;
 }
