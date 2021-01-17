@@ -130,10 +130,10 @@ mod solve {
 			let mov = {
 				if self.k.len() > 6 {
 					is_large = true;
-					let mut mov = 1;
+					let mut mov = 0;
 					for x in self.k.iter().map(|&c| c.to_digit(10).unwrap() as usize) {
-						mov *= x as isize;
 						mov *= 10;
+						mov += x as isize;
 						mov %= modulo as isize;
 					}
 					mov -= start as isize;
@@ -156,13 +156,12 @@ mod solve {
 				for _ in 0..start + mov {
 					now = self.b[now] - 1;
 				}
-				now + 1
 			} else {
 				for _ in 0..mov {
 					now = self.b[now] - 1;
 				}
-				now + 1
 			}
+			now + 1
 		}
 	}
 }
