@@ -103,12 +103,36 @@ mod solve {
 		wp: [(u64, u64); n]
 	}
 
+	use search::bin_search_f64;
+
 	impl Solver {
 		pub fn new() -> Self {
 			Default::default()
 		}
 
-		pub fn solve(&mut self) -> f64 {}
+		pub fn solve(&self) -> String {
+			let result = bin_search_f64(0.0, 100.0, |x| {
+				let mut wp = self.wp.clone();
+				wp.sort_by_key(|&(w, p)| Total(w as f64 * (x - p as f64)));
+				let (w, s) = wp
+					.into_iter()
+					.take(self.k)
+					.fold((0, 0), |(acc_w, acc_s), (w, p)| (acc_w + w, acc_s + w * p));
+				s as f64 >= x * w as f64
+			});
+			format!("{:.18}", result)
+		}
+	}
+
+	#[derive(PartialEq, PartialOrd)]
+	pub struct Total<T>(pub T);
+
+	impl<T: PartialEq> Eq for Total<T> {}
+
+	impl<T: PartialOrd> Ord for Total<T> {
+		fn cmp(&self, other: &Total<T>) -> std::cmp::Ordering {
+			self.0.partial_cmp(&other.0).unwrap()
+		}
 	}
 }
 
@@ -152,6 +176,7 @@ mod input {
 #[allow(dead_code)]
 mod search {
 	use std::ops::*;
+
 	pub fn bin_search<T, F>(mut ok: T, mut ng: T, pred: F) -> T
 	where
 		T: Copy
@@ -166,6 +191,21 @@ mod search {
 	{
 		while max(ok, ng) - min(ok, ng) > T::from(1) {
 			let middle = (ok + ng) / T::from(2);
+			if pred(middle) {
+				ok = middle;
+			} else {
+				ng = middle;
+			}
+		}
+		ok
+	}
+
+	pub fn bin_search_f64<F>(mut ok: f64, mut ng: f64, pred: F) -> f64
+	where
+		F: Fn(f64) -> bool,
+	{
+		for _ in 0..300 {
+			let middle = (ok + ng) / 2.0;
 			if pred(middle) {
 				ok = middle;
 			} else {
