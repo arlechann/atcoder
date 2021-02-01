@@ -35,6 +35,7 @@ using namespace std;
 using ll = long long;
 using VI = vector<int>;
 using VI2D = vector<vector<int>>;
+using VLL = vector<ll>;
 
 constexpr int INF = 2e9;
 constexpr double EPS = 1e-10;
@@ -76,30 +77,32 @@ int count(map<int, int>& p, int pos) {
 	return 0;
 }
 
+const ll MOD = 2019;
+
 int main() {
 	string s;
 	cin >> s;
-	vector<string> list(10000);
-	REP(i, 10000) { list[i] = to_string((i + 1) * 2019); }
 
 	int n = s.size();
-	map<int, int> p;
-	REP(i, 10000) {
-		string str = list[i];
-		int len = str.size();
-		int pos = 0;
-		while((pos = s.find(str, pos)) != string::npos) {
-			p[pos] = pos + len;
-			pos++;
-		}
+	VLL d(n + 1, 0);
+	d[n - 1] = 1;
+	for(int i = n - 2; i >= 0; i--) {
+		d[i] = d[i + 1] * 10;
+		d[i] %= MOD;
 	}
 
-	int result = 0;
-	EACH(e, p) {
-		result += count(p, e.first);
+	VLL t(n + 1, 0);
+	for(int i = n - 1; i >= 0; i--) {
+		t[i] = t[i + 1] + (s[i] - '0') * d[i];
+		t[i] %= MOD;
 	}
+
+	VLL m(MOD, 0);
+	REP(i, n + 1) { m[t[i]]++; }
+
+	ll result = 0;
+	REP(i, MOD) { result += m[i] * (m[i] - 1) / 2; }
 
 	cout << result << endl;
-
 	return 0;
 }
