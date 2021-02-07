@@ -107,31 +107,53 @@ constexpr T square(T x) {
 	return x * x;
 }
 
-void cf(double x, double r, ll* low, ll* high) {
-	*low = ceil(x - r - EPS);
-	*high = floor(x + r + EPS);
+// 終了判定
+template <typename T,
+		  typename enable_if<is_integral<T>::value>::type* = nullptr>
+bool finds(T left, T right) {
+	return abs(right - left) > 1;
+}
+
+// 二分探索
+template <typename T>
+T bin_search(T left, T right, auto pred) {
+	while(finds<T>(left, right)) {
+		T middle = (left + right) / 2;
+		if(pred(middle)) {
+			left = middle;
+		} else {
+			right = middle;
+		}
+	}
+	return left;
 }
 
 int main() {
 	double x, y, r;
 	cin >> x >> y >> r;
 
-	double a, b, p;
-	a = x;
-	b = y;
+	ll x2 = static_cast<ll>(round(x * 10000)) % 10000,
+	   y2 = static_cast<ll>(round(y * 10000)) % 10000, r2 = round(r * 10000);
+	x2 += ((r2 + 9999) / 10000) * 10000;
+	y2 += ((r2 + 9999) / 10000) * 10000;
 
-	ll start, end, top, bottom, i, j, num;
-	num = 0;
-	cf(a, r, &start, &end);
+	ll left = ((x2 - r2 + 9999) / 10000) * 10000,
+	   right = ((x2 + r2) / 10000) * 10000, result = 0;
 
-	for(i = start; i <= end; i++) {
-		p = sqrt(pow(r, 2) - pow((a - i), 2));
-
-		cf(b, p, &bottom, &top);
-
-		num += top - bottom + 1;
+	// cout << x2 << " " << y2 << " " << r2 << endl;
+	// cout << left << " " << right << endl;
+	for(ll i = left; i <= right; i += 10000) {
+		ll square_b = square(r2) - square(x2 - i);
+		ll b = bin_search(0LL, 2'000'000'000LL, [&](auto x) {
+			return square(x) <= square_b;
+		});
+		ll top = (y2 + b) / 10000, bottom = (y2 - b + 9999) / 10000;
+		result += top - bottom + 1;
+		// cout << "i: " << i << endl;
+		// cout << square_b << " " << b << " " << top << " " << bottom << " "
+		// << result << endl;
 	}
-	cout << num << endl;
 
+	cout << result << endl;
 	return 0;
 }
