@@ -138,7 +138,12 @@ int main() {
 	int d = 0;
 	REP(i, n) { chmax(d, x[i] - '0'); }
 
-	ll d2 = bin_search<ll>(1, m, [&](ll a) {
+	if(n == 1) {
+		cout << (d <= m ? 1 : 0) << endl;
+		return 0;
+	}
+
+	ll d2 = bin_search<ll>(d, m + 1, [&](ll a) {
 		ll t = 0;
 		REP(i, n) {
 			if(t > m / a) {
