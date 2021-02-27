@@ -41,6 +41,7 @@ using VLL = std::vector<long long>;
 using VLL2D = std::vector<vector<long long>>;
 
 constexpr int INF = 2e9;
+constexpr long long LLINF = 2e18;
 constexpr double EPS = 1e-10;
 constexpr double PI = acos(-1.0);
 
@@ -136,22 +137,38 @@ void test_case(int t) {
 	ll x, y, p, q;
 	cin >> x >> y >> p >> q;
 
-	RANGE(P, p, q) {
-		RANGE(X, x, y) {
-			ll a, b, c;
-			if(x - p >= 0) {
-				a = p + q, b = -2 * (x + y), c = X - P;
-			} else {
-				a = -(p + q), b = 2 * (x + y), c = P - X;
-			}
-			auto [n, m, gcd_ab] = ext_gcd(a, b);
+	ll a = p + q, b = 2 * (x + y);
+	auto [n, m, gcd_ab] = ext_gcd(a, b);
+	// cout << "ext_gcd(" << a << ", " << b << ") => [" << n << ", " << m << ",
+	// "
+	// 	 << gcd_ab << "]" << endl;
+
+	ll result = LLINF;
+	REP(Q, q) {
+		REP(Y, y) {
+			ll c = x + Y - p - Q;
 			if(c % gcd_ab != 0) {
 				continue;
 			}
+
+			ll b_div_gcd_ab = b / gcd_ab;
 			ll c_div_gcd_ab = c / gcd_ab;
+			ll r = n;
+			r *= c_div_gcd_ab;
+			if(r < 0) {
+				r += ((-r + b_div_gcd_ab - 1) / b_div_gcd_ab) * b_div_gcd_ab;
+			}
+			r %= b_div_gcd_ab;
+			ll time = r * (p + q) + p + Q;
+			chmin(result, time);
 		}
 	}
-	cout << "infinity" << endl;
+
+	if(result == LLINF) {
+		cout << "infinity" << endl;
+	} else {
+		cout << result << endl;
+	}
 	return;
 }
 
