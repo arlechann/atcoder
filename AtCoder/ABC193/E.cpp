@@ -133,17 +133,30 @@ tuple<long long, long long, long long> ext_gcd(long long a, long long b) {
 	return std::make_tuple(x, y - a / b * x, d);
 }
 
+ll solve_bezout_identity(ll a, ll b, ll d) {
+	if(a < 0) {
+		a = -a;
+		d = -d;
+	}
+	b = abs(b);
+	auto [x, y, c] = ext_gcd(a, b);
+	x *= d / c;
+	ll bdc = b / c;
+	if(x < 0) {
+		x += ((-x + bdc - 1) / bdc) * bdc;
+	} else {
+		x %= bdc;
+	}
+	return x;
+}
+
 void test_case(int t) {
 	ll x, y, p, q;
 	cin >> x >> y >> p >> q;
 
-	ll a = p + q, b = 2 * (x + y);
-	auto [n, m, gcd_ab] = ext_gcd(a, b);
-	// cout << "ext_gcd(" << a << ", " << b << ") => [" << n << ", " << m << ",
-	// "
-	// 	 << gcd_ab << "]" << endl;
-
 	ll result = LLINF;
+	ll a = p + q, b = -2 * (x + y);
+	ll gcd_ab = gcd(a, b);
 	REP(Q, q) {
 		REP(Y, y) {
 			ll c = x + Y - p - Q;
@@ -151,14 +164,7 @@ void test_case(int t) {
 				continue;
 			}
 
-			ll b_div_gcd_ab = b / gcd_ab;
-			ll c_div_gcd_ab = c / gcd_ab;
-			ll r = n;
-			r *= c_div_gcd_ab;
-			if(r < 0) {
-				r += ((-r + b_div_gcd_ab - 1) / b_div_gcd_ab) * b_div_gcd_ab;
-			}
-			r %= b_div_gcd_ab;
+			ll r = solve_bezout_identity(a, b, c);
 			ll time = r * (p + q) + p + Q;
 			chmin(result, time);
 		}

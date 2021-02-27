@@ -31,3 +31,22 @@ tuple<long long, long long, long long> ext_gcd(long long a, long long b) {
 	auto [y, x, d] = ext_gcd(b, a % b);
 	return std::make_tuple(x, y - a / b * x, d);
 }
+
+// 一次不定方程式 (ax + by = d) を解き、非負整数になる x を求める
+// d % gcd(a, b) == 0 を前提とする
+ll solve_bezout_identity(ll a, ll b, ll d) {
+	if(a < 0) {
+		a = -a;
+		d = -d;
+	}
+	b = abs(b);
+	auto [x, y, c] = ext_gcd(a, b);
+	x *= d / c;
+	ll bdc = b / c;
+	if(x < 0) {
+		x += ((-x + bdc - 1) / bdc) * bdc;
+	} else {
+		x %= bdc;
+	}
+	return x;
+}
