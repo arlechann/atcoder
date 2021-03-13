@@ -107,7 +107,7 @@ constexpr T square(T x) {
 	return x * x;
 }
 
-ll query(VLL& w, VLL& v, VLL boxes) {
+ll solve_query(VLL& w, VLL& v, VLL boxes) {
 	int n = w.size();
 	int m = boxes.size();
 	VI used(n, 0);
@@ -115,14 +115,24 @@ ll query(VLL& w, VLL& v, VLL boxes) {
 	ll ret = 0;
 	REP(i, m) {
 		bool is_found = false;
-		int max_w = 0;
+		int max_index;
 		int max_v = 0;
 		REP(j, n) {
-			if(used[j] != 0) {
+			if(used[j] != 0 || w[j] > boxes[i]) {
 				continue;
 			}
+			if(v[j] > max_v) {
+				max_index = j;
+				max_v = v[j];
+				is_found = true;
+			}
+		}
+		if(is_found) {
+			used[max_index] = true;
+			ret += max_v;
 		}
 	}
+	return ret;
 }
 
 int main() {
@@ -135,7 +145,6 @@ int main() {
 	vector<pair<int, int>> query(q);
 	EACH(e, query) { cin >> e.first >> e.second; }
 
-	ll result = 0;
 	EACH(e, query) {
 		int left = e.first - 1;
 		int right = e.second;
@@ -145,7 +154,7 @@ int main() {
 				boxes.push_back(x[i]);
 			}
 		}
-		chmax(result, query(w, v, move(boxes)));
+		cout << solve_query(w, v, move(boxes)) << endl;
 	}
 	return 0;
 }
