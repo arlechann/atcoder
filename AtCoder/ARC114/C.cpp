@@ -227,20 +227,29 @@ int main() {
 	int n, m;
 	cin >> n >> m;
 
+	vector<vector<mint>> mod_pow(m + 1, vector<mint>(n + 1, mint(1)));
+	REP(j, m + 1) {
+		REP(i, n) { mod_pow[j][i + 1] = mod_pow[j][i] * j; }
+	}
+
+	vector<vector<mint>> cumsum(m + 1, vector<mint>(n + 1, mint(0)));
+	REP(j, m + 1) {
+		REP(i, n) {
+			cumsum[j][i + 1] =
+				cumsum[j][i] + mod_pow[m - j][i] * mod_pow[m][n - i - 2];
+		}
+	}
+
 	mint result = 0;
 	REP(i, n) {
 		RANGE(j, 1, m + 1) {
 			if(i == n - 1) {
-				mint a = pow<mint>(m, n - 1);
+				mint a = mod_pow[m][n - 1];
 				result += a;
-				cout << i << ", " << j << " => " << a << endl;
 			} else {
-				mint ls = pow<mint>(m, i) * 1 * (j - 1) *
-						  pow<mint>(m, n - i - 2); // 右がここ未満
-				mint gr = pow<mint>(m, i) * 1 * (m - j) *
-						  pow<mint>(m - 1, n - i - 2); // 右がここより多い
-				result += ls + gr;
-				cout << i << ", " << j << " => " << ls << " " << gr << endl;
+				mint all = mod_pow[m][n - 1];
+				mint exc = cumsum[j][n - i - 1];
+				result += all - exc;
 			}
 		}
 	}
