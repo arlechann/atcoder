@@ -98,6 +98,9 @@ mod solve {
 		struct = Solver;
 		method = input(&mut self);
 		global = {};
+		n: usize,
+		s: [char],
+		x: [char]
 	}
 
 	impl Solver {
@@ -105,8 +108,30 @@ mod solve {
 			Default::default()
 		}
 
-		pub fn solve(&self) -> usize {
-			todo!();
+		pub fn solve(&self) -> String {
+			let s = self
+				.s
+				.iter()
+				.map(|c| c.to_digit(10).unwrap() as usize)
+				.collect_vec();
+
+			let mut dp = vec![vec![false; 10]; self.n + 1];
+			dp[self.n][0] = true;
+			for i in (0..self.n).rev() {
+				for j in 0..10 {
+					if self.x[i] == 'A' {
+						dp[i][j] = dp[i + 1][(j * 10) % 7] && dp[i + 1][(j * 10 + s[i]) % 7];
+					} else {
+						dp[i][j] = dp[i + 1][(j * 10) % 7] || dp[i + 1][(j * 10 + s[i]) % 7];
+					}
+				}
+			}
+
+			if dp[0][0] {
+				"Takahashi".to_string()
+			} else {
+				"Aoki".to_string()
+			}
 		}
 	}
 }
