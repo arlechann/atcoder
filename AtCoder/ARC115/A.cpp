@@ -111,16 +111,23 @@ int main() {
 	int n, m;
 	cin >> n >> m;
 	VI s(n);
-	EACH(e, s) { cin >> e; }
-
-	ll ext = 0;
-	sort(ALL(s));
-	EACH(i, s) {
-		int acc = 0;
-		ext += acc;
+	EACH(e, s) {
+		string tmp;
+		cin >> tmp;
+		e = stoi(tmp, 0, 2);
 	}
 
-	ll all = n * (n - 1) / 2;
-	cout << all - ext << endl;
+	ll odd = 0;
+	ll even = 0;
+	EACH(i, s) {
+		if(__builtin_popcount(i) % 2 == 0) {
+			even++;
+		} else {
+			odd++;
+		}
+	}
+
+	ll result = odd * even;
+	cout << result << endl;
 	return 0;
 }
