@@ -109,13 +109,55 @@ constexpr T square(T x) {
 
 int h, w, a, b;
 
-int dps(VI2D d, int i, int j) {}
+int is_filled(const VI2D& d) {
+	REP(i, h) {
+		REP(j, w) {
+			if(d[i][j] == 0) {
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+int dfs(VI2D d, int i, int j, int a) {
+	if(a < 0) {
+		return 0;
+	}
+	if(i == h) {
+		if(a == 0) {
+			return is_filled(d);
+		}
+		return 0;
+	}
+
+	int ni = i + (j + 1) / w;
+	int nj = (j + 1) % w;
+	if(d[i][j] == 1) {
+		return dfs(d, ni, nj, a);
+	}
+
+	int tate = 0, yoko = 0, hanjo = 0;
+	d[i][j] = 1;
+	if(i != h - 1) {
+		VI2D tmp = d;
+		tmp[i + 1][j] = 1;
+		tate = dfs(tmp, ni, nj, a - 1);
+	}
+	if(j != w - 1 && d[i][j + 1] == 0) {
+		VI2D tmp = d;
+		tmp[i][j + 1] = 1;
+		yoko = dfs(tmp, ni, nj, a - 1);
+	}
+	hanjo = dfs(d, ni, nj, a);
+	return tate + yoko + hanjo;
+}
 
 int main() {
 	cin >> h >> w >> a >> b;
 
 	auto d = make_vector({h, w}, 0);
 
-	cout << dps(d, 0, 0) << endl;
+	cout << dfs(d, 0, 0, a) << endl;
 	return 0;
 }
