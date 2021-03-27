@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <boost/optional.hpp>
 #include <climits>
 #include <cmath>
 #include <cstdio>
@@ -41,6 +40,7 @@ using VLL = std::vector<long long>;
 using VLL2D = std::vector<vector<long long>>;
 
 constexpr int INF = 2e9;
+constexpr long long INFLL = 2e18;
 constexpr double EPS = 1e-10;
 constexpr double PI = acos(-1.0);
 
@@ -105,6 +105,11 @@ constexpr void chmin(T& m, U x) {
 template <typename T>
 constexpr T square(T x) {
 	return x * x;
+}
+
+template <typename T>
+constexpr T diff(T a, T b) {
+	return abs(a - b);
 }
 
 int main() {
