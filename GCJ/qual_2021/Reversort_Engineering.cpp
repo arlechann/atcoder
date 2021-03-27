@@ -120,16 +120,17 @@ void test_case(int t) {
 	REP(i, n) { l[i] = i + 1; }
 
 	int nc = c - (n - 1);
-	int b = 0;
+	__int128_t b = 0;
 	for(int i = n - 1; i > 0; i--) {
 		if(nc >= i) {
 			nc -= i;
-			b |= (1 << i);
+			b |= (static_cast<__int128_t>(1) << i);
 		}
 	}
 
 	REP(i, n) {
-		if((b & (1 << i)) != 0) {
+		if((b & (static_cast<__int128_t>(1) << i)) !=
+		   static_cast<__int128_t>(0)) {
 			reverse(l.rbegin(), l.rbegin() + i + 1);
 		}
 	}
