@@ -112,6 +112,45 @@ constexpr T diff(T a, T b) {
 	return abs(a - b);
 }
 
+void dfs(VI2D& edges, VI& colors, VI& used, VI& result, int node, int parent) {
+	if(used[colors[node]] == 0) {
+		result[node]++;
+	}
+	used[colors[node]]++;
+	EACH(child, edges[node]) {
+		if(child == parent) {
+			continue;
+		}
+		dfs(edges, colors, used, result, child, node);
+	}
+	used[colors[node]]--;
+}
+
 int main() {
+	int n;
+	cin >> n;
+	VI c(n);
+	EACH(e, c) { cin >> e; }
+	VI a(n - 1), b(n - 1);
+	REP(i, n - 1) {
+		cin >> a[i] >> b[i];
+		a[i]--;
+		b[i]--;
+	}
+
+	VI2D edges(n);
+	REP(i, n - 1) {
+		edges[a[i]].push_back(b[i]);
+		edges[b[i]].push_back(a[i]);
+	}
+
+	VI used(100001, 0);
+	VI result(n, 0);
+	dfs(edges, c, used, result, 0, 0);
+	REP(i, n) {
+		if(result[i] != 0) {
+			cout << i + 1 << endl;
+		}
+	}
 	return 0;
 }
