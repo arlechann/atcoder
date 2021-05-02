@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <bitset>
 #include <climits>
 #include <cmath>
 #include <cstdio>
@@ -141,9 +142,34 @@ int main() {
 	VLL a(n), b(n), c(n), d(n), e(n);
 	REP(i, n) { cin >> a[i] >> b[i] >> c[i] >> d[i] >> e[i]; }
 
-	auto minimum = bin_search(0LL, ABCDE_MAX + 1, [](auto x) {
-		;
-		return true;
+	ll result = bin_search(0LL, ABCDE_MAX + 1, [&](auto x) {
+		REP(i, 1 << 5) {
+			REP(j, 1 << 5) {
+				int k = ((1 << 5) - 1) & ~(i | j);
+				int found = 0;
+				REP(l, n) {
+					int set = 0;
+					set |= (a[l] >= x ? 1 : 0);
+					set |= (b[l] >= x ? 2 : 0);
+					set |= (c[l] >= x ? 4 : 0);
+					set |= (d[l] >= x ? 8 : 0);
+					set |= (e[l] >= x ? 16 : 0);
+					if((found & 1) == 0 && set == i) {
+						found |= 1;
+					} else if((found & 2) == 0 && set == j) {
+						found |= 2;
+					} else if((found & 4) == 0 && (set & k) == k) {
+						found |= 4;
+					}
+				}
+				if(found == 7) {
+					return true;
+				}
+			}
+		}
+		return false;
 	});
+
+	cout << result << endl;
 	return 0;
 }
