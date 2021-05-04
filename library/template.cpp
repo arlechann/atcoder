@@ -22,7 +22,9 @@
 #include <vector>
 
 #define REP(i, n) for(int i = 0, i##_MACRO = (n); i < i##_MACRO; i++)
+#define RREP(i, n) for(int i = (n)-1; i >= 0; i--)
 #define RANGE(i, a, b) for(int i = (a), i##_MACRO = (b); i < i##_MACRO; i++)
+#define RRANGE(i, a, b) for(int i = (b)-1, i##_MACRO = (a); i >= i##_MACRO; i--)
 #define EACH(e, a) for(auto&& e : a)
 #define ALL(a) std::begin(a), std::end(a)
 #define RALL(a) std::rbegin(a), std::rend(a)
@@ -93,18 +95,33 @@ constexpr int sign(double x) {
 }
 
 template <typename T, typename U>
-constexpr void chmax(T& m, U x) {
+constexpr bool chmax(T& m, U x) {
 	m = max<T>(m, x);
+	return m < x;
 }
 
 template <typename T, typename U>
-constexpr void chmin(T& m, U x) {
+constexpr bool chmin(T& m, U x) {
 	m = min<T>(m, x);
+	return m > x;
 }
 
 template <typename T>
 constexpr T square(T x) {
 	return x * x;
+}
+
+template <typename T>
+constexpr T pow(T a, int n) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+		}
+		a *= a;
+		n /= 2;
+	}
+	return ret;
 }
 
 template <typename T>

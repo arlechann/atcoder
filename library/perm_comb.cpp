@@ -3,21 +3,6 @@
 #include <iostream>
 #include <vector>
 
-// 繰り返し2乗法
-// 計算量 O(logn)
-template <typename T>
-constexpr T pow(T a, int n) {
-	T ret = 1;
-	while(n != 0) {
-		if(n % 2) {
-			ret *= a;
-		}
-		a *= a;
-		n /= 2;
-	}
-	return ret;
-}
-
 // 順列
 // 計算量 O(k)
 template <typename T>
