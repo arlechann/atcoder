@@ -140,92 +140,49 @@ int main() {
 
 	EACH(e, a) { e %= MOD; }
 
-	REP(i, n) {
-		if(a[i] == 0) {
-			cout << "Yes" << endl;
-			if(i == 0) {
-				cout << 1 << " " << 2 << endl;
-				cout << 2 << " " << 1 << " " << 2 << endl;
-			} else {
-				cout << 1 << " " << 1 << endl;
-				cout << 2 << " " << 1 << " " << i + 1 << endl;
+	int x = min(n, 8);
+	VI count(MOD, 0);
+	RANGE(s, 1, 1 << x) {
+		int mod_sum = 0;
+		REP(i, x) {
+			if((s & (1 << i)) != 0) {
+				mod_sum += a[i];
+				mod_sum %= MOD;
 			}
-			return 0;
 		}
+		count[mod_sum]++;
 	}
 
-	VI2D dp(n + 1, VI(MOD, 0));
-	dp[0][0] = 1;
-	REP(i, n) {
-		REP(j, MOD) {
-			int m = j - a[i];
-			if(m < 0) {
-				m += MOD;
-			}
-			dp[i + 1][j] = dp[i][j] + dp[i][m];
-			chmin(dp[i + 1][j], 2);
-		}
-	}
-
-	// REP(j, MOD) {
-	// 	cout << j << ": ";
-	// 	REP(i, n + 1) { cout << dp[i][j] << " "; }
-	// 	cout << endl;
-	// }
-
-	bool is_found = false;
-	int x;
-	REP(i, MOD) {
-		if(dp[n][i] >= 2) {
-			is_found = true;
-			x = i;
-			break;
-		}
-	}
-	if(!is_found) {
+	auto found_iter = find_if(ALL(count), [](auto x) { return x >= 2; });
+	if(found_iter == count.end()) {
 		cout << "No" << endl;
 		return 0;
 	}
+	int found_num = distance(count.begin(), found_iter);
 
-	stack<int> b;
-	int y = x;
-	RREP(i, n) {
-		int m = y - a[i];
-		if(m < 0) {
-			m += MOD;
+	VI result;
+	RANGE(s, 1, 1 << x) {
+		int mod_sum = 0;
+		REP(i, x) {
+			if((s & (1 << i)) != 0) {
+				mod_sum += a[i];
+				mod_sum %= MOD;
+			}
 		}
-		if(dp[i][m] > 0) {
-			b.push(i + 1);
-			y = m;
-		}
-	}
-
-	stack<int> c;
-	int z = x;
-	RREP(i, n) {
-		int m = z - a[i];
-		if(m < 0) {
-			m += MOD;
-		}
-		if(dp[i][z] == 0) {
-			c.push(i + 1);
-			z = m;
+		if(mod_sum == found_num) {
+			result.push_back(s);
 		}
 	}
 
 	cout << "Yes" << endl;
-	cout << c.size() << " ";
-	while(!c.empty()) {
-		cout << c.top() << " ";
-		c.pop();
+	REP(k, 2) {
+		cout << __builtin_popcount(result[k]) << " ";
+		REP(i, 8) {
+			if((result[k] & (1 << i)) != 0) {
+				cout << i + 1 << " ";
+			}
+		}
+		cout << endl;
 	}
-	cout << endl;
-	cout << b.size() << " ";
-	while(!b.empty()) {
-		cout << b.top() << " ";
-		b.pop();
-	}
-	cout << endl;
-
 	return 0;
 }
