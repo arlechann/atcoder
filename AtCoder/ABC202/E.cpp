@@ -129,9 +129,21 @@ constexpr T diff(T a, T b) {
 	return abs(a - b);
 }
 
-void set_depth(VI2D& c, VI& p, VI& depth, int node) {
-	depth[node] = depth[p[node]] + 1;
-	EACH(next, c[node]) { set_depth(c, p, depth, next); }
+const int N_MAX = 200000;
+
+int count_depth[N_MAX + 1];
+
+VI2D queries;
+unordered_map<int, unordered_map<int, int>> result;
+
+void dfs(VI2D& children, int node, int depth) {
+	unordered_map<int, int> tmp;
+	EACH(d, queries[node]) { tmp[d] = count_depth[d]; }
+	count_depth[depth]++;
+
+	EACH(child, children[node]) { dfs(children, child, depth + 1); }
+
+	EACH(d, queries[node]) { result[node][d] = count_depth[d] - tmp[d]; }
 }
 
 int main() {
@@ -151,20 +163,14 @@ int main() {
 		u[i]--;
 	}
 
+	queries = VI2D(n);
+	REP(i, q) { queries[u[i]].push_back(d[i]); }
+
 	VI2D children(n);
-	REP(i, n) { children[p[i]].push_back(i); }
+	RANGE(i, 1, n) { children[p[i]].push_back(i); }
 
-	VI depth(n);
-	depth[0] = 0;
-	set_depth(children, p, depth, 0);
+	dfs(children, 0, 0);
 
-	VI2D doubling(n, VI(20, 0));
-	doubling[0][0] = -1;
-	RANGE(i, 1, n) { doubling[i][0] = p[i]; }
-	REP(i, n) {
-		REP(k, 20 - 1) { doubling[i][k + 1] = doubling[doubling[i][k]][k]; }
-	}
-
-	REP(i, q) {}
+	REP(i, q) { cout << result[u[i]][d[i]] << endl; }
 	return 0;
 }
