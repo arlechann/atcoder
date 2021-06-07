@@ -198,15 +198,12 @@ Weight dijkstra(const Graph& graph, const size_t s, const size_t g) {
 		used[edge.to] = true;
 		for(auto&& e : graph.edges[edge.to]) {
 			Weight now = distances[e.from];
-			Weight t_dep = bin_search<ll>(now, INFLL, [&](ll t) {
-				if(t == now) {
-					return true;
-				}
-				ll time1 = (t - 1) + e.c + e.d / t;
-				ll time2 = t + e.c + e.d / (t + 1);
-				return time1 >= time2;
-			});
-			Weight alt = t_dep + e.c + e.d / (t_dep + 1);
+			Weight sqrt_d = max(now, static_cast<ll>(sqrt(e.d)));
+			Weight alt = INFLL;
+			RANGE(i, -2, 2) {
+				Weight t_dep = max(now, sqrt_d + i);
+				chmin(alt, t_dep + e.c + e.d / (t_dep + 1));
+			}
 			if(alt < distances[e.to]) {
 				distances[e.to] = alt;
 				pq.push(Edge(e.to, alt));
