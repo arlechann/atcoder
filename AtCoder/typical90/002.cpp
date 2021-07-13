@@ -129,6 +129,29 @@ constexpr T diff(T a, T b) {
 	return abs(a - b);
 }
 
+void solve(int b, int e, string s) {
+	if(e == 0) {
+		cout << s << endl;
+		return;
+	}
+
+	string s1 = s + "(";
+	if(b > 0) {
+		solve(b - 1, e, s1);
+	}
+	if(b < e) {
+		string s2 = s + ")";
+		solve(b, e - 1, s2);
+	}
+}
+
 int main() {
+	int n;
+	cin >> n;
+
+	if(n % 2 != 0) {
+		return 0;
+	}
+	solve(n / 2, n / 2, "");
 	return 0;
 }
