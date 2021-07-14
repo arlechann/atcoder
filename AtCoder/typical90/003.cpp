@@ -129,6 +129,44 @@ constexpr T diff(T a, T b) {
 	return abs(a - b);
 }
 
+pair<int, int> longest_distance(VI2D& edges, int node, int parent, int depth) {
+	pair<int, int> ret = make_pair(depth, node);
+	EACH(next, edges[node]) {
+		if(next == parent) {
+			continue;
+		}
+		auto x = longest_distance(edges, next, node, depth + 1);
+		if(x.first > ret.first) {
+			ret = x;
+		}
+	}
+
+	return ret;
+}
+
+int diameter(VI2D& edges) {
+	auto longest = longest_distance(edges, 0, 0, 0);
+	auto opposite = longest_distance(edges, longest.second, longest.second, 0);
+	return opposite.first + 1;
+}
+
 int main() {
+	int n;
+	cin >> n;
+	VI a(n - 1), b(n - 1);
+	REP(i, n - 1) {
+		cin >> a[i] >> b[i];
+		a[i]--;
+		b[i]--;
+	}
+
+	VI2D edges(n);
+	REP(i, n - 1) {
+		edges[a[i]].push_back(b[i]);
+		edges[b[i]].push_back(a[i]);
+	}
+
+	int result = diameter(edges);
+	cout << result << endl;
 	return 0;
 }
