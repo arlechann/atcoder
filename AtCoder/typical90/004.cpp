@@ -1,4 +1,5 @@
 #include <algorithm>
+
 #include <climits>
 #include <cmath>
 #include <cstdio>
@@ -130,5 +131,26 @@ constexpr T diff(T a, T b) {
 }
 
 int main() {
+	int h, w;
+	cin >> h >> w;
+	VI2D a(h, VI(w));
+	REP(i, h) {
+		REP(j, w) { cin >> a[i][j]; }
+	}
+
+	VI row(h, 0);
+	REP(i, h) {
+		REP(j, w) { row[i] += a[i][j]; }
+	}
+
+	VI col(w, 0);
+	REP(j, w) {
+		REP(i, h) { col[j] += a[i][j]; }
+	}
+
+	REP(i, h) {
+		REP(j, w) { cout << row[i] + col[j] - a[i][j] << " "; }
+		cout << endl;
+	}
 	return 0;
 }
