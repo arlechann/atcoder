@@ -129,6 +129,56 @@ constexpr T diff(T a, T b) {
 	return abs(a - b);
 }
 
+// 終了判定
+template <typename T,
+		  typename enable_if<is_integral<T>::value>::type* = nullptr>
+bool finds(T left, T right) {
+	return abs(right - left) <= 1;
+}
+
+// 二分探索
+template <typename T>
+T bin_search(T left, T right, auto pred) {
+	while(!finds<T>(left, right)) {
+		T middle = (left + right) / 2;
+		if(pred(middle)) {
+			left = middle;
+		} else {
+			right = middle;
+		}
+	}
+	return left;
+}
+
 int main() {
+	int n, k;
+	cin >> n >> k;
+	string s;
+	cin >> s;
+
+	VI2D positions('z' - 'a' + 1);
+	REP(i, n) { positions[s[i] - 'a'].push_back(i); }
+
+	int last_pos = -1;
+	string result;
+	REP(i, k) {
+		REP(c, 'z' - 'a' + 1) {
+			int size = positions[c].size();
+			int max_pos = n - (k - i);
+			int pos_index = bin_search(size, -1, [&](auto pi) {
+				if(pi == size) {
+					return true;
+				}
+				return positions[c][pi] > last_pos;
+			});
+			if(pos_index != size && positions[c][pos_index] <= max_pos) {
+				result.push_back(c + 'a');
+				last_pos = positions[c][pos_index];
+				break;
+			}
+		}
+	}
+
+	cout << result << endl;
 	return 0;
 }
