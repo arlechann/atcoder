@@ -137,5 +137,69 @@ int main() {
 	REP(i, h) {
 		REP(j, w) { cin >> a[i][j]; }
 	}
+
+	auto dp1 = make_vector({h, w}, INFLL);
+	REP(i, h) {
+		REP(j, w) {
+			if(i == 0 && j == 0) {
+				dp1[i][j] = a[i][j];
+			} else if(i == 0) {
+				dp1[i][j] = min(a[i][j], dp1[i][j - 1] + c);
+			} else if(j == 0) {
+				dp1[i][j] = min(a[i][j], dp1[i - 1][j] + c);
+			} else {
+				dp1[i][j] =
+					min({a[i][j], dp1[i - 1][j] + c, dp1[i][j - 1] + c});
+			}
+		}
+	}
+	ll result1 = INFLL;
+	REP(i, h) {
+		REP(j, w) {
+			if(i == 0 && j == 0) {
+			} else if(i == 0) {
+				chmin(result1, dp1[i][j - 1] + a[i][j] + c);
+			} else if(j == 0) {
+				chmin(result1, dp1[i - 1][j] + a[i][j] + c);
+			} else {
+				chmin(result1,
+					  min(dp1[i - 1][j] + a[i][j] + c,
+						  dp1[i][j - 1] + a[i][j] + c));
+			}
+		}
+	}
+
+	auto dp2 = make_vector({h, w}, INFLL);
+	REP(i, h) {
+		RREP(j, w) {
+			if(i == 0 && j == w - 1) {
+				dp2[i][j] = a[i][j];
+			} else if(i == 0) {
+				dp2[i][j] = min(a[i][j], dp2[i][j + 1] + c);
+			} else if(j == w - 1) {
+				dp2[i][j] = min(a[i][j], dp2[i - 1][j] + c);
+			} else {
+				dp2[i][j] =
+					min({a[i][j], dp2[i - 1][j] + c, dp2[i][j + 1] + c});
+			}
+		}
+	}
+	ll result2 = INFLL;
+	REP(i, h) {
+		REP(j, w) {
+			if(i == 0 && j == w - 1) {
+			} else if(i == 0) {
+				chmin(result2, dp2[i][j + 1] + a[i][j] + c);
+			} else if(j == w - 1) {
+				chmin(result2, dp2[i - 1][j] + a[i][j] + c);
+			} else {
+				chmin(result2,
+					  min(dp2[i - 1][j] + a[i][j] + c,
+						  dp2[i][j + 1] + a[i][j] + c));
+			}
+		}
+	}
+
+	cout << min(result1, result2) << endl;
 	return 0;
 }
