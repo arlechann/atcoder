@@ -130,5 +130,29 @@ constexpr T diff(T a, T b) {
 }
 
 int main() {
+	int n;
+	cin >> n;
+	VLL a(n);
+	EACH(e, a) { cin >> e; }
+	int q;
+	cin >> q;
+	VLL b(q);
+	EACH(e, b) { cin >> e; }
+
+	sort(ALL(a));
+	vector<pair<ll, int>> students(q);
+	REP(i, q) { students[i] = make_pair(b[i], i); }
+	sort(ALL(students));
+	int c = 0;
+	VI result(q);
+	REP(i, q) {
+		while(c < n - 1 && diff(a[c], students[i].first) >=
+							   diff(a[c + 1], students[i].first)) {
+			c++;
+		}
+		result[students[i].second] = diff(a[c], students[i].first);
+	}
+
+	REP(i, q) { cout << result[i] << endl; }
 	return 0;
 }
