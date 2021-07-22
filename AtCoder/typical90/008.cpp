@@ -129,6 +129,127 @@ constexpr T diff(T a, T b) {
 	return abs(a - b);
 }
 
+template <long long MOD = 1000000007>
+class ModInt {
+	public:
+	long long n;
+
+	constexpr ModInt() : n(0) {}
+	constexpr ModInt(long long n) : n(n < 0 ? n + MOD : n % MOD) {}
+
+	constexpr long long get() const { return this->n; }
+	constexpr long long get_mod() const { return MOD; }
+
+	constexpr ModInt inv() const { return pow<ModInt<MOD>>(*this, MOD - 2); }
+
+	constexpr ModInt& operator=(const long long rhs) {
+		return *this = ModInt(rhs);
+	}
+	constexpr ModInt& operator+=(const ModInt rhs) {
+		return *this = ModInt(this->n + rhs.n);
+	}
+	constexpr ModInt& operator-=(const ModInt rhs) {
+		return *this = ModInt(this->n - rhs.n);
+	}
+	constexpr ModInt& operator*=(const ModInt rhs) {
+		return *this = ModInt(this->n * rhs.n);
+	}
+	constexpr ModInt& operator/=(const ModInt rhs) {
+		return *this *= rhs.inv();
+	}
+	constexpr bool operator==(const ModInt rhs) const {
+		return this->n == rhs.n;
+	}
+};
+
+template <long long MOD>
+constexpr ModInt<MOD> operator+(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) += rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator+(const ModInt<MOD>& lhs, const long long& rhs) {
+	return ModInt<MOD>(lhs) += rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator+(const long long& lhs, const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) += rhs;
+}
+
+template <long long MOD>
+constexpr ModInt<MOD> operator-(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) -= rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator-(const ModInt<MOD>& lhs, const long long& rhs) {
+	return ModInt<MOD>(lhs) -= rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator-(const long long& lhs, const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) -= rhs;
+}
+
+template <long long MOD>
+constexpr ModInt<MOD> operator*(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) *= rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator*(const ModInt<MOD>& lhs, const long long& rhs) {
+	return ModInt<MOD>(lhs) *= rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator*(const long long& lhs, const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) *= rhs;
+}
+
+template <long long MOD>
+constexpr ModInt<MOD> operator/(const ModInt<MOD>& lhs,
+								const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) /= rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator/(const ModInt<MOD>& lhs, const long long& rhs) {
+	return ModInt<MOD>(lhs) /= rhs;
+}
+template <long long MOD>
+constexpr ModInt<MOD> operator/(const long long& lhs, const ModInt<MOD>& rhs) {
+	return ModInt<MOD>(lhs) /= rhs;
+}
+
+template <long long MOD>
+std::ostream& operator<<(std::ostream& os, const ModInt<MOD>& x) {
+	return os << x.n;
+}
+
+template <long long MOD>
+std::istream& operator>>(std::istream& is, ModInt<MOD>& x) {
+	return is >> x.n;
+}
+
+using mint = ModInt<>;
+
 int main() {
+	int n;
+	cin >> n;
+	string s;
+	cin >> s;
+
+	string atcoder = "atcoder";
+	auto dp = make_vector({n + 1, atcoder.size() + 1}, mint(0));
+	dp[0][0] = 1;
+	REP(i, n) {
+		dp[i + 1][0] = 1;
+		REP(j, atcoder.size()) {
+			if(s[i] == atcoder[j]) {
+				dp[i + 1][j + 1] = dp[i][j + 1] + dp[i][j];
+			} else {
+				dp[i + 1][j + 1] = dp[i][j + 1];
+			}
+		}
+	}
+
+	cout << dp[n][atcoder.size()] << endl;
 	return 0;
 }
