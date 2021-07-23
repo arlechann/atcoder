@@ -130,5 +130,24 @@ constexpr T diff(T a, T b) {
 }
 
 int main() {
+	int n;
+	cin >> n;
+	VI c(n), p(n);
+	REP(i, n) { cin >> c[i] >> p[i]; }
+	int q;
+	cin >> q;
+	VI l(q), r(q);
+	REP(i, q) { cin >> l[i] >> r[i]; }
+
+	VI2D cls(2, VI(n + 1, 0));
+	REP(i, n) { cls[c[i] - 1][i + 1] += p[i]; }
+	REP(j, 2) {
+		REP(i, n) { cls[j][i + 1] += cls[j][i]; }
+	}
+
+	REP(i, q) {
+		cout << cls[0][r[i]] - cls[0][l[i] - 1] << " "
+			 << cls[1][r[i]] - cls[1][l[i] - 1] << endl;
+	}
 	return 0;
 }
