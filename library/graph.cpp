@@ -66,7 +66,7 @@ std::vector<int> topological_sort(std::vector<std::vector<int>> edges,
 		}
 	}
 
-	while(!q.empty()) {
+	while(!q.empty() && sorted.size() <= n) {
 		int node = q.front();
 		q.pop();
 		sorted.push_back(node);
