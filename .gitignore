@@ -2,7 +2,8 @@
 /.vscode/
 /Cargo.toml
 /Cargo.lock
-/target/
+/target
+/AtCoder-rs/target
 
 # バイナリファイル
 /AOJ/CGL/CGL_1_A

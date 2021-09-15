@@ -2,11 +2,12 @@
 
 
 cat << EOF > .gitignore
-# VScodeの設定
+# バイナリ以外
 /.vscode/
 /Cargo.toml
 /Cargo.lock
-/target/
+/target
+/AtCoder-rs/target
 
 EOF
 
