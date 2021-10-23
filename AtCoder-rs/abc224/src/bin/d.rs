@@ -9,7 +9,10 @@ fn main() {
 const PIECE_NUM: usize = 8;
 const NODE_NUM: usize = PIECE_NUM + 1;
 
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    ptr::NonNull,
+};
 
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 struct Global {
@@ -17,19 +20,20 @@ struct Global {
 }
 
 impl Global {
-    pub fn check(&self, state: &[isize]) -> bool {
-        for i in 0..PIECE_NUM {
-            if state[i] != i as isize {
+    pub fn check(&self, state: &[usize]) -> bool {
+        for i in 0..NODE_NUM {
+            if state[i] != i {
                 return false;
             }
         }
         true
     }
 
-    pub fn bfs(&mut self, state: Vec<isize>, empty: usize) -> Option<usize> {
+    pub fn bfs(&self, state: Vec<usize>, empty: usize) -> Option<usize> {
         let mut que = VecDeque::new();
         let mut used = HashSet::new();
 
+        used.insert(state.clone());
         que.push_back((state, empty, 0));
         while !que.is_empty() {
             let (state, empty, depth) = que.pop_front().unwrap();
@@ -37,15 +41,14 @@ impl Global {
                 return Some(depth);
             }
 
-            used.insert(state.clone());
-
-            for &next in self.edges[empty].clone().iter() {
+            for &next in self.edges[empty].iter() {
                 let mut next_state = state.clone();
                 next_state.swap(empty, next);
                 if used.contains(&next_state) {
                     continue;
                 }
-                que.push_back((next_state, next, depth + 1));
+                que.push_back((next_state.clone(), next, depth + 1));
+                used.insert(next_state.clone());
             }
         }
         None
@@ -53,7 +56,7 @@ impl Global {
 }
 
 impl Solver for Global {
-    type Result = isize;
+    type Result = String;
 
     fn solve<R: std::io::Read>(
         &mut self,
@@ -73,14 +76,14 @@ impl Solver for Global {
             self.edges[uv[i].1].push(uv[i].0);
         }
 
-        let mut piece_on_node = vec![-1; NODE_NUM];
+        let mut piece_on_node = vec![PIECE_NUM; NODE_NUM];
         for i in 0..PIECE_NUM {
-            piece_on_node[p[i]] = i as isize;
+            piece_on_node[p[i]] = i;
         }
         let empty = {
             let mut e = 0;
-            for i in 0..PIECE_NUM {
-                if piece_on_node[i] == -1 {
+            for i in 0..NODE_NUM {
+                if piece_on_node[i] == 8 {
                     e = i;
                 }
             }
@@ -90,9 +93,9 @@ impl Solver for Global {
         let result = self.bfs(piece_on_node, empty);
 
         if let Some(r) = result {
-            r as isize
+            r.to_string()
         } else {
-            -1
+            (-1).to_string()
         }
     }
 }
