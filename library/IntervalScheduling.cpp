@@ -29,7 +29,7 @@ class IntervalScheduling {
 		T time = -INF;
 		for(Interval i : this->intervals) {
 			if(i.s >= time) { // 端点の重複を許可
-				schedule.push_back(i);
+				schedules.push_back(i);
 				time = i.e;
 			}
 		}
