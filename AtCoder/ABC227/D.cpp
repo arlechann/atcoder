@@ -129,13 +129,43 @@ constexpr T diff(T a, T b) {
 	return abs(a - b);
 }
 
+// 終了判定
+template <typename T,
+		  typename enable_if<is_integral<T>::value>::type* = nullptr>
+bool finds(T left, T right) {
+	return abs(right - left) <= 1;
+}
+
+// 二分探索
+template <typename T>
+T bin_search(T left, T right, auto pred) {
+	while(!finds<T>(left, right)) {
+		T middle = (left + right) / 2;
+		if(pred(middle)) {
+			left = middle;
+		} else {
+			right = middle;
+		}
+	}
+	return left;
+}
+
+const int N_MAX = 200000;
+const int K_MAX = 200000;
+const ll A_MAX = 1000000000000LL;
+
 int main() {
 	int n, k;
 	cin >> n >> k;
 	VLL a(n);
 	EACH(e, a) { cin >> e; }
 
-	sort(RALL(a));
+	ll result = bin_search<ll>(0LL, K_MAX * A_MAX + 1, [&](ll x) {
+		ll s = 0;
+		EACH(e, a) { s += min(x, e); }
+		return k <= s / x;
+	});
 
+	cout << result << endl;
 	return 0;
 }
