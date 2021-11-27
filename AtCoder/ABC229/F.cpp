@@ -158,12 +158,7 @@ int main() {
 	dp[1][1][0] = -INFLL;
 	dp[1][1][1] = edges[0][1];
 
-	dp[2][0][0] = dp[1][0][0];
-	dp[2][0][1] = dp[1][1][1] + edges[1][2];
-	dp[2][1][0] = dp[1][0][0] + edges[0][2] + edges[1][2];
-	dp[2][1][1] = dp[1][1][1] + edges[0][2];
-
-	RANGE(i, 2, n - 1) {
+	RANGE(i, 1, n) {
 		REP(k, 2) {
 			dp[i + 1][0][k] = max(dp[i][0][k], dp[i][1][k] + edges[i][i + 1]);
 			dp[i + 1][1][k] = max(dp[i][0][k] + edges[i][i + 1], dp[i][1][k]) +
@@ -171,21 +166,13 @@ int main() {
 		}
 	}
 
-	dp[n][0][0] = max(dp[n - 1][0][0], dp[n - 1][1][0] + edges[n - 1][n]);
-	dp[n][0][1] =
-		max(dp[n - 1][0][0], dp[n - 1][1][0] + edges[n - 1][n]) + edges[1][n];
-	dp[n][1][0] = max(dp[n - 1][0][0] + edges[n - 1][n], dp[n - 1][1][0]) +
-				  edges[0][n] + edges[1][n];
-	dp[n][1][1] =
-		max(dp[n - 1][0][0] + edges[n - 1][n], dp[n - 1][1][0]) + edges[0][n];
+	dp[n][0][1] += edges[1][n];
+	dp[n][1][0] += edges[1][n];
 
 	ll result = 0;
 	REP(i, 2) {
 		REP(j, 2) { chmax(result, dp[n][i][j]); }
 	}
-
-	cout << sum_cost << endl;
-	cout << result << endl;
 
 	cout << sum_cost - result << endl;
 	return 0;
