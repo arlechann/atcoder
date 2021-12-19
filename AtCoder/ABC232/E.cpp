@@ -236,49 +236,28 @@ int main() {
 	ll x1, y1, x2, y2;
 	cin >> x1 >> y1 >> x2 >> y2;
 
-	if(k == 1) {
-		if(x1 == x2 && y1 == y2) {
-			cout << 0 << endl;
-		} else if(x1 == x2 || y1 == y2) {
-			cout << 1 << endl;
-		} else {
-			cout << 0 << endl;
-		}
-		return 0;
-	}
-	if(k == 2) {
-		if(x1 == x2 && y1 == y2) {
-			cout << mint(h + w - 1) << endl;
-		} else if(x1 == x2) {
-			cout << mint(w - 2) << endl;
-		} else if(y1 == y2) {
-			cout << mint(h - 2) << endl;
-		} else {
-			cout << 2 << endl;
-		}
-		return 0;
-	}
-	if(k == 3) {
-		if(x1 == x2 && y1 == y2) {
-			cout << mint((h - 1) * (h - 2) + (w - 1) * (w - 2)) << endl;
-		} else if(x1 == x2) {
-			cout << mint((h - 1) * (h - 2) + (w - 1)) << endl;
-		} else if(y1 == y2) {
-			cout << mint((h - 1) + (w - 1) * (w - 2)) << endl;
-		} else {
-			cout << mint(2 * (w - 2) + (w - 2)) + mint(2 * (h - 2) + (h - 2))
-				 << endl;
-		}
-		return 0;
-	}
-
-	k -= 2;
 	vector<mint> dp1(k + 1, 0);
 	vector<mint> dph(k + 1, 0);
 	vector<mint> dpw(k + 1, 0);
 	vector<mint> dp4(k + 1, 0);
 
-	RANGE(i, 2, k) {}
+	if(x1 == x2 && y1 == y2) {
+		dp1[0] = 1;
+	} else if(x1 == x2) {
+		dpw[0] = 1;
+	} else if(y1 == y2) {
+		dph[0] = 1;
+	} else {
+		dp4[0] = 1;
+	}
+
+	REP(i, k) {
+		dp1[i + 1] = dph[i] + dpw[i];
+		dph[i + 1] = dp1[i] * mint(h - 1) + dph[i] * mint(h - 2) + dp4[i];
+		dpw[i + 1] = dp1[i] * mint(w - 1) + dpw[i] * mint(w - 2) + dp4[i];
+		dp4[i + 1] = dph[i] * mint(w - 1) + dpw[i] * mint(h - 1) +
+					 dp4[i] * (mint(h - 2) + mint(w - 2));
+	}
 
 	cout << dp1[k] << endl;
 	return 0;
