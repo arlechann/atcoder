@@ -148,6 +148,9 @@ struct Graph {
 	unordered_map<int, unordered_map<int, int>> m;
 
 	Graph(size_t n) : node(n), edges(n) {}
+
+	size_t size() const { return node; }
+
 	void link(size_t from, size_t to, int index) {
 		edges[from].push_back(Edge(from, to, 1));
 		m[min(from, to)][max(from, to)] = index;
@@ -159,8 +162,7 @@ struct Graph {
 };
 
 // 幅優先探索(重み無しグラフ)
-std::vector<int>
-bfs(const Graph& graph, const VI& is_removed, const size_t s, const size_t g) {
+std::vector<int> bfs(const Graph& graph, const size_t s, const size_t g) {
 	size_t n = graph.node;
 	std::vector<bool> used(n, false);
 	std::vector<Weight> distances(n, INF);
@@ -187,9 +189,6 @@ bfs(const Graph& graph, const VI& is_removed, const size_t s, const size_t g) {
 	while(now != s) {
 		route.push_back(now);
 		for(auto&& e : graph.edges[now]) {
-			if(is_removed[e.to]) {
-				continue;
-			}
 			if(distances[e.to] == distances[now] - 1) {
 				now = e.to;
 				break;
@@ -199,6 +198,34 @@ bfs(const Graph& graph, const VI& is_removed, const size_t s, const size_t g) {
 	route.push_back(now);
 	reverse(ALL(route));
 	return route;
+}
+
+// トポロジカルソート
+std::vector<int> topological_sort(const Graph& graph,
+								  std::vector<int> indegrees) {
+	int n = graph.size();
+	std::vector<int> sorted;
+	std::vector<bool> is_used(n, false);
+	std::queue<int> q;
+	for(int i = 0; i < n; i++) {
+		if(indegrees[i] == 1) {
+			q.push(i);
+		}
+	}
+
+	while(!q.empty() && sorted.size() <= n) {
+		int node = q.front();
+		q.pop();
+		sorted.push_back(node);
+		is_used[node] = true;
+		for(const Edge& e : graph.edges[node]) {
+			indegrees[e.to]--;
+			if(!is_used[e.to] && indegrees[e.to] == 1) {
+				q.push(e.to);
+			}
+		}
+	}
+	return sorted;
 }
 
 // UnionFind(disjoint set)
@@ -247,100 +274,6 @@ class UnionFind {
 	}
 };
 
-int roundup_pow2(int n) {
-	if(!(n & (n - 1))) {
-		return n;
-	}
-
-	int i = 1;
-	while((n >> i) != 0) {
-		i++;
-	}
-	return 1 << i;
-}
-
-// セグメント木(一点更新、区間取得)
-template <typename T>
-class SegmentTree {
-	using F = function<T(T, T)>;
-
-	// 演算
-	F merge;
-	// 単位元
-	T identity;
-	vector<T> tree;
-	size_t size;
-
-	public:
-	SegmentTree(const vector<T>& a, const F f, const T id)
-		: tree(roundup_pow2(a.size()) * 2 - 1, id),
-		  size(roundup_pow2(a.size())), merge(f), identity(id) {
-		int offset = this->size - 1;
-		for(int i = 0; i < a.size(); i++) {
-			this->tree[i + offset] = a[i];
-		}
-		for(int i = offset - 1; i >= 0; i--) {
-			this->tree[i] = this->apply(i);
-		}
-	}
-	// モノイド(Z,+)
-	SegmentTree(const vector<T> a)
-		: SegmentTree(
-			  a, [](T a, T b) { return a + b; }, 0) {}
-
-	// 更新
-	// 関数の指定がなければ置き換え
-	void update(
-		const size_t index, const T value, const F f = [](T a, T b) {
-			return b;
-		}) {
-		size_t i = index + size - 1;
-		this->tree[i] = f(this->tree[i], value);
-		while(i > 0) {
-			i = (i - 1) / 2;
-			this->tree[i] = this->apply(i);
-		}
-	}
-
-	// 一点取得
-	T find(const size_t index) { return this->tree[index + size - 1]; }
-
-	// 区間取得
-	T find(const size_t query_left, const size_t query_right) const {
-		return this->find_impl(query_left, query_right, 0, 0, this->size);
-	}
-
-	private:
-	T apply(size_t index) const {
-		return this->merge(this->tree[index * 2 + 1],
-						   this->tree[index * 2 + 2]);
-	}
-
-	T find_impl(size_t query_left,
-				size_t query_right,
-				size_t node,
-				size_t node_left,
-				size_t node_right) const {
-		if(node_right <= query_left || query_right <= node_left) {
-			return this->identity;
-		}
-		if(query_left <= node_left && node_right <= query_right) {
-			return this->tree[node];
-		}
-
-		return this->merge(find_impl(query_left,
-									 query_right,
-									 node * 2 + 1,
-									 node_left,
-									 node_left + (node_right - node_left) / 2),
-						   find_impl(query_left,
-									 query_right,
-									 node * 2 + 2,
-									 node_left + (node_right - node_left) / 2,
-									 node_right));
-	}
-};
-
 int main() {
 	int n;
 	cin >> n;
@@ -359,15 +292,16 @@ int main() {
 	}
 
 	Graph g(n);
-	vector<pair<int, int>> degree(n);
-	REP(i, n) { degree[i] = make_pair(0, i); }
 	UnionFind uf(n);
+	VI indegrees(n, 0);
 	REP(i, m) {
-		g.link(a[i], b[i], i);
-		g.link(b[i], a[i], i);
-		degree[a[i]].first++;
-		degree[b[i]].first++;
-		uf.merge(a[i], b[i]);
+		if(!uf.is_same(a[i], b[i])) {
+			uf.merge(a[i], b[i]);
+			g.link(a[i], b[i], i);
+			g.link(b[i], a[i], i);
+			indegrees[a[i]]++;
+			indegrees[b[i]]++;
+		}
 	}
 
 	REP(i, n) {
@@ -377,44 +311,19 @@ int main() {
 		}
 	}
 
-	SegmentTree<pair<int, int>> st(
-		degree,
-		[&](auto a, auto b) {
-			if(a.first <= b.first) {
-				return a;
-			} else {
-				return b;
-			}
-		},
-		make_pair(INF, -1));
-
-	auto st_INF = [&](int index) {
-		st.update(index, make_pair(0, 0), [](auto a, auto b) {
-			a.first = INF;
-			return a;
-		});
-	};
-	auto st_dec = [&](int index) {
-		st.update(index, make_pair(-1, 0), [](auto a, auto b) {
-			a.first += b.first;
-			return a;
-		});
-	};
+	auto tsorted = topological_sort(g, indegrees);
 
 	VI result;
-	VI is_removed(n, 0);
-	REP(i, n) {
-		int move_to = st.find(0, n).second;
+	REP(i, tsorted.size()) {
+		int move_to = tsorted[i];
 		int move_from;
 		REP(j, n) {
 			if(p[j] == move_to) {
 				move_from = j;
 			}
 		}
-		VI route = bfs(g, is_removed, move_from, move_to);
-		st_INF(move_to);
-		is_removed[move_to];
-		EACH(neigh, g.edges[move_to]) { st_dec(neigh.to); }
+
+		VI route = bfs(g, move_from, move_to);
 		REP(j, route.size() - 1) {
 			swap(p[route[j]], p[route[j + 1]]);
 			result.push_back(g.edge_index(route[j], route[j + 1]));
