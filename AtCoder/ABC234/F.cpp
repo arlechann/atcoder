@@ -255,7 +255,7 @@ class mod_comb {
 
 	ModInt<MOD> operator()(long long n, long long r) {
 		if(n < r || n < 0 || r < 0) {
-			return ModInt<MOD>(1);
+			return ModInt<MOD>(0);
 		}
 
 		if(this->fact[0] == 0) {
@@ -278,11 +278,11 @@ int main() {
 	auto comb = mod_comb<998244353LL>();
 	auto dp = make_vector({ALPHABET_SIZE + 1, n + 1}, mint(0));
 	dp[0][0] = 1;
+
 	REP(i, ALPHABET_SIZE) {
-		dp[i + 1][0] = 1;
 		REP(j, n + 1) {
 			REP(k, min(j, alphabet_count[i]) + 1) {
-				dp[i + 1][j] += dp[i][j - k] * comb((k + 1) * (j - k), k);
+				dp[i + 1][j] += dp[i][j - k] * comb(j, k);
 			}
 		}
 	}
