@@ -1,0 +1,218 @@
+#include <algorithm>
+#include <climits>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <list>
+#include <map>
+#include <numeric>
+#include <queue>
+#include <set>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#define REP(i, n) for(int i = 0, i##_MACRO = (n); i < i##_MACRO; i++)
+#define RREP(i, n) for(int i = (n)-1; i >= 0; i--)
+#define RANGE(i, a, b) for(int i = (a), i##_MACRO = (b); i < i##_MACRO; i++)
+#define RRANGE(i, a, b) for(int i = (b)-1, i##_MACRO = (a); i >= i##_MACRO; i--)
+#define EACH(e, a) for(auto&& e : a)
+#define ALL(a) std::begin(a), std::end(a)
+#define RALL(a) std::rbegin(a), std::rend(a)
+#define FILL(a, n) memset((a), n, sizeof(a))
+#define FILLZ(a) FILL(a, 0)
+#define INT(x) (static_cast<int>(x))
+#define PRECISION(x) std::fixed << std::setprecision(x)
+
+using namespace std;
+
+using ll = long long;
+using VI = std::vector<int>;
+using VI2D = std::vector<vector<int>>;
+using VLL = std::vector<long long>;
+using VLL2D = std::vector<vector<long long>>;
+
+constexpr int INF = 2e9;
+constexpr long long INFLL = 2e18;
+constexpr double EPS = 1e-10;
+constexpr double PI = acos(-1.0);
+
+constexpr int dx[] = {-1, 0, 1, 0};
+constexpr int dy[] = {0, -1, 0, 1};
+
+template <typename T, std::size_t N>
+struct make_vector_type {
+	using type =
+		typename std::vector<typename make_vector_type<T, (N - 1)>::type>;
+};
+
+template <typename T>
+struct make_vector_type<T, 0> {
+	using type = typename std::vector<T>;
+};
+
+template <typename T, size_t N>
+auto make_vector_impl(const std::vector<std::size_t>& ls, T init_value) {
+	if constexpr(N == 0) {
+		return std::vector<T>(ls[N], init_value);
+	} else {
+		return typename make_vector_type<T, N>::type(
+			ls[N], make_vector_impl<T, (N - 1)>(ls, init_value));
+	}
+}
+
+template <typename T, std::size_t N>
+auto make_vector(const std::size_t (&ls)[N], T init_value) {
+	std::vector<std::size_t> dimensions(N);
+	for(int i = 0; i < N; i++) {
+		dimensions[N - i - 1] = ls[i];
+	}
+	return make_vector_impl<T, N - 1>(dimensions, init_value);
+}
+
+template <typename T>
+std::vector<T> make_vector(std::size_t size, T init_value) {
+	return std::vector<T>(size, init_value);
+}
+
+template <typename T>
+constexpr int sign(T x) {
+	return x < 0 ? -1 : x > 0 ? 1 : 0;
+}
+
+template <>
+constexpr int sign(double x) {
+	return x < -EPS ? -1 : x > EPS ? 1 : 0;
+}
+
+template <typename T, typename U>
+constexpr bool chmax(T& m, U x) {
+	m = max<T>(m, x);
+	return m < x;
+}
+
+template <typename T, typename U>
+constexpr bool chmin(T& m, U x) {
+	m = min<T>(m, x);
+	return m > x;
+}
+
+template <typename T>
+constexpr T square(T x) {
+	return x * x;
+}
+
+template <typename T>
+constexpr T pow(T a, int n) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+		}
+		a *= a;
+		n /= 2;
+	}
+	return ret;
+}
+
+template <typename T>
+constexpr T diff(T a, T b) {
+	return abs(a - b);
+}
+
+int main() {
+	int n;
+	cin >> n;
+	vector<string> s(n);
+	EACH(line, s) { cin >> line; }
+
+	VI2D yoko(n, VI(n + 1, 0));
+	REP(i, n) {
+		REP(j, n) {
+			yoko[i][j + 1] = yoko[i][j] + static_cast<int>(s[i][j] == '#');
+			if(j + 1 - 6 >= 0) {
+				if(yoko[i][j + 1] - yoko[i][j + 1 - 6] >= 4) {
+					cout << "Yes" << endl;
+					return 0;
+				}
+			}
+		}
+	}
+
+	// REP(i, n) {
+	// 	REP(j, n + 1) { cout << yoko[i][j] << " "; }
+	// 	cout << endl;
+	// }
+	// cout << endl;
+
+	VI2D tate(n + 1, VI(n, 0));
+	REP(i, n) {
+		REP(j, n) {
+			tate[i + 1][j] = tate[i][j] + static_cast<int>(s[i][j] == '#');
+			if(i + 1 - 6 >= 0) {
+				if(tate[i + 1][j] - tate[i + 1 - 6][j] >= 4) {
+					cout << "Yes" << endl;
+					return 0;
+				}
+			}
+		}
+	}
+
+	// REP(i, n + 1) {
+	// 	REP(j, n) { cout << tate[i][j] << " "; }
+	// 	cout << endl;
+	// }
+	// cout << endl;
+
+	VI2D naname1(n + 1, VI(n + 1, 0));
+	REP(i, n) {
+		REP(j, n) {
+			naname1[i + 1][j + 1] =
+				naname1[i][j] + static_cast<int>(s[i][j] == '#');
+			if(i + 1 - 6 >= 0 && j + 1 - 6 >= 0) {
+				if(naname1[i + 1][j + 1] - naname1[i + 1 - 6][j + 1 - 6] >= 4) {
+					cout << "Yes" << endl;
+					return 0;
+				}
+			}
+		}
+	}
+
+	// REP(i, n + 1) {
+	// 	REP(j, n + 1) { cout << naname1[i][j] << " "; }
+	// 	cout << endl;
+	// }
+	// cout << endl;
+
+	VI2D naname2(n + 1, VI(n + 1, 0));
+	RREP(i, n) {
+		REP(j, n) {
+			naname2[i][j + 1] =
+				naname2[i + 1][j] + static_cast<int>(s[i][j] == '#');
+			if(i + 6 <= n && j + 1 - 6 >= 0) {
+				if(naname2[i][j + 1] - naname2[i + 6][j + 1 - 6] >= 4) {
+					cout << "Yes" << endl;
+					return 0;
+				}
+			}
+		}
+	}
+
+	// REP(i, n + 1) {
+	// 	REP(j, n + 1) { cout << naname2[i][j] << " "; }
+	// 	cout << endl;
+	// }
+	// cout << endl;
+
+	cout << "No" << endl;
+	return 0;
+}
