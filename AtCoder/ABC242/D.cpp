@@ -163,7 +163,7 @@ int main() {
 		if(t[i] > 63) {
 			move = k[i];
 		} else {
-			move = (k[i] & ((1 << t[i]) - 1));
+			move = (k[i] & ((1ull << t[i]) - 1));
 		}
 
 		// cout << "first: " << std::bitset<64>(first) << endl;
