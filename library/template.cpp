@@ -30,24 +30,21 @@
 #define RALL(a) std::rbegin(a), std::rend(a)
 #define FILL(a, n) memset((a), n, sizeof(a))
 #define FILLZ(a) FILL(a, 0)
-#define INT(x) (static_cast<int>(x))
+#define CAST(x, t) (static_cast<t>(x))
 #define PRECISION(x) std::fixed << std::setprecision(x)
 
 using namespace std;
 
 using ll = long long;
-using VI = std::vector<int>;
-using VI2D = std::vector<vector<int>>;
-using VLL = std::vector<long long>;
-using VLL2D = std::vector<vector<long long>>;
+using VI = vector<int>;
+using VI2D = vector<vector<int>>;
+using VLL = vector<long long>;
+using VLL2D = vector<vector<long long>>;
 
 constexpr int INF = 2e9;
 constexpr long long INFLL = 2e18;
 constexpr double EPS = 1e-10;
 constexpr double PI = acos(-1.0);
-
-constexpr int dx[] = {-1, 0, 1, 0};
-constexpr int dy[] = {0, -1, 0, 1};
 
 template <typename T, std::size_t N>
 struct make_vector_type {
@@ -94,16 +91,22 @@ constexpr int sign(double x) {
 	return x < -EPS ? -1 : x > EPS ? 1 : 0;
 }
 
-template <typename T, typename U>
-constexpr bool chmax(T& m, U x) {
-	m = max<T>(m, x);
-	return m < x;
+template <typename T>
+constexpr bool chmax(T& m, T x) {
+	if(m >= x) {
+		return false;
+	}
+	m = x;
+	return true;
 }
 
-template <typename T, typename U>
-constexpr bool chmin(T& m, U x) {
-	m = min<T>(m, x);
-	return m > x;
+template <typename T>
+constexpr bool chmin(T& m, T x) {
+	if(m <= x) {
+		return false;
+	}
+	m = x;
+	return true;
 }
 
 template <typename T>
@@ -126,8 +129,17 @@ constexpr T pow(T a, int n) {
 
 template <typename T>
 constexpr T diff(T a, T b) {
-	return abs(a - b);
+	return max(a, b) - min(a, b);
 }
+
+/**
+ *  _       _                     _        ____
+ * (_)_ __ | |_   _ __ ___   __ _(_)_ __  / /\ \ _
+ * | | '_ \| __| | '_ ` _ \ / _` | | '_ \| |  | (_)
+ * | | | | | |_  | | | | | | (_| | | | | | |  | |_
+ * |_|_| |_|\__| |_| |_| |_|\__,_|_|_| |_| |  | ( )
+ *                                        \_\/_/|/
+ */
 
 int main() {
 	return 0;
