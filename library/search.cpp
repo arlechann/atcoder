@@ -8,33 +8,29 @@ using namespace std;
 
 const double EPS = 1e-10;
 
-// 終了判定
-template <typename T,
-		  typename enable_if<is_integral<T>::value>::type* = nullptr>
+template <typename T>
 bool finds(T left, T right) {
 	return abs(right - left) <= 1;
 }
 
-// 終了判定(浮動小数)
 int ts_count = 0;
-template <typename T,
-		  typename enable_if<is_floating_point<T>::value>::type* = nullptr>
-bool finds(T left, T right) {
-	return ts_count++ < 500;
+template <typename double>
+bool finds(double left, double right) {
+	return ts_count++ < 300;
 }
 
 // 二分探索
 template <typename T>
-T bin_search(T left, T right, auto pred) {
-	while(!finds<T>(left, right)) {
-		T middle = (left + right) / 2;
+T bin_search(T ok, T ng, auto pred) {
+	while(!finds<T>(ok, ng)) {
+		T middle = (ok + ng) / 2;
 		if(pred(middle)) {
-			left = middle;
+			ok = middle;
 		} else {
-			right = middle;
+			ng = middle;
 		}
 	}
-	return left;
+	return ok;
 }
 
 // 3分探索
