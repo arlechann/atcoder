@@ -124,23 +124,31 @@ class Vec2d {
 };
 
 // 点の進行方向
-constexpr int ccw(Vec2d a, Vec2d b, Vec2d c) {
+enum class CCW : int {
+	Clockwise,
+	CounterClockwise,
+	ABC,
+	ACB,
+	CAB,
+};
+
+constexpr CCW ccw(Vec2d a, Vec2d b, Vec2d c) {
 	Vec2d ab = b - a;
 	Vec2d ac = c - a;
 	int det = ab.det(ac);
 	if(det > 0) {
-		return 1; // 反時計回り
+		return CCW::CounterClockwise; // 反時計回り
 	}
 	if(det < 0) {
-		return -1; // 時計回り
+		return CCW::Clockwize; // 時計回り
 	}
 	if(ab.dot(ac) < 0) {
-		return 2; // c-a-b
+		return CCW::CAB; // c-a-b
 	}
 	if(ab.length() < ac.length()) {
-		return -2; // a-b-c
+		return CCW::ABC; // a-b-c
 	}
-	return 0; // a-c-b
+	return CCW::ACB; // a-c-b
 }
 
 // 垂線の足
