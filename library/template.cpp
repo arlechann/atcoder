@@ -128,6 +128,73 @@ constexpr T pow(T a, int n) {
 }
 
 template <typename T>
+constexpr T div_ceil(T a, T b) {
+	assert(b != 0);
+	if(a < 0 && b < 0) {
+		a = -a;
+		b = -b;
+	}
+	if(a >= 0 && b > 0) {
+		return (a + b - 1) / b;
+	}
+	return a / b;
+}
+
+template <typename T>
+constexpr T div_floor(T a, T b) {
+	assert(b != 0);
+	if(a < 0 && b < 0) {
+		a = -a;
+		b = -b;
+	}
+	if(a >= 0 && b > 0) {
+		return a / b;
+	}
+	assert(false);
+}
+
+template <typename T>
+constexpr bool is_power_of_two(T n) {
+	if constexpr(n == std::numeric_limits<T>::min()) {
+		return true;
+	}
+	return (n & (n - 1)) == 0;
+}
+
+constexpr std::size_t next_power_of_two(std::size_t n) {
+	if((n & (n - 1)) == 0) {
+		return n;
+	}
+	std::size_t ret = 1;
+	while(n != 0) {
+		ret <<= 1;
+		n >>= 1;
+	}
+	return ret;
+}
+
+template <typename T>
+constexpr T next_multiple_of(T a, T b) {
+	return div_ceil(a, b) * b;
+}
+
+template <typenamte T>
+constexpr bool is_mul_overflow(T a, T b) {
+	if(a >= 0 && b >= 0) {
+		return a > std::numeric_limits<T>::max() / b;
+	}
+	if(a <= 0 && b < 0) {
+		return a < div_ceil(std::numeric_limits<T>::max(), b);
+	}
+	if(a < 0) {
+		return a > std::numeric_limits<T>::min() / b;
+	}
+	if(b < 0) {
+		return a < div_ceil(std::numeric_limits<T>::max(), b);
+	}
+}
+
+template <typename T>
 constexpr T diff(T a, T b) {
 	return max(a, b) - min(a, b);
 }
