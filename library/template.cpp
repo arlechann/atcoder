@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cassert>
 #include <climits>
 #include <cmath>
 #include <cstdio>
@@ -178,7 +179,7 @@ constexpr T next_multiple_of(T a, T b) {
 	return div_ceil(a, b) * b;
 }
 
-template <typenamte T>
+template <typename T>
 constexpr bool is_mul_overflow(T a, T b) {
 	if(a >= 0 && b >= 0) {
 		return a > std::numeric_limits<T>::max() / b;
