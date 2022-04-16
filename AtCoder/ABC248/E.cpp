@@ -1,0 +1,411 @@
+#include <algorithm>
+#include <cassert>
+#include <climits>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <list>
+#include <map>
+#include <numeric>
+#include <queue>
+#include <set>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#define REP(i, n) for(int i = 0, i##_MACRO = (n); i < i##_MACRO; i++)
+#define RREP(i, n) for(int i = (n)-1; i >= 0; i--)
+#define RANGE(i, a, b) for(int i = (a), i##_MACRO = (b); i < i##_MACRO; i++)
+#define RRANGE(i, a, b) for(int i = (b)-1, i##_MACRO = (a); i >= i##_MACRO; i--)
+#define EACH(e, a) for(auto&& e : a)
+#define ALL(a) std::begin(a), std::end(a)
+#define RALL(a) std::rbegin(a), std::rend(a)
+#define FILL(a, n) memset((a), n, sizeof(a))
+#define FILLZ(a) FILL(a, 0)
+#define CAST(x, t) (static_cast<t>(x))
+#define PRECISION(x) std::fixed << std::setprecision(x)
+
+using namespace std;
+
+using ll = long long;
+using VI = vector<int>;
+using VI2D = vector<vector<int>>;
+using VLL = vector<long long>;
+using VLL2D = vector<vector<long long>>;
+
+constexpr int INF = 2e9;
+constexpr long long INFLL = 2e18;
+constexpr double EPS = 1e-16;
+constexpr double PI = acos(-1.0);
+
+template <typename T, std::size_t N>
+struct make_vector_type {
+	using type =
+		typename std::vector<typename make_vector_type<T, (N - 1)>::type>;
+};
+
+template <typename T>
+struct make_vector_type<T, 0> {
+	using type = typename std::vector<T>;
+};
+
+template <typename T, size_t N>
+auto make_vector_impl(const std::vector<std::size_t>& ls, T init_value) {
+	if constexpr(N == 0) {
+		return std::vector<T>(ls[N], init_value);
+	} else {
+		return typename make_vector_type<T, N>::type(
+			ls[N], make_vector_impl<T, (N - 1)>(ls, init_value));
+	}
+}
+
+template <typename T, std::size_t N>
+auto make_vector(const std::size_t (&ls)[N], T init_value) {
+	std::vector<std::size_t> dimensions(N);
+	for(int i = 0; i < N; i++) {
+		dimensions[N - i - 1] = ls[i];
+	}
+	return make_vector_impl<T, N - 1>(dimensions, init_value);
+}
+
+template <typename T>
+std::vector<T> make_vector(std::size_t size, T init_value) {
+	return std::vector<T>(size, init_value);
+}
+
+template <typename T>
+constexpr int sign(T x) {
+	return x < 0 ? -1 : x > 0 ? 1 : 0;
+}
+
+template <>
+constexpr int sign(double x) {
+	return x < -EPS ? -1 : x > EPS ? 1 : 0;
+}
+
+template <typename T>
+constexpr bool chmax(T& m, T x) {
+	if(m >= x) {
+		return false;
+	}
+	m = x;
+	return true;
+}
+
+template <typename T>
+constexpr bool chmin(T& m, T x) {
+	if(m <= x) {
+		return false;
+	}
+	m = x;
+	return true;
+}
+
+template <typename T>
+constexpr T square(T x) {
+	return x * x;
+}
+
+template <typename T>
+constexpr T pow(T a, int n) {
+	T ret = 1;
+	while(n != 0) {
+		if(n % 2) {
+			ret *= a;
+		}
+		a *= a;
+		n /= 2;
+	}
+	return ret;
+}
+
+template <typename T>
+constexpr T div_ceil(T a, T b) {
+	assert(b != 0);
+	if(a < 0 && b < 0) {
+		a = -a;
+		b = -b;
+	}
+	if(a >= 0 && b > 0) {
+		return (a + b - 1) / b;
+	}
+	return a / b;
+}
+
+template <typename T>
+constexpr T div_floor(T a, T b) {
+	assert(b != 0);
+	if(a < 0 && b < 0) {
+		a = -a;
+		b = -b;
+	}
+	if(a >= 0 && b > 0) {
+		return a / b;
+	}
+	assert(false);
+}
+
+template <typename T>
+constexpr bool is_power_of_two(T n) {
+	if constexpr(n == std::numeric_limits<T>::min()) {
+		return true;
+	}
+	return (n & (n - 1)) == 0;
+}
+
+constexpr std::size_t next_power_of_two(std::size_t n) {
+	if((n & (n - 1)) == 0) {
+		return n;
+	}
+	std::size_t ret = 1;
+	while(n != 0) {
+		ret <<= 1;
+		n >>= 1;
+	}
+	return ret;
+}
+
+template <typename T>
+constexpr T next_multiple_of(T a, T b) {
+	return div_ceil(a, b) * b;
+}
+
+template <typename T>
+constexpr bool is_mul_overflow(T a, T b) {
+	if(a >= 0 && b >= 0) {
+		return a > std::numeric_limits<T>::max() / b;
+	}
+	if(a <= 0 && b < 0) {
+		return a < div_ceil(std::numeric_limits<T>::max(), b);
+	}
+	if(a < 0) {
+		return a > std::numeric_limits<T>::min() / b;
+	}
+	if(b < 0) {
+		return a < div_ceil(std::numeric_limits<T>::max(), b);
+	}
+}
+
+constexpr double deg_to_rad(double deg) {
+	return PI * deg / 180.0;
+}
+
+constexpr double rad_to_deg(double rad) {
+	return rad * 180 / PI;
+}
+
+// 二次元ベクトルクラス
+class Vec2d {
+	double _x;
+	double _y;
+
+	public:
+	// 原点の位置ベクトル
+	static Vec2d origin() { return Vec2d(0.0, 0.0); }
+
+	// ゼロベクトル
+	static Vec2d zero() { return Vec2d::origin(); }
+
+	Vec2d() {}
+	Vec2d(double a, double b) : _x(a), _y(b) {}
+
+	double x() const { return this->_x; }
+	double y() const { return this->_y; }
+
+	// 外積
+	double det(const Vec2d& rhs) const {
+		return this->x() * rhs.y() - this->y() * rhs.x();
+	}
+
+	// 内積
+	double dot(const Vec2d& rhs) const {
+		return this->x() * rhs.x() + this->y() * rhs.y();
+	}
+
+	// 長さ
+	double length() const { return this->distance(Vec2d::origin()); }
+
+	// 2つの位置ベクトル間のユークリッド距離
+	double distance(const Vec2d& rhs) const {
+		return std::sqrt(square(this->x() - rhs.x()) +
+						 square(this->y() - rhs.y()));
+	}
+
+	// 2つの位置ベクトル間のマンハッタン距離
+	double manhattan_distance(const Vec2d& rhs) const {
+		return std::abs(this->x() - rhs.x()) + std::abs(this->y() - rhs.y());
+	}
+
+	// ベクトルとx軸のなす角
+	double argument() const { return std::atan2(this->y(), this->x()); }
+
+	// 反時計回りに回転したベクトル
+	Vec2d rotate(double rad) const {
+		double xx = this->x();
+		double yy = this->y();
+		return Vec2d(xx * cos(rad) - yy * sin(rad),
+					 xx * sin(rad) + yy * cos(rad));
+	}
+
+	// 単位ベクトル
+	Vec2d unit() const {
+		double len = this->length();
+		return Vec2d(this->x() / len, this->y() / len);
+	}
+
+	// 法線ベクトル
+	Vec2d normal() const {
+		double len = this->length();
+		return Vec2d(this->y() / len, -this->x() / len);
+	}
+
+	// 平行判定
+	bool is_parallel(const Vec2d& rhs) const { return false; }
+
+	// ベクトル和
+	Vec2d operator+() const { return *this; }
+	Vec2d operator+(const Vec2d& rhs) const {
+		return Vec2d(this->x() + rhs.x(), this->y() + rhs.y());
+	}
+
+	// ベクトル差
+	Vec2d operator-() const { return Vec2d(-this->x(), -this->y()); }
+	Vec2d operator-(const Vec2d& rhs) const {
+		return Vec2d(this->x() - rhs.x(), this->y() - rhs.y());
+	}
+
+	// スカラー積
+	Vec2d operator*(const double rhs) const {
+		return Vec2d(this->x() * rhs, this->y() * rhs);
+	}
+	Vec2d operator/(const double rhs) const {
+		return Vec2d(this->x() / rhs, this->y() / rhs);
+	}
+
+	bool operator<(const Vec2d& rhs) const {
+		return sign(this->x()) ? this->y() < rhs.y() : this->x() < rhs.x();
+	}
+
+	private:
+};
+
+// 点の進行方向
+enum class CCW : int {
+	Clockwise,
+	CounterClockwise,
+	ABC,
+	ACB,
+	CAB,
+};
+
+CCW ccw(Vec2d a, Vec2d b, Vec2d c) {
+	Vec2d ab = b - a;
+	Vec2d ac = c - a;
+	double det = ab.det(ac);
+	if(det > EPS) {
+		return CCW::CounterClockwise; // 反時計回り
+	}
+	if(det < -EPS) {
+		return CCW::Clockwise; // 時計回り
+	}
+	if(ab.dot(ac) < 0) {
+		return CCW::CAB; // c-a-b
+	}
+	if(ab.length() < ac.length()) {
+		return CCW::ABC; // a-b-c
+	}
+	return CCW::ACB; // a-c-b
+}
+
+// 垂線の足
+Vec2d projection(const Vec2d f, const Vec2d t, const Vec2d p) {
+	Vec2d line = t - f;
+	double arg = line.argument();
+	double height = f.rotate(-arg).y();
+	return Vec2d(p.rotate(-arg).x(), height).rotate(arg);
+}
+
+// 円クラス
+class Circle {
+	Vec2d _center;
+	double _radius;
+
+	public:
+	Circle(const Vec2d c, const double r) : _center(c), _radius(r) {}
+
+	Vec2d center() const { return this->_center; }
+	double radius() const { return this->_radius; }
+
+	// 内部判定
+	int inside(const Vec2d p) const {
+		return sign((p - this->center()).length() -
+					this->radius()); // inside: 1, on edge: 0, outside: -1
+	}
+};
+
+/**
+ *  _       _                     _        ____
+ * (_)_ __ | |_   _ __ ___   __ _(_)_ __  / /\ \ _
+ * | | '_ \| __| | '_ ` _ \ / _` | | '_ \| |  | (_)
+ * | | | | | |_  | | | | | | (_| | | | | | |  | |_
+ * |_|_| |_|\__| |_| |_| |_|\__,_|_|_| |_| |  | ( )
+ *                                        \_\/_/|/
+ */
+
+int main() {
+	int n, k;
+	cin >> n >> k;
+	VLL x(n), y(n);
+	REP(i, n) { cin >> x[i] >> y[i]; }
+
+	if(k == 1) {
+		cout << "Infinity" << endl;
+		return 0;
+	}
+
+	vector<Vec2d> vecs(n);
+	REP(i, n) { vecs[i] = Vec2d(x[i], y[i]); }
+
+	VI count_lines(n, 0);
+	REP(i, n) {
+		REP(j, n) {
+			if(i == j) {
+				continue;
+			}
+			Vec2d a = vecs[i];
+			Vec2d b = vecs[j];
+
+			int on_line = 0;
+			REP(k, n) {
+				if(k == i || k == j) {
+					continue;
+				}
+				Vec2d c = vecs[k];
+				CCW x = ccw(a, b, c);
+				if(x != CCW::Clockwise && x != CCW::CounterClockwise) {
+					on_line++;
+				}
+			}
+
+			if(on_line + 2 < k) {
+				continue;
+			}
+			count_lines[i]++;
+			count_lines[j] -= on_line;
+		}
+	}
+
+	int result = 0;
+	REP(i, n) { result += count_lines[i]; }
+	cout << result << endl;
+	return 0;
+}
