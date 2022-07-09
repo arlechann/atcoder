@@ -258,6 +258,6 @@ int main() {
 		}
 	}
 
-	cout << result << endl;
+	cout << min(result + 1, n) << endl;
 	return 0;
 }
