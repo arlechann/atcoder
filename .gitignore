@@ -953,6 +953,12 @@
 /AtCoder/ABC262/C
 /AtCoder/ABC262/D
 /AtCoder/ABC262/E
+/AtCoder/ABC263/A
+/AtCoder/ABC263/B
+/AtCoder/ABC263/C
+/AtCoder/ABC263/D
+/AtCoder/ABC263/E
+/AtCoder/ABC263/G
 /AtCoder/ABL/A
 /AtCoder/ABL/B
 /AtCoder/ABL/C
@@ -2513,6 +2519,7 @@
 /Codeforces/Round606Div2/A
 /Codeforces/Round606Div2/B
 /Codeforces/Round606Div2/C
+/core
 /LICENSE
 /target/debug/.fingerprint/atcoder-b3bd20609d600c59/bin-atcoder
 /target/debug/.fingerprint/atcoder-b3bd20609d600c59/output-bin-atcoder
