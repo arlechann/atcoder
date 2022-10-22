@@ -223,15 +223,14 @@ double dp(int visited, int now) {
 	}
 	is_used[visited][now] = 1;
 
-	if(now == 0 && (visited >> m + 1) == (1 << n) - 1) {
+	if(now == 0 && (visited >> (m + 1)) == (1 << n) - 1) {
 		return ret = 0;
 	}
 
 	ret = INFLL;
 
-	int boost = __builtin_popcount(((1 << m + 1) - 1) & (visited >> 1));
+	int boost = __builtin_popcount(((1 << m) - 1) & (visited >> 1));
 	int speed = 1 << boost;
-	cout << "boost: " << boost << ", speed: " << speed << endl;
 
 	REP(i, n + m + 1) {
 		if((visited & (1 << i)) == 0) {
@@ -294,7 +293,7 @@ int main() {
 
 	double result = dp(0, 0);
 
-	cout << result << endl;
+	cout << PRECISION(16) << result << endl;
 
 	return 0;
 }
