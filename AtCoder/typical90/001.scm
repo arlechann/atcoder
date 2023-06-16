@@ -1,0 +1,57 @@
+(define (id x) x)
+(define (inc n) (+ n 1))
+(define (dec n) (- n 1))
+(define (ceil-quotient a b) (quotient (dec (+ a b)) b))
+(define (diff a b) (abs (- a b)))
+
+(define (read-times n)
+  (let rec ((i 0) (ret '()))
+    (if (= i n)
+        (reverse! ret)
+        (rec (inc i) (cons (read) ret)))))
+
+(define (sum ls) (reduce + 0 ls))
+
+(define (maplist-1 proc ls)
+  (if (null? ls)
+      '()
+      (cons (proc ls) (maplist-1 proc (cdr ls)))))
+
+;; TODO
+(define (maplist proc ls)
+  (maplist-1 proc ls))
+
+(define (meguru-method ok ng pred)
+  (let ((mid (quotient (+ ok ng) 2)))
+    (cond ((< (diff ok ng) 2) ok)
+          ((pred mid) (meguru-method mid ng pred))
+          (else (meguru-method ok mid pred)))))
+
+(define (main args)
+  (let* ((n (read))
+         (l (read))
+         (k (read))
+         (a (read-times n)))
+    (let ((result (solve n l k a)))
+      (display result)
+      (newline)))
+  0)
+
+(define (solve n l k a)
+  (let ((a (append! a (list l))))
+    (meguru-method 0 1000000001 (lambda (min-length) (can-cut-yokan n k a min-length)))))
+
+(define (can-cut-yokan n k a min-length)
+  (let ((yokan-count (count-yokan-piece 0 a min-length)))
+    (> yokan-count k)))
+
+(define (count-yokan-piece init ls min-length)
+  (cdr (fold (lambda (x acc)
+                 (let ((prev (car acc))
+                       (count (cdr acc)))
+                   (let ((d (diff x prev)))
+                     (if (>= d min-length)
+                         (cons x (inc count))
+                         acc))))
+               (cons init 0)
+               ls)))
