@@ -220,7 +220,11 @@ int main() {
 	auto dp = make_vector({n + 1, n + 1}, 0.0);
 	REP(i, n) {
 		REP(j, n) {
-			dp[i + 1][j + 1] = max(dp[i][j] * 0.9 + p[i], dp[i][j + 1]);
+			if(i == j) {
+				dp[i + 1][j + 1] = dp[i][j] * 0.9 + p[i];
+			} else {
+				dp[i + 1][j + 1] = max(dp[i][j] * 0.9 + p[i], dp[i][j + 1]);
+			}
 		}
 	}
 
