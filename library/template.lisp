@@ -79,7 +79,6 @@
                    :input))
 
   (defun input-typespec-reader (typespec)
-    (format t "typespec: ~S~%" typespec)
     (let ((marker (input-typespec-marker typespec)))
       (if (null marker)
           nil
@@ -595,6 +594,69 @@
 
 (defun rbtree-print (rbtree &key (stream t) show-nil)
   (node-print (rbtree-root rbtree) 0 :stream stream :show-nil show-nil))
+
+;;;
+;;; union-find
+;;;
+(defpackage :union-find
+  (:use :cl :utility)
+  (:export :make-union-find
+           :union-find-merge
+           :union-find-unite-p
+           ))
+(in-package :union-find)
+
+(defun make-union-find (size)
+  (let ((parents (make-array size
+                             :element-type 'fixnum
+                             :initial-contents (iota size)))
+        (ranks (make-array size
+                           :element-type 'fixnum
+                           :initial-element 0)))
+    (list parents ranks)))
+
+(defun union-find-parents (uf)
+  (first uf))
+
+(defun union-find-ranks (uf)
+  (second uf))
+
+(defun (setf union-find-parents) (parents uf)
+  (setf (first uf) parents))
+
+(defun (setf union-find-ranks) (ranks uf)
+  (setf (second uf) ranks))
+
+(defun union-find-parent (uf n)
+  (aref (union-find-parents uf) n))
+
+(defun union-find-rank (uf n)
+  (aref (union-find-ranks uf) n))
+
+(defun union-find-root (uf n)
+  (let ((parent (union-find-parent uf n)))
+    (if (= parent n)
+        n
+        (let ((root (union-find-root uf parent)))
+          (setf (aref (union-find-parents uf) n) root)
+          root))))
+
+(defun union-find-merge (uf a b)
+  (let ((ar (union-find-root uf a))
+        (br (union-find-root uf b)))
+    (cond ((= ar br) (values uf nil))
+          ((< (union-find-rank uf ar) (union-find-rank uf br))
+           (union-find-merge uf br ar))
+          ((= (union-find-rank uf ar) (union-find-rank uf br))
+           (incf (aref (union-find-ranks uf) ar))
+           (union-find-merge uf ar br))
+          (t (setf (aref (union-find-parents uf) br) ar)
+             (values uf t)))))
+
+(defun union-find-unite-p (uf a b)
+  (let ((ar (union-find-root uf a))
+        (br (union-find-root uf b)))
+    (= ar br)))
 
 ;;;
 ;;; algorithm
