@@ -119,6 +119,9 @@
     '(let ((*read-default-float-format* 'double-float))
       (read)))
 
+  (def-input-reader string ()
+    `(read-line))
+
   (def-input-reader list (typespec)
     (let ((elems (cdr typespec)))
       (if (null elems)
