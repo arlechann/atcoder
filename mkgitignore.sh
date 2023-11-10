@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 cat << EOF > .gitignore
 # バイナリ以外
 /.vscode/
@@ -13,3 +12,9 @@ EOF
 
 echo "# バイナリファイル" >> .gitignore
 find . -type f | grep -vE "(./.git|\.[^/]*$)" | sed 's/^\.//' >> .gitignore
+
+cat << EOF >> .gitignore
+
+# Common Lispコンパイル済みファイル
+*.fasl
+EOF
