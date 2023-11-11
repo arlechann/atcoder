@@ -5,24 +5,93 @@
 ;;;
 (defpackage :utility
   (:use :cl)
-  (:export :nlet
+  (:import-from :uiop
+                :split-string
+                :if-let
+                :emptyp
+                :string-prefix-p
+                :string-suffix-p
+                :strcat
+                :println)
+  (:export :it
+           :self
+           ;; control
+           :nlet
+           :alet
+           :nlambda
+           :alambda
+           :if-let
+           :if-let*
+           :when-let
+           :when-let*
            :aif
-           :it
+           ;; function
+           :compose
+           ;; sequence
+           :emptyp
            :dvector
            :iota
+           ;; string
+           :split-string
+           :string-prefix-p
+           :string-suffix-p
+           :strcat
+           ;; io
+           :println
+           ;; lazy
            :delay
            :force
+           ;; symbol
            :symbol-intern
            ))
 (in-package :utility)
+
+;;; control
 
 (defmacro nlet (name binds &body body)
   `(labels ((,name ,(mapcar #'car binds) ,@body))
      (,name ,@(mapcar #'cadr binds))))
 
+(defmacro alet (binds &body body)
+  `(nlet self ,binds ,@body))
+
+(defmacro nlambda (name params &body body)
+  `(labels ((,name ,params ,@body))
+     #',name))
+
+(defmacro alambda (params &body body)
+  `(nlambda self ,params ,@body))
+
+(defmacro if-let* (binds then &optional else)
+  `(let* ,binds
+     (if (and ,@(mapcar #'car binds))
+         ,then
+         ,else)))
+
+(defmacro when-let (binds &body body)
+  `(let ,binds
+     (when (and ,@(mapcar #'car binds))
+       ,@body)))
+
+(defmacro when-let* (binds &body body)
+  `(let* ,binds
+     (when (and ,@(mapcar #'car binds))
+       ,@body)))
+
 (defmacro aif (test then &optional else)
   `(let ((it ,test))
      (if it ,then ,else)))
+
+;;; function
+
+(defun compose (&rest fns)
+  (lambda (x)
+    (reduce #'funcall
+            fns
+            :initial-value x
+            :from-end t)))
+
+;;; sequence
 
 (defun dvector (&rest contents)
   (make-array (length contents)
@@ -37,6 +106,8 @@
                  (rec (1- count) (+ start step) step (cons start acc)))))
     (rec count start step nil)))
 
+;;; lazy
+
 (defstruct promise (value nil) thunk)
 
 (defmacro delay (expr)
@@ -47,6 +118,8 @@
     (setf (promise-value ps) (funcall (promise-thunk ps))
           (promise-thunk ps) nil))
   (promise-value ps))
+
+;;; symbol
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun symbol-intern (sym &optional (package *package*))
