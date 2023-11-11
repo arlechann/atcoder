@@ -9,6 +9,7 @@
            :aif
            :it
            :dvector
+           :iota
            :delay
            :force
            :symbol-intern
@@ -28,6 +29,13 @@
               :initial-contents contents
               :adjustable t
               :fill-pointer t))
+
+(defun iota (count &optional (start 0) (step 1))
+  (labels ((rec (count start step acc)
+             (if (<= count 0)
+                 (nreverse acc)
+                 (rec (1- count) (+ start step) step (cons start acc)))))
+    (rec count start step nil)))
 
 (defstruct promise (value nil) thunk)
 
@@ -603,6 +611,7 @@
   (:export :make-union-find
            :union-find-merge
            :union-find-unite-p
+           :union-find-group-size
            ))
 (in-package :union-find)
 
@@ -612,8 +621,11 @@
                              :initial-contents (iota size)))
         (ranks (make-array size
                            :element-type 'fixnum
-                           :initial-element 0)))
-    (list parents ranks)))
+                           :initial-element 0))
+        (group-sizes (make-array size
+                                 :element-type 'fixnum
+                                 :initial-element 1)))
+    (list parents ranks group-sizes)))
 
 (defun union-find-parents (uf)
   (first uf))
@@ -621,20 +633,24 @@
 (defun union-find-ranks (uf)
   (second uf))
 
+(defun union-find-group-sizes (uf)
+  (third uf))
+
 (defun (setf union-find-parents) (parents uf)
   (setf (first uf) parents))
 
 (defun (setf union-find-ranks) (ranks uf)
   (setf (second uf) ranks))
 
-(defun union-find-parent (uf n)
-  (aref (union-find-parents uf) n))
+(defun (setf union-find-group-sizes) (group-sizes uf)
+  (setf (third uf) group-sizes))
 
-(defun union-find-rank (uf n)
-  (aref (union-find-ranks uf) n))
+(defun union-find-group-size (uf n)
+  (let ((root (union-find-root uf n)))
+    (aref (union-find-group-sizes uf) root)))
 
 (defun union-find-root (uf n)
-  (let ((parent (union-find-parent uf n)))
+  (let ((parent (aref (union-find-parents uf) n)))
     (if (= parent n)
         n
         (let ((root (union-find-root uf parent)))
@@ -644,14 +660,18 @@
 (defun union-find-merge (uf a b)
   (let ((ar (union-find-root uf a))
         (br (union-find-root uf b)))
-    (cond ((= ar br) (values uf nil))
-          ((< (union-find-rank uf ar) (union-find-rank uf br))
+    (cond ((= ar br) nil)
+          ((< (aref (union-find-ranks uf) ar)
+              (aref (union-find-ranks uf) br))
            (union-find-merge uf br ar))
-          ((= (union-find-rank uf ar) (union-find-rank uf br))
+          ((= (aref (union-find-ranks uf) ar)
+              (aref (union-find-ranks uf) br))
            (incf (aref (union-find-ranks uf) ar))
            (union-find-merge uf ar br))
           (t (setf (aref (union-find-parents uf) br) ar)
-             (values uf t)))))
+             (incf (aref (union-find-group-sizes uf) ar)
+                   (aref (union-find-group-sizes uf) br))
+             t))))
 
 (defun union-find-unite-p (uf a b)
   (let ((ar (union-find-root uf a))
@@ -684,11 +704,30 @@
         :utility
         :input
         :ordered-map
-        :algorithm))
+        :union-find
+        :algorithm)
+  (:export :main))
 (in-package :atcoder)
 
 (defun main ()
-  (input* ((n (list fixnum fixnum)))
-    (format t "~A~%" n)))
+  (input* ((a fixnum)
+           (b fixnum))
+    (format t "~A~%" (+ a b))))
 
-(main)
+#-swank (main)
+
+#+swank
+(labels ((test-case (input expect)
+           (let ((output (make-array 0
+                                     :element-type 'character
+                                     :fill-pointer t
+                                     :adjustable t)))
+             (with-output-to-string (*standard-output* output)
+               (with-input-from-string (*standard-input* input)
+                 (main)))
+             (if (string= (string-trim '(#\Space #\Newline) output)
+                          (string-trim '(#\Space #\Newline) expect))
+                 (format t "Pass~%")
+                 (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output)))))
+  (test-case "1 2" "3")
+  )
