@@ -136,7 +136,7 @@
 (in-package :input)
 
 ;; (input* ((n fixnum)
-;;          (v (vector (list fixnum1 fixnum1 n))))
+;;          (v (vector (list fixnum1 fixnum1) n)))
 ;;   (list n v))
 ;; 3
 ;; 1 2
