@@ -759,6 +759,7 @@
   (:use :cl)
   (:export :meguru-method
            ))
+(in-package :algorithm)
 
 (defun meguru-method (ok ng pred)
   (if (<= (abs (- ok ng)) 1)
