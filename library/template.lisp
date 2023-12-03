@@ -1,5 +1,18 @@
 (in-package :cl-user)
 
+#-swank
+(unless (member :child-sbcl *features*)
+  (quit
+   :recklessly-p t
+   :unix-status
+   (process-exit-code
+    (run-program *runtime-pathname*
+                 `("--control-stack-size" "256MB"
+                   "--noinform" "--disable-ldb" "--lose-on-corruption" "--end-runtime-options"
+                   "--eval" "(push :child-sbcl *features*)"
+                   "--script" ,(namestring *load-pathname*))
+                 :output t :error t :input t))))
+
 ;;;
 ;;; utility
 ;;;
@@ -25,12 +38,19 @@
            :when-let
            :when-let*
            :aif
+           :dovector
            ;; function
            :compose
+           ;; list
+           :length1p
+           :take
+           :longerp
+           :longer
+           :iota
+           ;; vector
+           :dvector
            ;; sequence
            :emptyp
-           :dvector
-           :iota
            ;; string
            :split-string
            :string-prefix-p
@@ -82,6 +102,15 @@
   `(let ((it ,test))
      (if it ,then ,else)))
 
+(defmacro dovector ((var init-form &optional result) &body body)
+  (let ((vec (gensym))
+        (index (gensym)))
+    `(let ((,vec ,init-form))
+       (dotimes (,index (length ,vec) ,result)
+         (let ((,var (aref ,vec ,index)))
+           (declare (ignorable ,var))
+           ,@body)))))
+
 ;;; function
 
 (defun compose (&rest fns)
@@ -91,13 +120,28 @@
             :initial-value x
             :from-end t)))
 
-;;; sequence
+;;; list
 
-(defun dvector (&rest contents)
-  (make-array (length contents)
-              :initial-contents contents
-              :adjustable t
-              :fill-pointer t))
+(defun length1p (lst)
+  (and lst
+       (null (cdr lst))))
+
+(defun take (lst len)
+  (nlet rec ((lst lst) (len len) (acc nil))
+    (if (<= len 0)
+        (nreverse acc)
+        (rec (cdr lst) (1- len) (cons (car lst) acc)))))
+
+(defun longerp (lst1 lst2)
+  (nlet rec ((lst1 lst1) (lst2 lst2))
+    (cond ((null lst1) nil)
+          ((null lst2) t)
+          (t (rec (cdr lst1) (cdr lst2))))))
+  
+(defun longer (lst1 lst2)
+  (if (longerp lst1 lst2)
+      lst1
+      lst2))
 
 (defun iota (count &optional (start 0) (step 1))
   (labels ((rec (count start step acc)
@@ -105,6 +149,14 @@
                  (nreverse acc)
                  (rec (1- count) (+ start step) step (cons start acc)))))
     (rec count start step nil)))
+
+;;; vector
+
+(defun dvector (&rest contents)
+  (make-array (length contents)
+              :initial-contents contents
+              :adjustable t
+              :fill-pointer t))
 
 ;;; lazy
 
@@ -750,6 +802,35 @@
   (let ((ar (union-find-root uf a))
         (br (union-find-root uf b)))
     (= ar br)))
+
+;;;
+;;; graph
+;;;
+(defpackage :graph
+  (:use :cl :utility)
+  (:export :make-graph-from-edges
+           :graph-neighbors
+           :graph-size
+            :find-leaf))
+(in-package :graph)
+
+(defun make-graph-from-edges (size edges &key (bidirectional t))
+  (let ((graph (make-array size :initial-element nil)))
+    (dovector (edge edges graph)
+      (push (second edge) (aref graph (first edge)))
+      (when bidirectional
+        (push (first edge) (aref graph (second edge)))))))
+
+(defun graph-neighbors (graph node)
+  (aref graph node))
+
+(defun graph-size (graph)
+  (length graph))
+
+(defun find-leaf (graph)
+  (dotimes (node (graph-size graph))
+    (when (length1p (graph-neighbors graph node))
+      (return-from find-leaf node))))
 
 ;;;
 ;;; algorithm
