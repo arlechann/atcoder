@@ -66,6 +66,44 @@
            ))
 (in-package :utility)
 
+;;; reader macro
+
+(eval-when (:compile-toplevel :execute)
+  (defun def-dispatch-fn (char fn)
+    (set-dispatch-macro-character #\# char
+                                  (lambda (stream char1 char2)
+                                    (declare (ignorable stream char1 char2))
+                                    (funcall fn
+                                             (read stream t nil t))))))
+
+(defmacro def-dispatch-macro (char params &body body)
+  `(def-dispatch-fn ,char (lambda ,params ,@body)))
+
+(eval-when (:compile-toplevel :execute)
+  (def-dispatch-macro #\? (expr)
+    (let ((value (gensym)))
+      `(let ((,value ,expr))
+         (fresh-line *error-output*)
+         (format *error-output* "DEBUG PRINT: ~S => ~S~%" ',expr ,value)
+         ,value))))
+
+(eval-when (:compile-toplevel :execute)
+  (let ((rpar (get-macro-character #\) )))
+    (defun def-delimiter-fn (left right fn)
+      (set-macro-character right rpar)
+      (set-dispatch-macro-character #\# left
+                                    (lambda (stream char1 char2)
+                                      (declare (ignorable stream char1 char2))
+                                      (apply fn
+                                             (read-delimited-list right stream t)))))))
+
+(defmacro def-delimiter-macro (left right params &body body)
+  `(def-delimiter-fn ,left ,right #'(lambda ,params ,@body)))
+
+(eval-when (:compile-toplevel :execute)
+  (def-delimiter-macro #\[ #\] (arr &rest indecies)
+    `(elt ,arr ,@indecies)))
+
 ;;; control
 
 (defmacro nlet (name binds &body body)
