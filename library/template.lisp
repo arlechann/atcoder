@@ -16,7 +16,7 @@
 ;;;
 ;;; utility
 ;;;
-(defpackage :utility
+(defpackage utility
   (:use :cl)
   (:import-from :uiop
                 :split-string
@@ -39,6 +39,9 @@
            :when-let*
            :aif
            :dovector
+           ;; number
+           :2*
+           :/2
            ;; function
            :compose
            ;; list
@@ -47,6 +50,7 @@
            :longerp
            :longer
            :iota
+           :unfold
            ;; vector
            :dvector
            ;; sequence
@@ -64,7 +68,7 @@
            ;; symbol
            :symbol-intern
            ))
-(in-package :utility)
+(in-package utility)
 
 ;;; reader macro
 
@@ -102,7 +106,7 @@
 
 (eval-when (:compile-toplevel :execute)
   (def-delimiter-macro #\[ #\] (arr &rest indecies)
-    `(elt ,arr ,@indecies)))
+    `(aref ,arr ,@indecies)))
 
 ;;; control
 
@@ -149,6 +153,11 @@
            (declare (ignorable ,var))
            ,@body)))))
 
+;;; number
+
+(defun 2* (x) (* x 2))
+(defun /2 (x) (values (floor x 2)))
+
 ;;; function
 
 (defun compose (&rest fns)
@@ -170,6 +179,12 @@
         (nreverse acc)
         (rec (cdr lst) (1- len) (cons (car lst) acc)))))
 
+(defun drop (lst len)
+  (nlet rec ((lst lst) (len len))
+    (if (zerop len)
+        lst
+        (rec (cdr lst) (1- len)))))
+
 (defun longerp (lst1 lst2)
   (nlet rec ((lst1 lst1) (lst2 lst2))
     (cond ((null lst1) nil)
@@ -187,6 +202,16 @@
                  (nreverse acc)
                  (rec (1- count) (+ start step) step (cons start acc)))))
     (rec count start step nil)))
+
+(defun unfold (pred fn next-gen seed)
+  (nlet rec ((p pred)
+             (f fn)
+             (g next-gen)
+             (n seed)
+             (acc nil))
+    (if (funcall p n)
+        (nreverse acc)
+        (rec p f g (funcall g n) (cons (funcall f n) acc)))))
 
 ;;; vector
 
@@ -300,8 +325,8 @@
                  ,(reader (cons 'list (cdr elems)))))))
 
   (def-input-reader vector (typespec)
-    (let ((vec (gensym "VEC"))
-          (index (gensym "INDEX"))
+    (let ((vec (gensym))
+          (index (gensym))
           (elem (cadr typespec))
           (len (caddr typespec)))
       `(let ((,vec (make-array ,len)))
@@ -310,9 +335,171 @@
   )
 
 ;;;
+;;; deque
+;;;
+(defpackage deque
+  (:use :cl
+        :utility)
+  (:export :make-deque
+           :deque-size
+           :deque-empty-p
+           :deque-push-front
+           :deque-push-back
+           :deque-pop-front
+           :deque-pop-back
+           :deque-peak-front
+           :deque-peak-back
+           ))
+(in-package deque)
+
+(defun make-deque-buffer (size &key (element-type t))
+  (make-array size :element-type element-type))
+
+(defstruct (deque (:constructor make-deque
+                      (&key (element-type t)
+                       &aux (buffer (make-deque-buffer 64 :element-type element-type)))))
+  (size 0 :type fixnum)
+  (capacity 64 :type fixnum)
+  (front-index 0 :type fixnum)
+  (back-index 0 :type fixnum)
+  (buffer (make-deque-buffer 64) :type simple-array))
+
+(defun deque-empty-p (deque)
+  (zerop (deque-size deque)))
+
+(defun deque-full-p (deque)
+  (= (deque-size deque)
+     (deque-capacity deque)))
+
+(defun deque-buffer-at (deque index)
+  (aref (deque-buffer deque)
+        index))
+
+(defun (setf deque-buffer-at) (x deque index)
+  (setf (aref (deque-buffer deque)
+              index)
+        x))
+
+(defun dec-index (capacity index)
+  (logand (1- capacity)
+          (1- index)))
+
+(defun inc-index (capacity index)
+  (logand (1- capacity)
+          (1+ index)))
+
+(defun deque-front (deque)
+  (deque-buffer-at deque
+                   (deque-front-index deque)))
+
+(defun deque-back (deque)
+  (deque-buffer-at deque
+                   (dec-index (deque-capacity deque)
+                              (deque-back-index deque))))
+
+(defun (setf deque-front) (x deque)
+  (setf (deque-buffer-at deque
+                         (deque-front-index deque))
+        x))
+
+(defun (setf deque-back) (x deque)
+  (setf (deque-buffer-at deque
+                         (dec-index (deque-capacity deque)
+                                    (deque-back-index deque)))
+        x))
+
+(defun inc-front-index (deque)
+  (setf (deque-front-index deque)
+        (inc-index (deque-capacity deque)
+                   (deque-front-index deque)))
+  deque)
+
+(defun dec-front-index (deque)
+  (setf (deque-front-index deque)
+        (dec-index (deque-capacity deque)
+                   (deque-front-index deque)))
+  deque)
+
+(defun inc-back-index (deque)
+  (setf (deque-back-index deque)
+        (inc-index (deque-capacity deque)
+                   (deque-back-index deque)))
+  deque)
+
+(defun dec-back-index (deque)
+  (setf (deque-back-index deque)
+        (dec-index (deque-capacity deque)
+                   (deque-back-index deque)))
+  deque)
+
+(defun deque-extends-buffer (deque)
+  (let* ((prev-capacity (deque-capacity deque))
+         (prev-buffer (deque-buffer deque))
+         (new-capacity (2* prev-capacity))
+         (new-buffer
+           (make-deque-buffer new-capacity
+                              :element-type (array-element-type
+                                             prev-buffer))))
+    (loop repeat prev-capacity
+          for prev-index = (deque-front-index deque)
+            then (inc-index prev-capacity prev-index)
+          for new-index = 0
+            then (inc-index new-capacity new-index)
+          do (setf (aref new-buffer new-index)
+                   (aref prev-buffer prev-index))
+          finally (setf (deque-capacity deque) new-capacity
+                        (deque-buffer deque) new-buffer
+                        (deque-front-index deque) 0
+                        (deque-back-index deque) prev-capacity)
+                  (return deque))))
+
+(defun deque-push-front (deque x)
+  (when (deque-full-p deque)
+    (deque-extends-buffer deque))
+  (dec-front-index deque)
+  (setf (deque-front deque) x)
+  (incf (deque-size deque))
+  deque)
+
+(defun deque-push-back (deque x)
+  (when (deque-full-p deque)
+    (deque-extends-buffer deque))
+  (inc-back-index deque)
+  (setf (deque-back deque) x)
+  (incf (deque-size deque))
+  deque)
+
+(defun need-free-p (typespec)
+  (eq typespec 't))
+
+(defun deque-pop-front (deque)
+  (when (deque-empty-p deque)
+    (error "DEQUE is empty. Cannot pop any element."))
+  (when (need-free-p (array-element-type (deque-buffer deque)))
+    (setf (deque-back deque) nil))
+  (inc-front-index deque)
+  (decf (deque-size deque))
+  deque)
+
+(defun deque-pop-back (deque)
+  (when (deque-empty-p deque)
+    (error "DEQUE is empty. Cannot pop any element."))
+  (when (need-free-p (array-element-type (deque-buffer deque)))
+    (setf (deque-back deque) nil))
+  (dec-back-index deque)
+  (decf (deque-size deque))
+  deque)
+
+(defun deque-peak-front (deque)
+  (deque-front deque))
+
+(defun deque-peak-back (deque)
+  (deque-back deque))
+
+;;;
 ;;; ordered-map
 ;;;
-(defpackage :ordered-map
+(defpackage ordered-map
   (:nicknames :omap)
   (:use :cl)
   (:export :make-rbtree
@@ -327,7 +514,7 @@
            :rbtree-remove
            :rbtree-print
            ))
-(in-package :ordered-map)
+(in-package ordered-map)
 
 ;;; node
 
@@ -769,14 +956,14 @@
 ;;;
 ;;; union-find
 ;;;
-(defpackage :union-find
+(defpackage union-find
   (:use :cl :utility)
   (:export :make-union-find
+           :union-find-size
            :union-find-merge
            :union-find-unite-p
-           :union-find-group-size
            ))
-(in-package :union-find)
+(in-package union-find)
 
 (defun make-union-find (size)
   (let ((parents (make-array size
@@ -790,50 +977,49 @@
                                  :initial-element 1)))
     (list parents ranks group-sizes)))
 
-(defun union-find-parents (uf)
-  (first uf))
+(defun union-find-size (uf)
+  (length (first uf)))
 
-(defun union-find-ranks (uf)
-  (second uf))
+(defun union-find-parent (uf n)
+  (aref (first uf) n))
 
-(defun union-find-group-sizes (uf)
-  (third uf))
-
-(defun (setf union-find-parents) (parents uf)
-  (setf (first uf) parents))
-
-(defun (setf union-find-ranks) (ranks uf)
-  (setf (second uf) ranks))
-
-(defun (setf union-find-group-sizes) (group-sizes uf)
-  (setf (third uf) group-sizes))
+(defun union-find-rank (uf n)
+  (aref (second uf) n))
 
 (defun union-find-group-size (uf n)
-  (let ((root (union-find-root uf n)))
-    (aref (union-find-group-sizes uf) root)))
+  (aref (third uf) (union-find-root uf n)))
+
+(defun (setf union-find-parent) (parent uf n)
+  (setf (aref (first uf) n) parent))
+
+(defun (setf union-find-rank) (rank uf n)
+  (setf (aref (second uf) n) rank))
+
+(defun (setf union-find-group-size) (group-size uf n)
+  (setf (aref (third uf) n) group-size))
 
 (defun union-find-root (uf n)
-  (let ((parent (aref (union-find-parents uf) n)))
+  (let ((parent (union-find-parent uf n)))
     (if (= parent n)
         n
         (let ((root (union-find-root uf parent)))
-          (setf (aref (union-find-parents uf) n) root)
+          (setf (union-find-parent uf n) root)
           root))))
 
 (defun union-find-merge (uf a b)
   (let ((ar (union-find-root uf a))
         (br (union-find-root uf b)))
     (cond ((= ar br) nil)
-          ((< (aref (union-find-ranks uf) ar)
-              (aref (union-find-ranks uf) br))
+          ((< (union-find-rank uf ar)
+              (union-find-rank uf br))
            (union-find-merge uf br ar))
-          ((= (aref (union-find-ranks uf) ar)
-              (aref (union-find-ranks uf) br))
-           (incf (aref (union-find-ranks uf) ar))
+          ((= (union-find-rank uf ar)
+              (union-find-rank uf br))
+           (incf (union-find-rank uf ar))
            (union-find-merge uf ar br))
-          (t (setf (aref (union-find-parents uf) br) ar)
-             (incf (aref (union-find-group-sizes uf) ar)
-                   (aref (union-find-group-sizes uf) br))
+          (t (setf (union-find-parent uf br) ar)
+             (incf (union-find-group-size uf ar)
+                   (union-find-group-size uf br))
              t))))
 
 (defun union-find-unite-p (uf a b)
@@ -844,13 +1030,13 @@
 ;;;
 ;;; graph
 ;;;
-(defpackage :graph
+(defpackage graph
   (:use :cl :utility)
   (:export :make-graph-from-edges
            :graph-neighbors
            :graph-size
-            :find-leaf))
-(in-package :graph)
+           :find-leaf))
+(in-package graph)
 
 (defun make-graph-from-edges (size edges &key (bidirectional t))
   (let ((graph (make-array size :initial-element nil)))
@@ -873,12 +1059,12 @@
 ;;;
 ;;; algorithm
 ;;;
-(defpackage :algorithm
+(defpackage algorithm
   (:nicknames :algo)
   (:use :cl)
   (:export :meguru-method
            ))
-(in-package :algorithm)
+(in-package algorithm)
 
 (defun meguru-method (ok ng pred)
   (if (<= (abs (- ok ng)) 1)
@@ -891,7 +1077,7 @@
 ;;;
 ;;; atcoder
 ;;;
-(defpackage :atcoder
+(defpackage atcoder
   (:nicknames :ac)
   (:use :cl
         :utility
@@ -899,28 +1085,31 @@
         :ordered-map
         :union-find
         :algorithm)
-  (:export :main))
-(in-package :atcoder)
+  (:export :main
+           :test))
+(in-package atcoder)
+
+(defun test-case (input expect)
+  (let ((output (make-array 0
+                            :element-type 'character
+                            :fill-pointer t
+                            :adjustable t)))
+    (with-output-to-string (*standard-output* output)
+      (with-input-from-string (*standard-input* input)
+        (main)))
+    (if (string= (string-trim '(#\Space #\Newline) output)
+                 (string-trim '(#\Space #\Newline) expect))
+        (format t "Pass~%")
+        (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output))))
 
 (defun main ()
   (input* ((a fixnum)
            (b fixnum))
     (format t "~A~%" (+ a b))))
 
-#-swank (main)
-
-#+swank
-(labels ((test-case (input expect)
-           (let ((output (make-array 0
-                                     :element-type 'character
-                                     :fill-pointer t
-                                     :adjustable t)))
-             (with-output-to-string (*standard-output* output)
-               (with-input-from-string (*standard-input* input)
-                 (main)))
-             (if (string= (string-trim '(#\Space #\Newline) output)
-                          (string-trim '(#\Space #\Newline) expect))
-                 (format t "Pass~%")
-                 (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output)))))
+(defun test ()
   (test-case "1 2" "3")
   )
+
+#-swank (main)
+
