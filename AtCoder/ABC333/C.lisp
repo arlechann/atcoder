@@ -250,12 +250,13 @@
       lst1
       lst2))
 
-(defun iota (count &optional (start 0) (step 1))
-  (labels ((rec (count start step acc)
-             (if (<= count 0)
-                 (nreverse acc)
-                 (rec (1- count) (+ start step) step (cons start acc)))))
-    (rec count start step nil)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun iota (count &optional (start 0) (step 1))
+    (labels ((rec (count start step acc)
+               (if (<= count 0)
+                   (nreverse acc)
+                   (rec (1- count) (+ start step) step (cons start acc)))))
+      (rec count start step nil))))
 
 (defun unfold (pred fn next-gen seed)
   (nlet rec ((p pred)
@@ -1172,28 +1173,47 @@
         (format t "Pass~%")
         (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output))))
 
+(eval-when (:compile-toplevel :execute)
+  (defun dfs (lst n acc collect)
+    (mapl (if (zerop n)
+              (lambda (lst)
+                (funcall collect (+ acc (car lst))))
+              (lambda (lst)
+                (dfs lst (1- n) (+ acc (car lst)) collect)))
+          lst))
+
+  (defun repunit (n)
+    (labels ((rec (n acc)
+               (if (zerop n)
+                   acc
+                   (rec (1- n) (+ (* acc 10) 1)))))
+      (rec n 0)))
+  
+  (defun unique (lst &key (test #'eql))
+    (nreverse (reduce (lambda (acc x)
+                        (if (funcall test x (car acc))
+                            acc
+                            (cons x acc)))
+                      lst
+                      :initial-value nil)))
+  )
+
+(defmacro create-result ()
+  (let ((result nil))
+    (dfs (mapcar (lambda (x)
+                   (repunit (1+ x)))
+                 (iota (length "112222222233")))
+         2
+         0
+         (lambda (x)
+           (push x result)))
+    (let ((result (unique (sort result #'<))))
+      `',result)))
+
 (defun main ()
   (input* ((n fixnum))
-    (let ((acc (make-array 20 :initial-element 0)))
-      (setf (aref acc 0) 2)
-      (loop repeat n
-            do (loop named inner
-                     for i from 0 below 20
-                     until (zerop (aref acc i))
-                     do (when (< (aref acc i) 3)
-                          (incf (aref acc i))
-                          (loop for j from 1 below i
-                                do (setf (aref acc j) (aref acc i)))
-                          (return-from inner))
-                     finally (setf (aref acc 0) 3)
-                             (loop for i from 1 below 20
-                                   until (zerop (aref acc i))
-                                   do (setf (aref acc i) 1)
-                                   finally (setf (aref acc i) 1)))
-            finally (loop for i from 19 downto 0
-                          do (unless (zerop (aref acc i))
-                               (format t "~A" (aref acc i)))
-                          finally (terpri))))))
+    (let ((result (create-result)))
+      (format t "~A~%" (nth (1- n) result)))))
     
 (defun test ()
   (test-case "5" "113")
