@@ -44,6 +44,12 @@
            :/2
            ;; function
            :compose
+           ;; sequence
+           :emptyp
+           :make-iterator
+           :iterator-next
+           :iterator-end-p
+           :iterator-with-index
            ;; list
            :length1p
            :take
@@ -53,8 +59,6 @@
            :unfold
            ;; vector
            :dvector
-           ;; sequence
-           :emptyp
            ;; string
            :split-string
            :string-prefix-p
@@ -166,6 +170,56 @@
             fns
             :initial-value x
             :from-end t)))
+
+;;; sequence
+
+(defvar *iterator-end* (gensym "*ITERATOR-END*"))
+
+(defun make-iterator (seq)
+  (if (listp seq)
+      (make-list-iterator seq)
+      (make-array-iterator seq)))
+
+(defun make-list-iterator (lst)
+  (lambda (op)
+    (cond ((eq op :next)
+           (if (null lst)
+               *iterator-end*
+               (pop lst)))
+          ((eq op :end)
+           (null lst))
+          (t (error (format nil "Unsupported method: ~S" op))))))
+
+(defun make-array-iterator (arr)
+  (let ((index 0)
+        (len (length arr)))
+    (lambda (op)
+      (cond ((eq op :next)
+             (if (= index len)
+                 *iterator-end*
+                 (let ((prev-index index))
+                   (declare (dynamic-extent prev-index))
+                   (incf index)
+                   (aref arr prev-index))))
+            ((eq op :end)
+             (= index len))
+            (t (error (format nil "Unsupported method: ~S" op)))))))
+
+(defun iterator-with-index (iter)
+  (let ((index 0))
+    (lambda (op)
+      (if (eq op :next)
+          (let ((prev-index index))
+            (declare (dynamic-extent prev-index))
+            (incf index)
+            (values (funcall iter :next) prev-index))
+          (funcall iter op)))))
+
+(defun iterator-next (iter)
+  (funcall iter :next))
+
+(defun iterator-end-p (iter)
+  (funcall iter :end))
 
 ;;; list
 
@@ -1061,8 +1115,10 @@
 ;;;
 (defpackage algorithm
   (:nicknames :algo)
-  (:use :cl)
+  (:use :cl :utility)
   (:export :meguru-method
+           :cumulate
+           :cumsum
            ))
 (in-package algorithm)
 
@@ -1073,6 +1129,20 @@
         (if (funcall pred mid)
             (meguru-method mid ng pred)
             (meguru-method ok mid pred)))))
+
+(defun cumulate (seq op id &key element-type)
+  (let ((arr (make-array (1+ (length seq))
+                         :element-type element-type
+                         :initial-element id)))
+    (loop with iter = (iterator-with-index (make-iterator seq))
+          until (iterator-end-p iter)
+          do (multiple-value-bind (element index) (iterator-next iter)
+               (setf (aref arr (1+ index))
+                     (funcall op element (aref arr index))))
+          finally (return arr))))
+
+(defun cumsum (seq &key (element-type 'fixnum))
+  (cumulate seq #'+ 0 :element-type element-type))
 
 ;;;
 ;;; atcoder
