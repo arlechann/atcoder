@@ -1154,6 +1154,7 @@
         :input
         :ordered-map
         :union-find
+        :graph
         :algorithm)
   (:export :main
            :test))
