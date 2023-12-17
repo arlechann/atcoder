@@ -39,9 +39,11 @@
            :when-let*
            :aif
            :dovector
+           :let-dyn
            ;; number
            :2*
            :/2
+           :repunit
            ;; function
            :compose
            ;; sequence
@@ -51,12 +53,15 @@
            :iterator-end-p
            :iterator-with-index
            ;; list
+           :length-n-p
            :length1p
            :take
+           :drop
            :longerp
            :longer
            :iota
            :unfold
+           :unique
            ;; vector
            :dvector
            ;; string
@@ -70,7 +75,7 @@
            :delay
            :force
            ;; symbol
-           :symbol-intern
+           :sym
            ))
 (in-package utility)
 
@@ -97,7 +102,7 @@
 
 (eval-when (:compile-toplevel :execute)
   (let ((rpar (get-macro-character #\) )))
-    (defun def-delimiter-fn (left right fn)
+    (defun def-delimiter-macro-fn (left right fn)
       (set-macro-character right rpar)
       (set-dispatch-macro-character #\# left
                                     (lambda (stream char1 char2)
@@ -106,7 +111,7 @@
                                              (read-delimited-list right stream t)))))))
 
 (defmacro def-delimiter-macro (left right params &body body)
-  `(def-delimiter-fn ,left ,right #'(lambda ,params ,@body)))
+  `(def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body)))
 
 (eval-when (:compile-toplevel :execute)
   (def-delimiter-macro #\[ #\] (arr &rest indecies)
@@ -157,11 +162,25 @@
            (declare (ignorable ,var))
            ,@body)))))
 
+(defmacro let-dyn (binds &body body)
+  `(let ,binds
+     (declare (dynamic-extent ,@(mapcar (lambda (x)
+                                          (if (listp x) (car x) x))
+                                        binds)))
+     ,@body))
+
 ;;; number
 
 (defun 2* (x) (* x 2))
 (defun /2 (x) (values (floor x 2)))
 
+(defun repunit (n &optional (base 10))
+  (labels ((rec (n acc)
+             (if (zerop n)
+                 acc
+                 (rec (1- n) (+ (* acc base) 1)))))
+    (rec n 0)))
+  
 ;;; function
 
 (defun compose (&rest fns)
@@ -172,6 +191,9 @@
             :from-end t)))
 
 ;;; sequence
+
+(defun sum (seq)
+  (reduce #'+ seq :initial-value 0))
 
 (defvar *iterator-end* (gensym "*ITERATOR-END*"))
 
@@ -223,21 +245,26 @@
 
 ;;; list
 
+(defun length-n-p (lst n)
+  (cond ((zerop n) (null lst))
+        ((null lst) nil)
+        (t (length-n-p (cdr lst) (1- n)))))
+
 (defun length1p (lst)
   (and lst
        (null (cdr lst))))
 
 (defun take (lst len)
-  (nlet rec ((lst lst) (len len) (acc nil))
-    (if (<= len 0)
-        (nreverse acc)
-        (rec (cdr lst) (1- len) (cons (car lst) acc)))))
+  (labels ((rec (lst len acc)
+             (if (<= len 0)
+                 (nreverse acc)
+                 (rec (cdr lst) (1- len) (cons (car lst) acc)))))
+    (rec lst len nil)))
 
 (defun drop (lst len)
-  (nlet rec ((lst lst) (len len))
-    (if (zerop len)
-        lst
-        (rec (cdr lst) (1- len)))))
+  (if (or (zerop len) (null lst))
+      lst
+      (drop (cdr lst) (1- len))))
 
 (defun longerp (lst1 lst2)
   (nlet rec ((lst1 lst1) (lst2 lst2))
@@ -258,14 +285,19 @@
     (rec count start step nil)))
 
 (defun unfold (pred fn next-gen seed)
-  (nlet rec ((p pred)
-             (f fn)
-             (g next-gen)
-             (n seed)
-             (acc nil))
-    (if (funcall p n)
-        (nreverse acc)
-        (rec p f g (funcall g n) (cons (funcall f n) acc)))))
+  (labels ((rec (p f g n acc)
+             (if (funcall p n)
+                 (nreverse acc)
+                 (rec p f g (funcall g n) (cons (funcall f n) acc)))))
+    (rec pred fn next-gen seed nil)))
+
+(defun unique (lst &key (test #'eql))
+  (nreverse (reduce (lambda (acc x)
+                      (if (funcall test x (car acc))
+                          acc
+                          (cons x acc)))
+                    lst
+                    :initial-value nil)))
 
 ;;; vector
 
@@ -291,8 +323,12 @@
 ;;; symbol
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun symbol-intern (sym &optional (package *package*))
-    (values (intern (symbol-name sym) package))))
+  (defun sym (&rest args)
+    (values (intern
+             (concatenate 'string
+                          (with-output-to-string (s)
+                            (mapcar (lambda (x) (princ x s))
+                                    args)))))))
 
 ;;;
 ;;; input
@@ -323,10 +359,9 @@
     (gethash marker *input-reader-table*))
 
   (defun input-typespec-marker (typespec)
-    (symbol-intern (if (listp typespec)
-                       (car typespec)
-                       typespec)
-                   :input))
+    (sym (if (listp typespec)
+             (car typespec)
+             typespec)))
 
   (defun input-typespec-reader (typespec)
     (let ((marker (input-typespec-marker typespec)))
@@ -555,7 +590,7 @@
 ;;;
 (defpackage ordered-map
   (:nicknames :omap)
-  (:use :cl)
+  (:use :cl :utility)
   (:export :make-rbtree
            :rbtree-search
            :rbtree-each
@@ -681,22 +716,20 @@
                               key-less-p
                               :end end)))))
 
-(defun rotate-right (node)
-  (let ((lnode (node-left node)))
-    (setf (node-left node) (node-right lnode)
-          (node-right lnode) node
-          (node-color lnode) (node-color node)
-          (node-color node) 'red)
-  lnode))
-
-(defun rotate-left (node)
-  (let ((rnode (node-right node)))
-    (setf (node-right node) (node-left rnode)
-          (node-left rnode) node
-          (node-color rnode) (node-color node)
-          (node-color node) 'red)
-    rnode))
-
+(macrolet ((%defun-rotate (a b)
+             (let ((node-a (sym 'node- a))
+                   (node-b (sym 'node- b))
+                   (b-node (sym b '-node)))
+               `(defun ,(sym 'rotate- a) (node)
+                  (let ((,b-node (,node-b node)))
+                    (setf (,node-b node) (,node-a ,b-node)
+                          (,node-a ,b-node) node
+                          (node-color ,b-node) (node-color node)
+                          (node-color node) 'red)
+                    ,b-node)))))
+  (%defun-rotate right left)
+  (%defun-rotate left right))
+                  
 (defun split-4node (node)
   (setf (node-color node) 'red
         (node-color (node-left node)) 'black
@@ -727,26 +760,39 @@
                (node-insert-left node value key key-eq-p key-less-p))
               (t (node-insert-right node value key key-eq-p key-less-p))))))
 
-(defun node-insert-left (node value key key-eq-p key-less-p)
-  (multiple-value-bind (lnode needs-balance)
-      (node-insert (node-left node) value key key-eq-p key-less-p)
-    (setf (node-left node) lnode)
-    (balance-insert-left node needs-balance)))
+(macrolet ((%defun-node-insert (a b)
+             (declare (ignorable b))
+             (let ((node-a (sym 'node- a))
+                   (a-node (sym a '-node)))
+               `(defun ,(sym 'node-insert- a) (node value key key-eq-p key-less-p)
+                  (multiple-value-bind (,a-node needs-balance)
+                      (node-insert (,node-a node) value key key-eq-p key-less-p)
+                    (setf (,node-a node) ,a-node)
+                    (,(sym 'balance-insert- a) node needs-balance))))))
+  (%defun-node-insert left right)
+  (%defun-node-insert right left))
 
-(defun balance-insert-left (node needs-balance)
-  (if (or (not needs-balance) (node-red-p node))
-      (values node needs-balance)
-      (cond ((and (node-red-p (node-right node))
-               (or (invalid-red-ll-p node)
-                   (invalid-red-lr-p node)))
-             (setf node (split-4node node))
-             (values node t))
-            ((invalid-red-ll-p node)
-             (values (rotate-right node) nil))
-            ((invalid-red-lr-p node)
-             (setf (node-left node) (rotate-left (node-left node)))
-             (values (rotate-right node) nil))
-            (t (values node nil)))))
+(macrolet ((%defun-balance-insert (a b aa ab)
+             (let ((node-a (sym 'node- a))
+                   (node-b (sym 'node- b))
+                   (rotate-a (sym 'rotate- a))
+                   (rotate-b (sym 'rotate- b)))
+               `(defun ,(sym 'balance-insert- a) (node needs-balance)
+                  (if (or (not needs-balance) (node-red-p node))
+                      (values node needs-balance)
+                      (cond ((and (node-red-p (,node-b node))
+                                  (or (,(sym 'invalid-red- aa '-p) node)
+                                      (,(sym 'invalid-red- ab '-p) node)))
+                             (setf node (split-4node node))
+                             (values node t))
+                            ((,(sym 'invalid-red- aa '-p) node)
+                             (values (,rotate-b node) nil))
+                            ((,(sym 'invalid-red- ab '-p) node)
+                             (setf (,node-a node) (,rotate-a (,node-a node)))
+                             (values (,rotate-b node) nil))
+                            (t (values node nil))))))))
+  (%defun-balance-insert left right ll lr)
+  (%defun-balance-insert right left rr rl))
 
 (defun invalid-red-ll-p (node)
   (let ((lnode (node-left node)))
@@ -757,27 +803,6 @@
   (let ((lnode (node-left node)))
     (and (node-red-p lnode)
          (node-red-p (node-right lnode)))))
-
-(defun node-insert-right (node value key key-eq-p key-less-p)
-  (multiple-value-bind (rnode needs-balance)
-      (node-insert (node-right node) value key key-eq-p key-less-p)
-    (setf (node-right node) rnode)
-    (balance-insert-right node needs-balance)))
-
-(defun balance-insert-right (node needs-balance)
-  (if (or (not needs-balance) (node-red-p node))
-      (values node needs-balance)
-      (cond ((and (node-red-p (node-left node))
-                  (or (invalid-red-rr-p node)
-                      (invalid-red-rl-p node)))
-             (setf node (split-4node node))
-             (values node t))
-            ((invalid-red-rr-p node)
-             (values (rotate-left node) nil))
-            ((invalid-red-rl-p node)
-             (setf (node-right node) (rotate-right (node-right node)))
-             (values (rotate-left node) nil))
-            (t (values node nil)))))
 
 (defun invalid-red-rl-p (node)
   (let ((rnode (node-right node)))
