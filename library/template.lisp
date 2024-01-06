@@ -328,7 +328,8 @@
              (concatenate 'string
                           (with-output-to-string (s)
                             (mapcar (lambda (x) (princ x s))
-                                    args)))))))
+                                    args)))
+             *package*))))
 
 ;;;
 ;;; input
@@ -359,9 +360,10 @@
     (gethash marker *input-reader-table*))
 
   (defun input-typespec-marker (typespec)
-    (sym (if (listp typespec)
-             (car typespec)
-             typespec)))
+    (let ((*package* #.*package*))
+      (sym (if (listp typespec)
+               (car typespec)
+               typespec))))
 
   (defun input-typespec-reader (typespec)
     (let ((marker (input-typespec-marker typespec)))
