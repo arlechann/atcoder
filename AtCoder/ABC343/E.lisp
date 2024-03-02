@@ -1230,6 +1230,12 @@
     
 (defun main ()
   (input* ((v (vector fixnum 3)))
+    (unless (= (* 343 3)
+               (+ (aref v 0)
+                  (* (aref v 1) 2)
+                  (* (aref v 2) 3)))
+      (format t "No~%")
+      (return-from main))
     (dotimes (a2 15)
       (dotimes (b2 15)
         (dotimes (c2 15)
