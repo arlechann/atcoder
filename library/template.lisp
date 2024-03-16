@@ -62,6 +62,8 @@
            :iota
            :unfold
            :unique
+           :with-index
+           :permutation
            ;; vector
            :dvector
            ;; string
@@ -298,6 +300,28 @@
                           (cons x acc)))
                     lst
                     :initial-value nil)))
+
+(defun with-index (lst)
+  (labels ((rec (lst index acc)
+             (if (null lst)
+                 (nreverse acc)
+                 (rec (cdr lst)
+                      (1+ index)
+                      (cons (cons index (car lst)) acc)))))
+    (rec lst 0 nil)))
+
+(defun permutation (lst)
+  (let ((ret nil))
+    (labels ((rec (lst acc)
+               (if (null lst)
+                   (setf ret (cons acc ret))
+                   (dolist (item lst)
+                     (rec (remove-if (lambda (x)
+                                       (eql (car x) (car item)))
+                                     lst)
+                          (cons (cdr item) acc))))))
+      (rec (with-index lst) nil))
+    ret))
 
 ;;; vector
 
