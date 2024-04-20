@@ -30,8 +30,6 @@
            :self
            ;; control
            :nlet
-           :alet
-           :nlambda
            :alambda
            :if-let
            :if-let*
@@ -44,6 +42,10 @@
            :2*
            :/2
            :repunit
+           :maxp
+           :minp
+           :maxf
+           :minf
            ;; function
            :compose
            ;; sequence
@@ -53,6 +55,7 @@
            :iterator-end-p
            :iterator-with-index
            ;; list
+           :ensure-list
            :length-n-p
            :length1p
            :take
@@ -64,6 +67,7 @@
            :unique
            :with-index
            :permutation
+           :flatten
            ;; vector
            :dvector
            ;; string
@@ -77,13 +81,13 @@
            :delay
            :force
            ;; symbol
-           :sym
+           :symb
            ))
 (in-package utility)
 
 ;;; reader macro
 
-(eval-when (:compile-toplevel :execute)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (defun def-dispatch-fn (char fn)
     (set-dispatch-macro-character #\# char
                                   (lambda (stream char1 char2)
@@ -92,15 +96,15 @@
                                              (read stream t nil t))))))
 
 (defmacro def-dispatch-macro (char params &body body)
-  `(def-dispatch-fn ,char (lambda ,params ,@body)))
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (def-dispatch-fn ,char (lambda ,params ,@body))))
 
-(eval-when (:compile-toplevel :execute)
-  (def-dispatch-macro #\? (expr)
-    (let ((value (gensym)))
-      `(let ((,value ,expr))
-         (fresh-line *error-output*)
-         (format *error-output* "DEBUG PRINT: ~S => ~S~%" ',expr ,value)
-         ,value))))
+(def-dispatch-macro #\? (expr)
+  (let ((value (gensym)))
+    `(let ((,value ,expr))
+       (fresh-line *error-output*)
+       (format *error-output* "DEBUG PRINT: ~S => ~S~%" ',expr ,value)
+       ,value)))
 
 (eval-when (:compile-toplevel :execute)
   (let ((rpar (get-macro-character #\) )))
@@ -113,24 +117,17 @@
                                              (read-delimited-list right stream t)))))))
 
 (defmacro def-delimiter-macro (left right params &body body)
-  `(def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body)))
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body))))
 
-(eval-when (:compile-toplevel :execute)
-  (def-delimiter-macro #\[ #\] (arr &rest indecies)
-    `(aref ,arr ,@indecies)))
+(def-delimiter-macro #\[ #\] (arr &rest indecies)
+  `(aref ,arr ,@indecies))
 
 ;;; control
 
 (defmacro nlet (name binds &body body)
   `(labels ((,name ,(mapcar #'car binds) ,@body))
      (,name ,@(mapcar #'cadr binds))))
-
-(defmacro alet (binds &body body)
-  `(nlet self ,binds ,@body))
-
-(defmacro nlambda (name params &body body)
-  `(labels ((,name ,params ,@body))
-     #',name))
 
 (defmacro alambda (params &body body)
   `(nlambda self ,params ,@body))
@@ -182,7 +179,19 @@
                  acc
                  (rec (1- n) (+ (* acc base) 1)))))
     (rec n 0)))
-  
+
+(defun maxp (x &rest args)
+  (> x (apply #'max args)))
+
+(defun minp (x &rest args)
+  (< x (apply #'min args)))
+
+(defmacro maxf (place &rest args)
+  `(setf ,place (max ,place ,@args)))
+
+(defmacro minf (place &rest args)
+  `(setf ,place (min ,place ,@args)))
+
 ;;; function
 
 (defun compose (&rest fns)
@@ -196,6 +205,10 @@
 
 (defun sum (seq)
   (reduce #'+ seq :initial-value 0))
+
+(defmacro sortf (seq-place pred &rest args)
+  `(setf ,seq-place
+         (sort ,seq-place ,pred ,@args)))
 
 (defvar *iterator-end* (gensym "*ITERATOR-END*"))
 
@@ -246,6 +259,9 @@
   (funcall iter :end))
 
 ;;; list
+
+(defun ensure-list (x)
+  (if (listp x) x (list x)))
 
 (defun length-n-p (lst n)
   (cond ((zerop n) (null lst))
@@ -323,6 +339,15 @@
       (rec (with-index lst) nil))
     ret))
 
+(defun flatten (lst)
+  (labels ((rec (lst acc)
+             (cond ((null lst) acc)
+                   ((listp (car lst))
+                    (rec (cdr lst)
+                         (rec (car lst) acc)))
+                   (t (rec (cdr lst) (cons (car lst) acc))))))
+    (nreverse (rec lst nil))))
+
 ;;; vector
 
 (defun dvector (&rest contents)
@@ -347,7 +372,7 @@
 ;;; symbol
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun sym (&rest args)
+  (defun symb (&rest args)
     (values (intern
              (concatenate 'string
                           (with-output-to-string (s)
@@ -366,7 +391,7 @@
 (in-package :input)
 
 ;; (input* ((n fixnum)
-;;          (v (vector (list fixnum1 fixnum1) n)))
+;;          (v (vector (cons* fixnum1 fixnum1 nil) n)))
 ;;   (list n v))
 ;; 3
 ;; 1 2
@@ -385,7 +410,7 @@
 
   (defun input-typespec-marker (typespec)
     (let ((*package* #.*package*))
-      (sym (if (listp typespec)
+      (symb (if (listp typespec)
                (car typespec)
                typespec))))
 
@@ -409,45 +434,51 @@
   `(let* ,(input-expand forms) ,@body))
 
 (defmacro def-input-reader (marker params &body body)
-  `(progn (set-input-reader
-           ',marker
-           (macrolet ((reader (typespec)
-                        `(input-typespec-reader ,typespec)))
-             (lambda (,@params &optional arg)
-               (declare (ignore arg))
-               ,@body)))
-          ',marker))
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (set-input-reader ',marker
+                       (macrolet ((reader (typespec)
+                                    `(input-typespec-reader ,typespec)))
+                         (lambda (,@params &optional arg)
+                           (declare (ignore arg))
+                           ,@body)))
+     ',marker))
 
-(eval-when (:compile-toplevel :execute)
-  (def-input-reader fixnum ()
-    '(read))
+(def-input-reader fixnum ()
+  '(read))
 
-  (def-input-reader fixnum1 ()
-    '(1- (read)))
+(def-input-reader fixnum1 ()
+  '(1- (read)))
 
-  (def-input-reader double ()
-    '(let ((*read-default-float-format* 'double-float))
-      (read)))
+(def-input-reader double ()
+  '(let ((*read-default-float-format* 'double-float))
+    (read)))
 
-  (def-input-reader string ()
-    `(read-line))
+(def-input-reader string ()
+  `(read-line))
 
-  (def-input-reader list (typespec)
-    (let ((elems (cdr typespec)))
-      (if (null elems)
-          nil
-          `(cons ,(reader (car elems))
-                 ,(reader (cons 'list (cdr elems)))))))
+(def-input-reader cons* (typespec)
+  (let ((elems (cdr typespec)))
+    (if (null (cdr elems))
+        (reader (car elems))
+        `(cons ,(reader (car elems))
+               ,(reader (cons 'cons* (cdr elems)))))))
 
-  (def-input-reader vector (typespec)
-    (let ((vec (gensym))
-          (index (gensym))
-          (elem (cadr typespec))
-          (len (caddr typespec)))
-      `(let ((,vec (make-array ,len)))
-         (dotimes (,index ,len ,vec)
-           (setf (aref ,vec ,index) ,(reader elem))))))
-  )
+(def-input-reader nil () nil)
+
+(def-input-reader list (typespec)
+  (let ((elem (cadr typespec))
+        (len (caddr typespec)))
+    `(loop repeat ,len
+           collect ,(reader elem))))
+
+(def-input-reader vector (typespec)
+  (let ((vec (gensym))
+        (index (gensym))
+        (elem (cadr typespec))
+        (len (caddr typespec)))
+    `(let ((,vec (make-array ,len)))
+       (dotimes (,index ,len ,vec)
+         (setf (aref ,vec ,index) ,(reader elem))))))
 
 ;;;
 ;;; deque
@@ -743,10 +774,10 @@
                               :end end)))))
 
 (macrolet ((%defun-rotate (a b)
-             (let ((node-a (sym 'node- a))
-                   (node-b (sym 'node- b))
-                   (b-node (sym b '-node)))
-               `(defun ,(sym 'rotate- a) (node)
+             (let ((node-a (symb 'node- a))
+                   (node-b (symb 'node- b))
+                   (b-node (symb b '-node)))
+               `(defun ,(symb 'rotate- a) (node)
                   (let ((,b-node (,node-b node)))
                     (setf (,node-b node) (,node-a ,b-node)
                           (,node-a ,b-node) node
@@ -788,32 +819,32 @@
 
 (macrolet ((%defun-node-insert (a b)
              (declare (ignorable b))
-             (let ((node-a (sym 'node- a))
-                   (a-node (sym a '-node)))
-               `(defun ,(sym 'node-insert- a) (node value key key-eq-p key-less-p)
+             (let ((node-a (symb 'node- a))
+                   (a-node (symb a '-node)))
+               `(defun ,(symb 'node-insert- a) (node value key key-eq-p key-less-p)
                   (multiple-value-bind (,a-node needs-balance)
                       (node-insert (,node-a node) value key key-eq-p key-less-p)
                     (setf (,node-a node) ,a-node)
-                    (,(sym 'balance-insert- a) node needs-balance))))))
+                    (,(symb 'balance-insert- a) node needs-balance))))))
   (%defun-node-insert left right)
   (%defun-node-insert right left))
 
 (macrolet ((%defun-balance-insert (a b aa ab)
-             (let ((node-a (sym 'node- a))
-                   (node-b (sym 'node- b))
-                   (rotate-a (sym 'rotate- a))
-                   (rotate-b (sym 'rotate- b)))
-               `(defun ,(sym 'balance-insert- a) (node needs-balance)
+             (let ((node-a (symb 'node- a))
+                   (node-b (symb 'node- b))
+                   (rotate-a (symb 'rotate- a))
+                   (rotate-b (symb 'rotate- b)))
+               `(defun ,(symb 'balance-insert- a) (node needs-balance)
                   (if (or (not needs-balance) (node-red-p node))
                       (values node needs-balance)
                       (cond ((and (node-red-p (,node-b node))
-                                  (or (,(sym 'invalid-red- aa '-p) node)
-                                      (,(sym 'invalid-red- ab '-p) node)))
+                                  (or (,(symb 'invalid-red- aa '-p) node)
+                                      (,(symb 'invalid-red- ab '-p) node)))
                              (setf node (split-4node node))
                              (values node t))
-                            ((,(sym 'invalid-red- aa '-p) node)
+                            ((,(symb 'invalid-red- aa '-p) node)
                              (values (,rotate-b node) nil))
-                            ((,(sym 'invalid-red- ab '-p) node)
+                            ((,(symb 'invalid-red- ab '-p) node)
                              (setf (,node-a node) (,rotate-a (,node-a node)))
                              (values (,rotate-b node) nil))
                             (t (values node nil))))))))
