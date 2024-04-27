@@ -37,6 +37,8 @@
            :when-let*
            :aif
            :dovector
+           :do-combination
+           :do-neighbors
            :let-dyn
            ;; number
            :2*
@@ -106,7 +108,7 @@
        (format *error-output* "DEBUG PRINT: ~S => ~S~%" ',expr ,value)
        ,value)))
 
-(eval-when (:compile-toplevel :execute)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (let ((rpar (get-macro-character #\) )))
     (defun def-delimiter-macro-fn (left right fn)
       (set-macro-character right rpar)
@@ -160,6 +162,26 @@
          (let ((,var (aref ,vec ,index)))
            (declare (ignorable ,var))
            ,@body)))))
+
+(defmacro do-combination (((&rest vars) (&rest counts) &optional result) &body body)
+  (if (or (null vars)
+          (null counts))
+      `(progn ,@body)
+      `(dotimes (,(car vars) ,(car counts) ,result)
+         (do-combination (,(cdr vars) ,(cdr counts) ,result)
+           ,@body))))
+
+(defmacro do-neighbors (((var-y var-x) (point-y point-x) &optional result) &body body)
+  (let ((name (gensym "DO-NEIGHBORS"))
+        (dy (gensym))
+        (dx (gensym)))
+    `(loop named ,name
+           for ,dy in '(0 1 0 -1)
+           for ,dx in '(1 0 -1 0)
+           do (let ((,var-y (+ ,dy ,point-y))
+                    (,var-x (+ ,dx ,point-x)))
+                ,@body)
+           finally (return-from ,name ,result))))
 
 (defmacro let-dyn (binds &body body)
   `(let ,binds
@@ -1255,13 +1277,20 @@
         (format t "Pass~%")
         (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output))))
 
+(defun test-case* (&rest input-expects)
+  (cond ((null input-expects) nil)
+        ((null (cdr input-expects)) (error "unmatched"))
+        (t (test-case (car input-expects)
+                      (cadr input-expects))
+           (apply #'test-case* (cddr input-expects)))))
+
 (defun main ()
   (input* ((a fixnum)
            (b fixnum))
     (format t "~A~%" (+ a b))))
 
 (defun test ()
-  (test-case "1 2" "3")
+  (test-case* "1 2" "3")
   )
 
 #-swank (main)
