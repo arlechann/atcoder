@@ -86,6 +86,9 @@
            :string-prefix-p
            :string-suffix-p
            :strcat
+           ;; char
+           :count-alphabet
+           :char-to-index
            ;; io
            :println
            ;; lazy
@@ -423,6 +426,22 @@
               :initial-contents contents
               :adjustable t
               :fill-pointer t))
+
+;;; char
+
+(defun count-alphabet ()
+  #.(1+ (- (char-code #\Z) (char-code #\A))))
+
+(defun lower-to-index (char)
+  (- (char-code char) #.(char-code #\a)))
+
+(defun upper-to-index (char)
+  (- (char-code char) #.(char-code #\A)))
+
+(defun char-to-index (char)
+  (if (char< char #\a)
+      (upper-to-index char)
+      (lower-to-index char)))
 
 ;;; lazy
 
@@ -1374,6 +1393,87 @@
   (bintree-print (segment-tree-bintree st)))
 
 ;;;
+;;; trie
+;;;
+(defpackage trie
+  (:use :cl)
+  (:export :make-trie
+           :trie-size
+           :trie-find
+           :trie-insert
+           :trie-traverse
+           :trie-node-char
+           :trie-node-endp
+           :trie-node-end-count
+           :trie-node-prefix-count
+           :trie-node-value
+           ))
+(in-package trie)
+
+(defun make-trie-node (char)
+  (vector char 0 0 (make-hash-table :test 'eql) nil))
+(defun trie-node-char (node) (aref node 0))
+(defun trie-node-end-count (node) (aref node 1))
+(defun trie-node-endp (node) (not (zerop (trie-node-end-count node))))
+(defun trie-node-prefix-count (node) (aref node 2))
+(defun trie-node-next (node char)
+  (values (gethash char (aref node 3) nil)))
+(defun trie-node-value (node) (aref node 4))
+(defun (setf trie-node-end-count) (count node) (setf (aref node 1) count))
+(defun (setf trie-node-prefix-count) (count node) (setf (aref node 2) count))
+(defun (setf trie-node-next) (next node char)
+  (setf (gethash char (aref node 3)) next))
+(defun (setf trie-node-value) (value node) (setf (aref node 4) value))
+(defun trie-node-find (node str index &key (prefixp nil))
+  (when (= index (length str))
+    (return-from trie-node-find
+      (if (or prefixp (trie-node-endp node))
+          (values t (trie-node-value node))
+          nil)))
+  (let ((next (trie-node-next node (aref str index))))
+    (if (null next)
+        nil
+        (trie-node-find next str (1+ index)))))
+(defun trie-node-insert (node str index &optional value)
+  (incf (trie-node-prefix-count node))
+  (when (= index (length str))
+    (incf (trie-node-end-count node))
+    (setf (trie-node-value node) value)
+    (return-from trie-node-insert (values str value)))
+  (let* ((char (aref str index))
+         (next (trie-node-next node char)))
+    (trie-node-insert (if (null next)
+                          (setf (trie-node-next node char)
+                                (make-trie-node char))
+                          next)
+                      str (1+ index) value)))
+(defun trie-node-traverse (node str index fn)
+  (funcall fn node str index)
+  (when (= index (length str))
+    (return-from trie-node-traverse nil))
+  (let ((next (trie-node-next node (aref str index))))
+    (if (null next)
+        nil
+        (trie-node-traverse next str (1+ index) fn))))
+
+(defun make-trie ()
+  (vector 0 (make-trie-node nil)))
+(defun trie-size (trie) (aref trie 0))
+(defun (setf trie-size) (size trie) (setf (aref trie 0) size))
+(defun trie-root (trie) (aref trie 1))
+(defun trie-find (trie str &key (prefixp nil))
+  "O(|s|)"
+  (trie-node-find (trie-root trie) str 0 :prefixp prefixp))
+(defun trie-insert (trie str &optional value)
+  "O(|s|)"
+  (incf (trie-size trie))
+  (trie-node-insert (trie-root trie) str 0 value))
+(defun trie-traverse (trie str fn)
+  "(function (trie string (function (trie-node string fixnum) t)) t)
+O(|s|)"
+  (trie-node-traverse (trie-root trie) str 0 fn))
+
+;;;
 ;;; graph
 ;;;
 (defpackage graph
@@ -1449,6 +1549,7 @@
         :ordered-map
         :union-find
         :segment-tree
+        :trie
         :graph
         :algorithm)
   (:export :main
