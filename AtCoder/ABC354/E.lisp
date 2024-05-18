@@ -1595,19 +1595,14 @@ O(|s|)"
         (b-front (card-front b))
         (b-back (card-back b)))
     (or (= a-front b-front)
-        (= a-front b-back)
-        (= a-back b-front)
         (= a-back b-back))))
 
 (defun main ()
   (input* ((n fixnum)
            (ab (vector (list fixnum 2) n)))
     (init-memo)
-    (let ((winner (dp ab 0 nil)))
-      (format t "~A~%"
-              (if winner
-                  "Aoki"
-                  "Takahashi")))))
+    (let ((winner (dp ab 0 :takahashi)))
+      (format t "~A~%" (player-string winner)))))
 
 (defparameter *memo* nil)
 (defun init-memo () (setf *memo* (make-hash-table :test 'equal)))
@@ -1615,6 +1610,12 @@ O(|s|)"
 (defun logipop (n &rest indexes)
   (dolist (index indexes n)
     (setf n (logior n (ash 1 index)))))
+
+(defun flip-player (player)
+  (if (eq player :takahashi) :aoki :takahashi))
+
+(defun player-string (player)
+  (if (eq player :takahashi) "Takahashi" "Aoki"))
 
 (defun dp (cards used player)
   (let* ((key (cons used player))
@@ -1631,15 +1632,15 @@ O(|s|)"
                            (card-pair-p (aref cards i)
                                         (aref cards j)))
                   (push (cons j i) removable-index-pairs))))
-            (cond ((null removable-index-pairs) (not player))
+            (cond ((null removable-index-pairs) (flip-player player))
                   ((some (lambda (winner) (eq winner player))
                          (mapcar (lambda (pair)
                                    (dp cards
                                        (logipop used (car pair) (cdr pair))
-                                       (not player)))
+                                       (flip-player player)))
                                  removable-index-pairs))
                    player)
-                  (t (not player)))))))
+                  (t (flip-player player)))))))
 
 (defun test ()
   (test-case "5
