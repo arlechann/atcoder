@@ -30,6 +30,7 @@
            :self
            ;; definition
            :defun-always
+           :defalias
            ;; control
            :eval-always
            :nlet
@@ -39,6 +40,8 @@
            :when-let
            :when-let*
            :aif
+           :fbind
+           :fbind*
            :dovector
            :do-combination
            :do-neighbors
@@ -52,6 +55,7 @@
            :minp
            :maxf
            :minf
+           :logipop
            ;; function
            :compose
            ;; sequence
@@ -108,6 +112,11 @@
 (defmacro defun-always (name params &body body)
   `(eval-always (defun ,name ,params ,@body)))
 
+(defmacro defalias (alias original)
+  `(progn (setf (symbol-function ,alias)
+                ,original)
+          ,alias))
+
 ;;; reader macro
 
 (defun-always def-dispatch-fn (char fn)
@@ -152,7 +161,7 @@
      (,name ,@(mapcar #'cadr binds))))
 
 (defmacro alambda (params &body body)
-  `(nlambda self ,params ,@body))
+  `(labels ((self ,params ,@body)) #'self))
 
 (defmacro if-let* (binds then &optional else)
   `(let* ,binds
@@ -173,6 +182,23 @@
 (defmacro aif (test then &optional else)
   `(let ((it ,test))
      (if it ,then ,else)))
+
+(defmacro fbind (binds &body body)
+  (let ((args (gensym)))
+    `(flet ,(mapcar (lambda (bind)
+                      (let ((var (car bind))
+                            (fn (cadr bind)))
+                        `(,var (&rest ,args) (apply ,fn ,args))))
+                    binds)
+       (declare (inline ,@(mapcar #'car binds)))
+       ,@body)))
+
+(defmacro fbind* (binds &body body)
+  (cond ((null binds) `(progn ,@body))
+        ((null (cdr binds)) `(fbind (,(car binds)) ,@body))
+        (t `(fbind (,(car binds))
+              (fbind* ,(cdr binds)
+                ,@body)))))
 
 (defmacro dovector ((var init-form &optional result) &body body)
   (let ((vec (gensym))
@@ -240,6 +266,10 @@
 
 (defmacro minf (place &rest args)
   `(setf ,place (min ,place ,@args)))
+
+(defun logipop (n &rest indexes)
+  (dolist (index indexes n)
+    (setf n (logior n (ash 1 index)))))
 
 ;;; function
 
@@ -1182,6 +1212,7 @@
            :union-find-size
            :union-find-merge
            :union-find-unite-p
+           :union-find-groups
            ))
 (in-package union-find)
 
@@ -1247,6 +1278,15 @@
 (defun union-find-unite-p (uf a b)
   (= (union-find-root uf a)
      (union-find-root uf b)))
+
+(defun union-find-groups (uf)
+  (let ((size (union-find-size uf)))
+    (dotimes (i size)
+      (union-find-root uf i))
+    (let ((groups (make-array size :initial-element nil)))
+      (dotimes (i size)
+        (push i (aref groups (union-find-root uf i))))
+      (coerce (remove-if #'null groups) 'list))))
 
 ;;;
 ;;; segment-tree
@@ -1511,6 +1551,8 @@ O(|s|)"
   (:export :meguru-method
            :cumulate
            :cumsum
+           :dp
+           :defdp
            ))
 (in-package algorithm)
 
@@ -1537,6 +1579,24 @@ O(|s|)"
 
 (defun cumsum (seq &key (element-type 'fixnum))
   (cumulate seq #'+ 0 :element-type element-type))
+
+(defmacro dp (name params &body body)
+  (let ((memo (gensym))
+        (key (gensym))
+        (memo-value (gensym))
+        (none-value (gensym)))
+    `(let ((,memo (make-hash-table :test 'equal)))
+       (labels ((,name ,params
+                  (let* ((,key (list ,@params))
+                         (,memo-value (gethash ,key ,memo ',none-value)))
+                    (if (not (eq ,memo-value ',none-value))
+                        ,memo-value
+                        (setf (gethash ,key ,memo)
+                              (progn ,@body))))))
+         #',name))))
+
+(defmacro defdp (name params &body body)
+  `(defalias ,name (dp ,name ,params ,@body)))
 
 ;;;
 ;;; atcoder

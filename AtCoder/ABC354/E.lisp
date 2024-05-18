@@ -152,7 +152,7 @@
      (,name ,@(mapcar #'cadr binds))))
 
 (defmacro alambda (params &body body)
-  `(nlambda self ,params ,@body))
+  `(labels ((self ,params ,@body)) #'self))
 
 (defmacro if-let* (binds then &optional else)
   `(let* ,binds
@@ -1256,7 +1256,7 @@
     (let ((groups (make-array size :initial-element nil)))
       (dotimes (i size)
         (push i (aref groups (union-find-root uf i))))
-      (remove-if #'null groups))))
+      (coerce (remove-if #'null groups) 'list))))
 
 ;;;
 ;;; segment-tree
@@ -1586,6 +1586,46 @@ O(|s|)"
                       (cadr input-expects))
            (apply #'test-case* (cddr input-expects)))))
 
+(defmacro defalias (alias original)
+  `(progn (setf (symbol-function ,alias)
+                ,original)
+          ,alias))
+
+(defmacro dp (name params &body body)
+  (let ((memo (gensym))
+        (key (gensym))
+        (memo-value (gensym))
+        (none-value (gensym)))
+    `(let ((,memo (make-hash-table :test 'equal)))
+       (labels ((,name ,params
+                  (let* ((,key (list ,@params))
+                         (,memo-value (gethash ,key ,memo ',none-value)))
+                    (if (not (eq ,memo-value ',none-value))
+                        ,memo-value
+                        (setf (gethash ,key ,memo)
+                              (progn ,@body))))))
+         #',name))))
+
+(defmacro defdp (name params &body body)
+  `(defalias ,name (dp ,name ,params ,@body)))
+
+(defmacro fbind (binds &body body)
+  (let ((args (gensym)))
+    `(flet ,(mapcar (lambda (bind)
+                      (let ((var (car bind))
+                            (fn (cadr bind)))
+                        `(,var (&rest ,args) (apply ,fn ,args))))
+                    binds)
+       (declare (inline ,@(mapcar #'car binds)))
+       ,@body)))
+
+(defmacro fbind* (binds &body body)
+  (cond ((null binds) `(progn ,@body))
+        ((null (cdr binds)) `(fbind (,(car binds)) ,@body))
+        (t `(fbind (,(car binds))
+              (fbind* ,(cdr binds)
+                ,@body)))))
+
 (defun card-front (card) (first card))
 (defun card-back (card) (second card))
 
@@ -1599,13 +1639,27 @@ O(|s|)"
 
 (defun main ()
   (input* ((n fixnum)
-           (ab (vector (list fixnum 2) n)))
-    (init-memo)
-    (let ((winner (dp ab 0 :takahashi)))
-      (format t "~A~%" (player-string winner)))))
-
-(defparameter *memo* nil)
-(defun init-memo () (setf *memo* (make-hash-table :test 'equal)))
+           (cards (vector (list fixnum 2) n)))
+    (let ((dp (dp dp (used player)
+                (let ((n (length cards))
+                      (removable-index-pairs nil))
+                  (dotimes (i n)
+                    (dotimes (j i)
+                      (when (and (not (logbitp i used))
+                                 (not (logbitp j used))
+                                 (card-pair-p (aref cards i)
+                                              (aref cards j)))
+                        (push (cons j i) removable-index-pairs))))
+                  (cond ((null removable-index-pairs) (flip-player player))
+                        ((some (lambda (winner) (eq winner player))
+                               (mapcar (lambda (pair)
+                                         (dp (logipop used (car pair) (cdr pair))
+                                             (flip-player player)))
+                                       removable-index-pairs))
+                         player)
+                        (t (flip-player player)))))))
+      (let ((winner (funcall dp 0 :takahashi)))
+        (format t "~A~%" (player-string winner))))))
 
 (defun logipop (n &rest indexes)
   (dolist (index indexes n)
@@ -1616,31 +1670,6 @@ O(|s|)"
 
 (defun player-string (player)
   (if (eq player :takahashi) "Takahashi" "Aoki"))
-
-(defun dp (cards used player)
-  (let* ((key (cons used player))
-         (memo-value (gethash key *memo* :none)))
-    (when (not (eq memo-value :none))
-      (return-from dp memo-value))
-    (setf (gethash key *memo*)
-          (let ((n (length cards))
-                (removable-index-pairs nil))
-            (dotimes (i n)
-              (dotimes (j i)
-                (when (and (not (logbitp i used))
-                           (not (logbitp j used))
-                           (card-pair-p (aref cards i)
-                                        (aref cards j)))
-                  (push (cons j i) removable-index-pairs))))
-            (cond ((null removable-index-pairs) (flip-player player))
-                  ((some (lambda (winner) (eq winner player))
-                         (mapcar (lambda (pair)
-                                   (dp cards
-                                       (logipop used (car pair) (cdr pair))
-                                       (flip-player player)))
-                                 removable-index-pairs))
-                   player)
-                  (t (flip-player player)))))))
 
 (defun test ()
   (test-case "5
