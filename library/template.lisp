@@ -42,6 +42,7 @@
            :aif
            :fbind
            :fbind*
+           :dotimes-rev
            :dovector
            :do-combination
            :do-neighbors
@@ -56,6 +57,7 @@
            :maxf
            :minf
            :logipop
+           :logmsb
            ;; function
            :compose
            ;; sequence
@@ -200,6 +202,14 @@
               (fbind* ,(cdr binds)
                 ,@body)))))
 
+(defmacro dotimes-rev ((var count &optional result) &body body)
+  (let ((index (gensym))
+        (temp-count (gensym)))
+    `(let ((,temp-count ,count))
+       (dotimes (,index ,temp-count ,result)
+         (let ((,var (- ,temp-count ,index 0)))
+           ,@body)))))
+
 (defmacro dovector ((var init-form &optional result) &body body)
   (let ((vec (gensym))
         (index (gensym)))
@@ -270,6 +280,13 @@
 (defun logipop (n &rest indexes)
   (dolist (index indexes n)
     (setf n (logior n (ash 1 index)))))
+
+(defun logmsb (n)
+  (loop for i from 0
+        when (= (ash 1 i) n)
+          return i
+        when (> (ash 1 i) n)
+          return (1- i)))
 
 ;;; function
 
