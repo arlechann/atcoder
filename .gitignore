@@ -11,6 +11,7 @@
 /AtCoder/ABC329/F
 /AtCoder/ABC334/E
 /AtCoder/ABC348/D
+/AtCoder/ABC360/E
 /AtCoder/ABC327/A
 /AtCoder/ABC327/C
 /AtCoder/ABC327/E
@@ -46,7 +47,6 @@
 /AtCoder/ABC326/F
 /AtCoder/ABC326/B
 /AtCoder/ABC326/D
-/AtCoder/ABC352/D
 
 # Common Lispコンパイル済みファイル
 *.fasl
