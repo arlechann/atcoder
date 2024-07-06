@@ -626,19 +626,21 @@
            :deque-pop-back
            :deque-peak-front
            :deque-peak-back
+           :deque-at
            ))
 (in-package deque)
 
 (defun make-deque-buffer (size &key (element-type t))
   (make-array size :element-type element-type))
 
+(defconstant +deque-default-buffer-size+ 64)
+
 (defstruct (deque (:constructor make-deque
-                      (&key (element-type t)
-                       &aux (buffer (make-deque-buffer 64 :element-type element-type)))))
+                      (&aux (buffer (make-deque-buffer +deque-default-buffer-size+)))))
   (size 0 :type fixnum)
-  (capacity 64 :type fixnum)
+  (capacity +deque-default-buffer-size+ :type fixnum)
   (front-index 0 :type fixnum)
-  (back-index 0 :type fixnum)
+  (back-index (1- +deque-default-buffer-size+) :type fixnum)
   (buffer (make-deque-buffer 64) :type simple-array))
 
 (defun deque-empty-p (deque)
@@ -657,62 +659,52 @@
               index)
         x))
 
-(defun dec-index (capacity index)
-  (logand (1- capacity)
-          (1- index)))
+(defun round-index (capacity index) (logand (1- capacity) index))
 
-(defun inc-index (capacity index)
-  (logand (1- capacity)
-          (1+ index)))
+(defun inc-index (capacity index) (round-index capacity (1+ index)))
+
+(defun dec-index (capacity index) (round-index capacity (1- index)))
 
 (defun deque-front (deque)
+  (assert (not (deque-empty-p deque)) nil "DEQUE-FRONT: Deque is empty.")
   (deque-buffer-at deque
                    (deque-front-index deque)))
 
 (defun deque-back (deque)
+  (assert (not (deque-empty-p deque)) nil "DEQUE-BACK: Deque is empty.")
   (deque-buffer-at deque
-                   (dec-index (deque-capacity deque)
-                              (deque-back-index deque))))
-
-(defun (setf deque-front) (x deque)
-  (setf (deque-buffer-at deque
-                         (deque-front-index deque))
-        x))
-
-(defun (setf deque-back) (x deque)
-  (setf (deque-buffer-at deque
-                         (dec-index (deque-capacity deque)
-                                    (deque-back-index deque)))
-        x))
+                   (deque-back-index deque)))
 
 (defun inc-front-index (deque)
   (setf (deque-front-index deque)
         (inc-index (deque-capacity deque)
-                   (deque-front-index deque)))
-  deque)
+                   (deque-front-index deque))))
 
 (defun dec-front-index (deque)
   (setf (deque-front-index deque)
         (dec-index (deque-capacity deque)
-                   (deque-front-index deque)))
-  deque)
+                   (deque-front-index deque))))
 
 (defun inc-back-index (deque)
   (setf (deque-back-index deque)
         (inc-index (deque-capacity deque)
-                   (deque-back-index deque)))
-  deque)
+                   (deque-back-index deque))))
 
 (defun dec-back-index (deque)
   (setf (deque-back-index deque)
         (dec-index (deque-capacity deque)
-                   (deque-back-index deque)))
-  deque)
+                   (deque-back-index deque))))
+
+(defun (setf deque-front) (x deque)
+  (setf (deque-buffer-at deque (deque-front-index deque)) x))
+
+(defun (setf deque-back) (x deque)
+  (setf (deque-buffer-at deque (deque-back-index deque)) x))
 
 (defun deque-extends-buffer (deque)
   (let* ((prev-capacity (deque-capacity deque))
          (prev-buffer (deque-buffer deque))
-         (new-capacity (2* prev-capacity))
+         (new-capacity (* prev-capacity 2))
          (new-buffer
            (make-deque-buffer new-capacity
                               :element-type (array-element-type
@@ -727,33 +719,29 @@
           finally (setf (deque-capacity deque) new-capacity
                         (deque-buffer deque) new-buffer
                         (deque-front-index deque) 0
-                        (deque-back-index deque) prev-capacity)
+                        (deque-back-index deque) (1- prev-capacity))
                   (return deque))))
 
 (defun deque-push-front (deque x)
   (when (deque-full-p deque)
     (deque-extends-buffer deque))
   (dec-front-index deque)
-  (setf (deque-front deque) x)
   (incf (deque-size deque))
+  (setf (deque-front deque) x)
   deque)
 
 (defun deque-push-back (deque x)
   (when (deque-full-p deque)
     (deque-extends-buffer deque))
   (inc-back-index deque)
-  (setf (deque-back deque) x)
   (incf (deque-size deque))
+  (setf (deque-back deque) x)
   deque)
-
-(defun need-free-p (typespec)
-  (eq typespec 't))
 
 (defun deque-pop-front (deque)
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot pop any element."))
-  (when (need-free-p (array-element-type (deque-buffer deque)))
-    (setf (deque-back deque) nil))
+  (setf (deque-buffer-at deque (deque-front-index deque)) nil)
   (inc-front-index deque)
   (decf (deque-size deque))
   deque)
@@ -761,17 +749,27 @@
 (defun deque-pop-back (deque)
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot pop any element."))
-  (when (need-free-p (array-element-type (deque-buffer deque)))
-    (setf (deque-back deque) nil))
+  (setf (deque-buffer-at deque (deque-back-index deque)) nil)
   (dec-back-index deque)
   (decf (deque-size deque))
   deque)
 
-(defun deque-peak-front (deque)
-  (deque-front deque))
+(defun deque-peak-front (deque) (deque-front deque))
 
-(defun deque-peak-back (deque)
-  (deque-back deque))
+(defun deque-peak-back (deque) (deque-back deque))
+
+(defun deque-at (deque index)
+  (deque-buffer-at deque
+                   (round-index (deque-capacity deque)
+                                (+ (deque-front-index deque)
+                                   index))))
+
+(defun (setf deque-at) (x deque index)
+  (setf (deque-buffer-at deque
+                         (round-index (deque-capacity deque)
+                                      (+ (deque-front-index deque)
+                                         index)))
+        x))
 
 ;;;
 ;;; ordered-map
@@ -1684,15 +1682,15 @@ O(|s|)"
     (deque-push-back deque s)
     (setf (gethash s moves) 0)
     (loop until (deque-empty-p deque)
-          do (let* ((s (deque-peak-front deque))
+          do (let* ((s (deque-peak-back deque))
                     (move (gethash s moves)))
-               (deque-pop-front deque)
+               (deque-pop-back deque)
                (when (string= (subseq s 0 n) tt)
                  (return-from solve move))
-               (dolist (next-s #?(next-states s))
+               (dolist (next-s (next-states s))
                  (unless (gethash next-s moves nil)
-                   (deque-push-back #?deque next-s)
-                   (setf (gethash next-s moves) (1+ move))))))))
+                   (deque-push-front deque next-s)
+                   (setf (gethash next-s moves) (1+ move)))))))
   -1)
 
 (defun main ()
