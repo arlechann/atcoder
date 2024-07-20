@@ -2,16 +2,14 @@
 
 #-swank
 (unless (member :child-sbcl *features*)
-  (quit
-   :recklessly-p t
-   :unix-status
-   (process-exit-code
-    (run-program *runtime-pathname*
-                 `("--control-stack-size" "256MB"
-                   "--noinform" "--disable-ldb" "--lose-on-corruption" "--end-runtime-options"
-                   "--eval" "(push :child-sbcl *features*)"
-                   "--script" ,(namestring *load-pathname*))
-                 :output t :error t :input t))))
+  (quit :recklessly-p t
+        :unix-status
+        (process-exit-code
+         (run-program *runtime-pathname*
+                      `("--control-stack-size" "256MB" "--noinform" "--disable-ldb"
+                        "--lose-on-corruption" "--end-runtime-options" "--eval"
+                        "(push :child-sbcl *features*)" "--script" ,(namestring *load-pathname*))
+                      :output t :error t :input t))))
 
 ;;;
 ;;; utility
@@ -43,13 +41,19 @@
            :fbind
            :fbind*
            :dotimes-rev
-           :dovector
+           :do-array
+           :do-array*
+           :do-seq
+           :do-seq*
            :do-combination
            :do-neighbors
            :let-dyn
            ;; number
            :2*
            :/2
+           :square
+           :cube
+           :pow
            :diff
            :next-pow2
            :repunit
@@ -61,6 +65,7 @@
            :logmsb
            :range-intersect-p
            ;; function
+           :do-nothing
            :compose
            ;; sequence
            :sum
@@ -84,6 +89,7 @@
            :iota
            :unfold
            :unique
+           :chunk
            :with-index
            :permutation
            :flatten
@@ -113,12 +119,10 @@
 
 ;;; definition
 
-(defmacro defun-always (name params &body body)
-  `(eval-always (defun ,name ,params ,@body)))
+(defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
 
 (defmacro defalias (alias original)
-  `(progn (setf (symbol-function ,alias)
-                ,original)
+  `(progn (setf (symbol-function ,alias) ,original)
           ,alias))
 
 ;;; reader macro
@@ -127,12 +131,10 @@
   (set-dispatch-macro-character #\# char
                                 (lambda (stream char1 char2)
                                   (declare (ignorable stream char1 char2))
-                                  (funcall fn
-                                           (read stream t nil t)))))
+                                  (funcall fn (read stream t nil t)))))
 
 (defmacro def-dispatch-macro (char params &body body)
-  `(eval-always
-     (def-dispatch-fn ,char (lambda ,params ,@body))))
+  `(eval-always (def-dispatch-fn ,char (lambda ,params ,@body))))
 
 (def-dispatch-macro #\? (expr)
   (let ((value (gensym)))
@@ -155,8 +157,7 @@
   `(eval-always
      (def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body))))
 
-(def-delimiter-macro #\[ #\] (arr &rest indecies)
-  `(aref ,arr ,@indecies))
+(def-delimiter-macro #\[ #\] (arr &rest indecies) `(aref ,arr ,@indecies))
 
 ;;; control
 
@@ -164,14 +165,11 @@
   `(labels ((,name ,(mapcar #'car binds) ,@body))
      (,name ,@(mapcar #'cadr binds))))
 
-(defmacro alambda (params &body body)
-  `(labels ((self ,params ,@body)) #'self))
+(defmacro alambda (params &body body) `(labels ((self ,params ,@body)) #'self))
 
 (defmacro if-let* (binds then &optional else)
   `(let* ,binds
-     (if (and ,@(mapcar #'car binds))
-         ,then
-         ,else)))
+     (if (and ,@(mapcar #'car binds)) ,then ,else)))
 
 (defmacro when-let (binds &body body)
   `(let ,binds
@@ -183,9 +181,7 @@
      (when (and ,@(mapcar #'car binds))
        ,@body)))
 
-(defmacro aif (test then &optional else)
-  `(let ((it ,test))
-     (if it ,then ,else)))
+(defmacro aif (test then &optional else) `(let ((it ,test)) (if it ,then ,else)))
 
 (defmacro fbind (binds &body body)
   (let ((args (gensym)))
@@ -212,22 +208,59 @@
          (let ((,var (- ,temp-count ,index 0)))
            ,@body)))))
 
-(defmacro dovector ((var init-form &optional result) &body body)
-  (let ((vec (gensym))
-        (index (gensym)))
-    `(let ((,vec ,init-form))
-       (dotimes (,index (length ,vec) ,result)
-         (let ((,var (aref ,vec ,index)))
-           (declare (ignorable ,var))
-           ,@body)))))
+(defmacro do-array* (((&rest vars) (&rest arrays) &optional result) &body body)
+  (assert (= (length vars) (length arrays)))
+  (let ((arrs (mapcar (lambda (x)
+                        (declare (ignore x))
+                        (gensym))
+                      arrays))
+        (index (gensym))
+        (min-size (gensym)))
+  `(let* (,@(mapcar #'list arrs arrays)
+          (,min-size (apply #'min (mapcar #'array-total-size (list ,@arrs)))))
+     (do ((,index 0 (1+ ,index)))
+         ((= ,index ,min-size) ,result)
+       (let ,(mapcar (lambda (var array-var)
+                        `(,var (row-major-aref ,array-var ,index)))
+                      vars arrs)
+         (declare (ignorable ,@vars))
+         ,@body)))))
+       
+(defmacro do-array ((var array &optional result) &body body)
+  `(do-array* ((,var) (,array) ,result) ,@body))
+
+(defmacro do-seq* (((&rest vars) (&rest sequences) &optional result) &body body)
+  (assert (= (length vars) (length sequences)))
+  (let ((seqs (mapcar (lambda (x)
+                        (declare (ignore x))
+                        (gensym))
+                      sequences))
+        (iters (mapcar (lambda (x)
+                         (declare (ignore x))
+                         (gensym))
+                       sequences)))
+  `(let* (,@(mapcar #'list seqs sequences))
+     (do ,(mapcar (lambda (seq iter)
+                    `(,iter (make-iterator ,seq) (iterator-next ,iter)))
+                   seqs iters)
+         ((some #'iterator-endp (list ,@iters)) ,result)
+       (let ,(mapcar (lambda (var iter)
+                        `(,var (iterator-element ,iter)))
+                      vars iters)
+         (declare (ignorable ,@vars))
+         ,@body)))))
+
+(defmacro do-seq ((var sequence &optional result) &body body)
+  `(do-seq* ((,var) (,sequence) ,result) ,@body))
 
 (defmacro do-combination (((&rest vars) (&rest counts) &optional result) &body body)
-  (if (or (null vars)
-          (null counts))
-      `(progn ,@body)
-      `(dotimes (,(car vars) ,(car counts) ,result)
-         (do-combination (,(cdr vars) ,(cdr counts) ,result)
-           ,@body))))
+  (cond ((or (null vars) (null counts)) result)
+        ((or (null (cdr vars)) (null (cdr counts)))
+         `(dotimes (,(car vars) ,(car counts) ,result)
+            ,@body))
+        (t `(dotimes (,(car vars) ,(car counts) ,result)
+              (do-combination (,(cdr vars) ,(cdr counts) ,result)
+                ,@body)))))
 
 (defmacro do-neighbors (((var-y var-x) (point-y point-x) &optional result) &body body)
   (let ((name (gensym "DO-NEIGHBORS"))
@@ -243,15 +276,26 @@
 
 (defmacro let-dyn (binds &body body)
   `(let ,binds
-     (declare (dynamic-extent ,@(mapcar (lambda (x)
-                                          (if (listp x) (car x) x))
-                                        binds)))
+     (declare (dynamic-extent
+               ,@(mapcar (lambda (x) (if (listp x) (car x) x)) binds)))
      ,@body))
 
 ;;; number
 
 (defun 2* (x) (* x 2))
 (defun /2 (x) (values (floor x 2)))
+(defun square (x &optional (op #'*)) (funcall op x x))
+(defun cube (x &optional (op #'*)) (funcall op x x x))
+
+(defun pow (base power &key (op #'*) (identity 1))
+  (assert (>= power 0))
+  (let ((ret identity))
+    (loop until (zerop power)
+          when (oddp power)
+            do (setf ret (funcall op ret base))
+          do (setf base (square base op)
+                   power (floor power 2))
+          finally (return ret))))
 
 (defun diff (a b) (abs (- a b)))
 
@@ -269,21 +313,11 @@
     (dotimes (i n acc)
       (setf acc (+ (* acc base) 1)))))
 
-(defun maxp (x &rest args)
-  (> x (apply #'max args)))
-
-(defun minp (x &rest args)
-  (< x (apply #'min args)))
-
-(defmacro maxf (place &rest args)
-  `(setf ,place (max ,place ,@args)))
-
-(defmacro minf (place &rest args)
-  `(setf ,place (min ,place ,@args)))
-
-(defun logipop (n &rest indexes)
-  (dolist (index indexes n)
-    (setf n (logior n (ash 1 index)))))
+(defun maxp (x &rest args) (> x (apply #'max args)))
+(defun minp (x &rest args) (< x (apply #'min args)))
+(defmacro maxf (place &rest args) `(setf ,place (max ,place ,@args)))
+(defmacro minf (place &rest args) `(setf ,place (min ,place ,@args)))
+(defun logipop (n &rest indexes) (dolist (index indexes n) (setf n (logior n (ash 1 index)))))
 
 (defun logmsb (n)
   (loop for i from 0
@@ -299,21 +333,13 @@
 
 ;;; function
 
-(defun compose (&rest fns)
-  (lambda (x)
-    (reduce #'funcall
-            fns
-            :initial-value x
-            :from-end t)))
+(defun do-nothing (&rest args) (declare (ignore args)))
+(defun compose (&rest fns) (lambda (x) (reduce #'funcall fns :initial-value x :from-end t)))
 
 ;;; sequence
 
-(defun sum (seq)
-  (reduce #'+ seq :initial-value 0))
-
-(defmacro sortf (seq-place pred &rest args)
-  `(setf ,seq-place
-         (sort ,seq-place ,pred ,@args)))
+(defun sum (seq) (reduce #'+ seq :initial-value 0))
+(defmacro sortf (seq-place pred &rest args) `(setf ,seq-place (sort ,seq-place ,pred ,@args)))
 
 (defstruct (%iterator-method
             (:constructor %make-iterator-method (step-fn endp-fn elm-fn
@@ -383,11 +409,8 @@
 
 ;;; list
 
-(defun-always ensure-car (x)
-  (if (consp x) (car x) x))
-
-(defun-always ensure-list (x)
-  (if (listp x) x (list x)))
+(defun-always ensure-car (x) (if (consp x) (car x) x))
+(defun-always ensure-list (x) (if (listp x) x (list x)))
 
 (defun length-n-p (lst n)
   (loop when (zerop n)
@@ -397,9 +420,7 @@
         do (setf lst (cdr lst)
                  n (1- n))))
 
-(defun length1p (lst)
-  (and lst
-       (null (cdr lst))))
+(defun length1p (lst) (and lst (null (cdr lst))))
 
 (defun take (lst len)
   (let ((acc nil))
@@ -407,9 +428,7 @@
       (push (car lst) acc)
       (setf lst (cdr lst)))))
 
-(defun drop (lst len)
-  (dotimes (i len lst)
-    (setf lst (cdr lst))))
+(defun drop (lst len) (dotimes (i len lst) (setf lst (cdr lst))))
 
 (defun longerp (lst1 lst2)
   (loop when (null lst1)
@@ -419,15 +438,13 @@
         do (setf lst1 (cdr lst1)
                  lst2 (cdr lst2))))
   
-(defun longer (lst1 lst2)
-  (if (longerp lst1 lst2) lst1 lst2))
+(defun longer (lst1 lst2) (if (longerp lst1 lst2) lst1 lst2))
 
-(defun iota (count &optional (start 0) (step 1))
+(defun iota (count &key (start 0) (step 1))
   (let ((acc nil))
-    (dotimes (i count)
+    (dotimes (i count (nreverse acc))
       (push start acc)
-      (setf start (+ start step)))
-    (nreverse acc)))
+      (setf start (+ start step)))))
 
 (defun unfold (pred fn next-gen seed)
   (loop with acc = nil
@@ -443,6 +460,24 @@
                           (cons x acc)))
                     lst
                     :initial-value nil)))
+
+(defun chunk (lst size &key (fractionp t))
+  (loop with lst = lst
+        and chunk = nil
+        and chunk-size = 0
+        and acc = nil
+        until (null lst)
+        if (= chunk-size size)
+          do (psetq chunk nil
+                    chunk-size 0
+                    acc (cons (nreverse chunk) acc))
+        else
+          do (psetq lst (cdr lst)
+                    chunk (cons (car lst) chunk)
+                    chunk-size (1+ chunk-size))
+        finally (return (nreverse (if fractionp
+                                      (cons (nreverse chunk) acc)
+                                      acc)))))
 
 (defun with-index (lst)
   (loop with acc = nil
@@ -484,26 +519,16 @@
 
 ;;; char
 
-(defun count-alphabet ()
-  #.(1+ (- (char-code #\Z) (char-code #\A))))
-
-(defun lower-to-index (char)
-  (- (char-code char) #.(char-code #\a)))
-
-(defun upper-to-index (char)
-  (- (char-code char) #.(char-code #\A)))
-
-(defun char-to-index (char)
-  (if (char< char #\a)
-      (upper-to-index char)
-      (lower-to-index char)))
+(defun count-alphabet () #.(1+ (- (char-code #\Z) (char-code #\A))))
+(defun lower-to-index (char) (- (char-code char) #.(char-code #\a)))
+(defun upper-to-index (char) (- (char-code char) #.(char-code #\A)))
+(defun char-to-index (char) (if (char< char #\a) (upper-to-index char) (lower-to-index char)))
 
 ;;; lazy
 
 (defstruct promise (value nil) thunk)
 
-(defmacro delay (expr)
-  `(make-promise :thunk (lambda () ,expr)))
+(defmacro delay (expr) `(make-promise :thunk (lambda () ,expr)))
 
 (defun force (ps)
   (when (promise-thunk ps)
@@ -514,40 +539,40 @@
 ;;; symbol
 
 (defun-always symb (&rest args)
-  (values (intern
-           (concatenate 'string
-                        (with-output-to-string (s)
-                          (mapcar (lambda (x) (princ x s))
-                                  args)))
-           *package*)))
+  (values (intern (with-output-to-string (s)
+                    (mapcar (lambda (x) (princ x s)) args)))
+           *package*))
 
 ;;;
 ;;; input
 ;;;
 (defpackage :input
-  (:use :cl
-        :utility)
+  (:use :cl :utility)
   (:export :input*
            :def-input-reader))
 (in-package :input)
 
 ;; (input* ((n fixnum)
-;;          (v (vector (cons* fixnum1 fixnum1 nil) n)))
-;;   (list n v))
-;; 3
-;; 1 2
-;; 3 4
-;; 5 6
-;; ; => (3 #((0 1) (2 3) (4 5)))
+;;          (m fixnum1)
+;;          (f double)
+;;          (s string)
+;;          (p (cons* fixnum fixnum nil))
+;;          (l (list fixnum n))
+;;          (v (vector fixnum m)))
+;;   (list n m f s p l v))
+;; 2 3 10.5
+;; input
+;; 1000000007 -1
+;; 10 20
+;; 30 40
+;; => (2 2 10.5d0 "input" (1000000007 -1) (10 20) #(30 40))
 
-(eval-always
-  (defvar *input-reader-table* (make-hash-table :test #'eq)))
+(eval-always (defvar *input-reader-table* (make-hash-table :test #'eq)))
 
 (defun-always set-input-reader (marker reader)
   (setf (gethash marker *input-reader-table*) reader))
 
-(defun-always get-input-reader (marker)
-  (gethash marker *input-reader-table*))
+(defun-always get-input-reader (marker) (gethash marker *input-reader-table*))
 
 (defun-always input-typespec-marker (typespec)
   (let ((*package* #.*package*))
@@ -569,8 +594,7 @@
                       (input-typespec-reader (cadr form))))
               forms)))
 
-(defmacro input* (forms &body body)
-  `(let* ,(input-expand forms) ,@body))
+(defmacro input* (forms &body body) `(let* ,(input-expand forms) ,@body))
 
 (defmacro def-input-reader (marker params &body body)
   `(eval-always
@@ -582,18 +606,10 @@
                            ,@body)))
      ',marker))
 
-(def-input-reader fixnum ()
-  '(read))
-
-(def-input-reader fixnum1 ()
-  '(1- (read)))
-
-(def-input-reader double ()
-  '(let ((*read-default-float-format* 'double-float))
-    (read)))
-
-(def-input-reader string ()
-  `(read-line))
+(def-input-reader fixnum () '(read))
+(def-input-reader fixnum1 () '(1- (read)))
+(def-input-reader double () '(let ((*read-default-float-format* 'double-float)) (read)))
+(def-input-reader string () `(read-line))
 
 (def-input-reader cons* (typespec)
   (let ((elems (cdr typespec)))
@@ -623,8 +639,7 @@
 ;;; deque
 ;;;
 (defpackage deque
-  (:use :cl
-        :utility)
+  (:use :cl :utility)
   (:export :make-deque
            :deque-size
            :deque-empty-p
@@ -639,7 +654,7 @@
 (in-package deque)
 
 (defun make-deque-buffer (size &key (element-type t))
-  (make-array size :element-type element-type))
+ (make-array size :element-type element-type))
 
 (defconstant +deque-default-buffer-size+ 64)
 
@@ -651,72 +666,48 @@
   (back-index (1- +deque-default-buffer-size+) :type fixnum)
   (buffer (make-deque-buffer 64) :type simple-array))
 
-(defun deque-empty-p (deque)
-  (zerop (deque-size deque)))
-
-(defun deque-full-p (deque)
-  (= (deque-size deque)
-     (deque-capacity deque)))
-
-(defun deque-buffer-at (deque index)
-  (aref (deque-buffer deque)
-        index))
-
-(defun (setf deque-buffer-at) (x deque index)
-  (setf (aref (deque-buffer deque)
-              index)
-        x))
-
+(defun deque-empty-p (deque) (zerop (deque-size deque)))
+(defun deque-full-p (deque) (= (deque-size deque) (deque-capacity deque)))
+(defun deque-buffer-at (deque index) (aref (deque-buffer deque) index))
+(defun (setf deque-buffer-at) (x deque index) (setf (aref (deque-buffer deque) index) x))
 (defun round-index (capacity index) (logand (1- capacity) index))
-
 (defun inc-index (capacity index) (round-index capacity (1+ index)))
-
 (defun dec-index (capacity index) (round-index capacity (1- index)))
 
 (defun deque-front (deque)
   (assert (not (deque-empty-p deque)) nil "DEQUE-FRONT: Deque is empty.")
-  (deque-buffer-at deque
-                   (deque-front-index deque)))
+  (deque-buffer-at deque (deque-front-index deque)))
 
 (defun deque-back (deque)
   (assert (not (deque-empty-p deque)) nil "DEQUE-BACK: Deque is empty.")
-  (deque-buffer-at deque
-                   (deque-back-index deque)))
+  (deque-buffer-at deque (deque-back-index deque)))
 
 (defun inc-front-index (deque)
   (setf (deque-front-index deque)
-        (inc-index (deque-capacity deque)
-                   (deque-front-index deque))))
+        (inc-index (deque-capacity deque) (deque-front-index deque))))
 
 (defun dec-front-index (deque)
   (setf (deque-front-index deque)
-        (dec-index (deque-capacity deque)
-                   (deque-front-index deque))))
+        (dec-index (deque-capacity deque) (deque-front-index deque))))
 
 (defun inc-back-index (deque)
   (setf (deque-back-index deque)
-        (inc-index (deque-capacity deque)
-                   (deque-back-index deque))))
+        (inc-index (deque-capacity deque) (deque-back-index deque))))
 
 (defun dec-back-index (deque)
   (setf (deque-back-index deque)
-        (dec-index (deque-capacity deque)
-                   (deque-back-index deque))))
+        (dec-index (deque-capacity deque) (deque-back-index deque))))
 
-(defun (setf deque-front) (x deque)
-  (setf (deque-buffer-at deque (deque-front-index deque)) x))
-
-(defun (setf deque-back) (x deque)
-  (setf (deque-buffer-at deque (deque-back-index deque)) x))
+(defun (setf deque-front) (x deque) (setf (deque-buffer-at deque (deque-front-index deque)) x))
+(defun (setf deque-back) (x deque) (setf (deque-buffer-at deque (deque-back-index deque)) x))
 
 (defun deque-extends-buffer (deque)
   (let* ((prev-capacity (deque-capacity deque))
          (prev-buffer (deque-buffer deque))
          (new-capacity (* prev-capacity 2))
-         (new-buffer
-           (make-deque-buffer new-capacity
-                              :element-type (array-element-type
-                                             prev-buffer))))
+         (new-buffer (make-deque-buffer new-capacity
+                                        :element-type (array-element-type
+                                                       prev-buffer))))
     (loop repeat prev-capacity
           for prev-index = (deque-front-index deque)
             then (inc-index prev-capacity prev-index)
@@ -762,7 +753,6 @@
   deque)
 
 (defun deque-peak-front (deque) (deque-front deque))
-
 (defun deque-peak-back (deque) (deque-back deque))
 
 (defun deque-at (deque index)
@@ -779,10 +769,152 @@
         x))
 
 ;;;
+;;; vector-bintree
+;;;
+(defpackage vector-bintree
+  (:use :cl :utility)
+  (:export :make-vector-bintree
+           :make-extensible-vector-bintree
+           :bintree-size
+           :bintree-ref
+           :bintree-push
+           :bintree-pop
+           :bintree-print
+           :bintree-root-index-p
+           :bintree-left-index
+           :bintree-right-index
+           :bintree-parent-index
+           ))
+(in-package vector-bintree)
+
+(defun make-vector-bintree (size &rest args &key element-type initial-element initial-contents)
+  (declare (ignore element-type initial-element initial-contents))
+  (apply #'make-array size args))
+
+(defun make-extensible-vector-bintree (size &rest args &key element-type initial-element initial-contents)
+  (declare (ignore element-type initial-element initial-contents))
+  (apply #'make-array size :adjustable t :fill-pointer 0 args))
+
+(defun bintree-size (bt)
+  (if (array-has-fill-pointer-p bt) (fill-pointer bt) (length bt)))
+
+(defun bintree-ref (bt index) (aref bt index))
+(defun (setf bintree-ref) (value bt index) (setf (aref bt index) value))
+
+(defun bintree-push (value bintree) (vector-push-extend value bintree))
+(defun bintree-pop (bintree) (vector-pop bintree))
+
+(defun %bintree-print (bt index level)
+  (let ((size (bintree-size bt))
+        (left-index (bintree-left-index index))
+        (right-index (bintree-right-index index)))
+    (when (>= index size)
+      (return-from %bintree-print))
+    (%bintree-print bt right-index (1+ level))
+    (dotimes (i level)
+      (format t "    "))
+    (format t "~A~%" (bintree-ref bt index))
+    (%bintree-print bt left-index (1+ level))))
+
+(defun bintree-print (bt) (%bintree-print bt 0 0))
+(defun bintree-root-index-p (index) (zerop index))
+(defun bintree-left-index (index) (1+ (* index 2)))
+(defun bintree-right-index (index) (+ 2 (* index 2)))
+(defun bintree-parent-index (index) (values (floor (1- index) 2)))
+
+;;;
+;;; binary-heap
+;;;
+(defpackage binary-heap
+  (:use :cl :utility :vector-bintree)
+  (:export :make-binary-heap
+           :binary-heap-size
+           :binary-heap-empty-p
+           :binary-heap-push
+           :binary-heap-top
+           :binary-heap-pop
+           ))
+(in-package binary-heap)
+
+(defconstant +binary-heap-default-buffer-size+ 64)
+
+(defstruct (binary-heap (:constructor %make-binary-heap (op bintree)))
+  op bintree)
+
+(defun make-binary-heap (op &rest args &key initial-contents)
+  "Call with #'<, makes ascending order."
+  (let* ((len (length initial-contents))
+         (bintree (apply #'make-extensible-vector-bintree
+                         (if (null initial-contents) +binary-heap-default-buffer-size+ len)
+                         args)))
+    (unless (null initial-contents)
+      (loop for index downfrom (1- len) downto 0
+            do (downheap bintree index op)))
+    (%make-binary-heap op bintree)))
+
+(defun binary-heap-size (heap) (bintree-size (binary-heap-bintree heap)))
+(defun binary-heap-empty-p (heap) (zerop (binary-heap-size heap)))
+
+(defun upheap (bintree index op)
+  (when (bintree-root-index-p index)
+    (return-from upheap))
+  (let ((parent-index (bintree-parent-index index)))
+    (unless (funcall op (bintree-ref bintree parent-index) (bintree-ref bintree index))
+      (rotatef (bintree-ref bintree parent-index) (bintree-ref bintree index))
+      (upheap bintree parent-index op))))
+
+(defun downheap (bintree index op)
+  (let ((size (bintree-size bintree))
+        (left-index (bintree-left-index index))
+        (right-index (bintree-right-index index)))
+    (when (>= left-index size)
+      (return-from downheap))
+    (when (>= right-index size)
+      (downheap-swap bintree index left-index op)
+      (return-from downheap))
+    (if (funcall op (bintree-ref bintree left-index) (bintree-ref bintree right-index))
+        (downheap-swap bintree index left-index op)
+        (downheap-swap bintree index right-index op))))
+
+(defun downheap-swap (bintree index child-index op)
+  (unless (funcall op (bintree-ref bintree index) (bintree-ref bintree child-index))
+    (rotatef (bintree-ref bintree index) (bintree-ref bintree child-index))
+    (downheap bintree child-index op)))
+
+(defun binary-heap-push (obj heap)
+  (bintree-push obj (binary-heap-bintree heap))
+  (upheap (binary-heap-bintree heap)
+          (1- (binary-heap-size heap))
+          (binary-heap-op heap))
+  heap)
+
+(defun binary-heap-pop (heap)
+  (assert (not (binary-heap-empty-p heap)))
+  (let ((op (binary-heap-op heap))
+        (bintree (binary-heap-bintree heap))
+        (size (binary-heap-size heap)))
+    (rotatef (bintree-ref bintree 0) (bintree-ref bintree (1- size)))
+    (bintree-pop bintree)
+    (downheap bintree 0 op)
+    heap))
+
+(defun binary-heap-top (heap)
+  (assert (not (binary-heap-empty-p heap)))
+  (bintree-ref (binary-heap-bintree heap) 0))
+
+(defun (setf binary-heap-top) (value heap)
+  (assert (not (binary-heap-empty-p heap)))
+  (let ((bintree (binary-heap-bintree heap)))
+    (setf (bintree-ref bintree 0) value)
+    (downheap bintree 0 (binary-heap-op heap))
+    value))
+
+(defun binary-heap-print (heap) (bintree-print (binary-heap-bintree heap)))
+
+;;;
 ;;; ordered-map
 ;;;
 (defpackage ordered-map
-  (:nicknames :omap)
   (:use :cl :utility)
   (:export :make-rbtree
            :rbtree-search
@@ -800,22 +932,12 @@
 
 ;;; node
 
-(defun make-node (&key color left value right)
-  (list color left value right))
-
+(defun make-node (&key color left value right) (list color left value right))
 (defun make-empty-node () nil)
-
 (defun node-empty-p (node) (null node))
-
-(defun node-color (node)
-  (if (node-empty-p node)
-      'black
-      (first node)))
-
+(defun node-color (node) (if (node-empty-p node) 'black (first node)))
 (defun node-left (node) (second node))
-
 (defun node-value (node) (third node))
-
 (defun node-right (node) (fourth node))
 
 (defun (setf node-color) (color node)
@@ -825,17 +947,10 @@
           (error "Leaf is must be black."))
       (setf (first node) color)))
 
-(defun (setf node-value) (value node)
-  (setf (third node) value))
-
-(defun (setf node-left) (left node)
-  (setf (second node) left))
-
-(defun (setf node-right) (right node)
-  (setf (fourth node) right))
-
+(defun (setf node-value) (value node) (setf (third node) value))
+(defun (setf node-left) (left node) (setf (second node) left))
+(defun (setf node-right) (right node) (setf (fourth node) right))
 (defun node-black-p (node) (eq (node-color node) 'black))
-
 (defun node-red-p (node) (eq (node-color node) 'red))
 
 (defun node-each (node fn)
@@ -1145,18 +1260,11 @@
   (list (or root (make-empty-node)) key key-eq-p key-less-p))
 
 (defun rbtree-root (rbtree) (first rbtree))
-
 (defun rbtree-key (rbtree) (second rbtree))
-
 (defun rbtree-key-eq-p (rbtree) (third rbtree))
-
 (defun rbtree-key-less-p (rbtree) (fourth rbtree))
-
-(defun (setf rbtree-root) (root rbtree)
-  (setf (first rbtree) root))
-
-(defun rbtree-each (rbtree fn)
-  (node-each (rbtree-root rbtree) fn))
+(defun (setf rbtree-root) (root rbtree) (setf (first rbtree) root))
+(defun rbtree-each (rbtree fn) (node-each (rbtree-root rbtree) fn))
 
 (defun rbtree-to-list (rbtree)
   (let ((acc nil))
@@ -1226,6 +1334,308 @@
   (node-print (rbtree-root rbtree) 0 :stream stream :show-nil show-nil))
 
 ;;;
+;;; vector
+;;;
+(defpackage vector
+  (:use :cl :utility)
+  (:export :make-vector
+           :vector
+           :copy-vector
+           :vector-ref
+           :vector-x
+           :vector-y
+           :vector-z
+           :vector-w
+           :vector-dimension
+           :make-zero-vector
+           :vector+
+           :vector-
+           :vector*
+           :vector/
+           :vector-dot
+           :vector-cross
+           :vector-squared-length
+           :vector-length
+           :vector-normalize
+           :vector-atan
+           :vector-angle
+           ))
+(in-package vector)
+
+(defun make-vector (dimension &rest args &key element-type initial-element initial-contents)
+  (declare (ignore element-type initial-element initial-contents))
+  (assert (>= dimension 2))
+  (apply #'make-array dimension args))
+
+(defun copy-vector (vector) (copy-seq vector))
+(defun vector-ref (vector dimension) (aref vector dimension))
+(defun (setf vector-ref) (value vector dimension) (setf (aref vector dimension) value))
+
+(macrolet ((%def-vector-ref (char index)
+             `(defun ,(symb 'vector- char) (vector) (vector-ref vector ,index)))
+           (%def-setf-vector-ref (char index)
+             `(defun (setf ,(symb 'vector- char)) (value vector)
+                (setf (vector-ref vector ,index) value))))
+  (%def-vector-ref x 0)
+  (%def-vector-ref y 1)
+  (%def-vector-ref z 2)
+  (%def-vector-ref w 3)
+  (%def-setf-vector-ref x 0)
+  (%def-setf-vector-ref y 1)
+  (%def-setf-vector-ref z 2)
+  (%def-setf-vector-ref w 3))
+
+(defun vector-dimension (vector) (array-dimension vector 0))
+(defun make-zero-vector (dimension) (make-vector dimension :initial-element 0))
+
+(defun vector+ (vector &rest more-vectors)
+  (assert (every (lambda (v)
+                   (= (vector-dimension v)
+                      (vector-dimension vector)))
+                 more-vectors))
+  (let ((dimension (vector-dimension vector))
+        (ret (copy-vector vector)))
+    (dolist (vec more-vectors ret)
+      (dotimes (i dimension)
+        (incf (vector-ref ret i) (vector-ref vec i))))))
+
+(defun vector- (vector &rest more-vectors)
+  (assert (every (lambda (v)
+                   (= (vector-dimension v)
+                      (vector-dimension vector)))
+                 more-vectors))
+  (if (null more-vectors)
+      (vector* vector -1)
+      (let ((dimension (vector-dimension vector))
+            (ret (copy-vector vector)))
+        (dolist (vec more-vectors ret)
+          (dotimes (i dimension)
+            (decf (vector-ref ret i) (vector-ref vec i)))))))
+
+(defun vector* (vector &rest numbers)
+  (let ((dimension (vector-dimension vector))
+        (ret (copy-vector vector)))
+    (dolist (n numbers ret)
+      (dotimes (i dimension)
+        (setf (vector-ref ret i)
+              (* (vector-ref ret i) n))))))
+
+(defun vector/ (vector &rest numbers)
+  (let ((dimension (vector-dimension vector))
+        (ret (copy-vector vector)))
+    (dolist (n numbers ret)
+      (dotimes (i dimension)
+        (setf (vector-ref ret i)
+              (/ (vector-ref ret i) n))))))
+
+(defun vector-dot (v1 v2)
+  (assert (= (vector-dimension v1) (vector-dimension v2)))
+  (let ((dimension (vector-dimension v1))
+        (ret 0))
+    (dotimes (i dimension ret)
+      (incf ret (* (vector-ref v1 i) (vector-ref v2 i))))))
+
+(defun vector-cross (v1 v2)
+  (assert (= (vector-dimension v1) (vector-dimension v2)))
+  (let ((dimension (vector-dimension v1)))
+    (cond ((= dimension 2)
+           (- (* (vector-x v1) (vector-y v2))
+              (* (vector-y v1) (vector-x v2))))
+          ((= dimension 3)
+           (vector (- (* (vector-y v1) (vector-z v2))
+                      (* (vector-z v1) (vector-y v2)))
+                   (- (* (vector-z v1) (vector-x v2))
+                      (* (vector-x v1) (vector-z v2)))
+                   (- (* (vector-x v1) (vector-y v2))
+                      (* (vector-y v1) (vector-x v2)))))
+          (t (error "VECTOR-CROSS: Not implemented on the dimension.")))))
+
+(defun vector-squared-length (vector) (vector-dot vector vector))
+(defun vector-length (vector) (sqrt (vector-squared-length vector)))
+(defun vector-normalize (vector) (vector/ vector (vector-length vector)))
+(defun vector-atan (vector) (atan (vector-y vector) (vector-x vector)))
+
+(defun vector-angle (v1 v2)
+  (acos (/ (vector-dot v1 v2)
+           (* (vector-length v1) (vector-length v2)))))
+
+;;;
+;;; matrix
+;;;
+(defpackage matrix
+  (:use :cl :utility :vector)
+  (:export :make-matrix
+           :matrix
+           :matrixp
+           :matrix-ref
+           :matrix-row-major-ref
+           :matrix-element-type
+           :matrix-row
+           :matrix-column
+           :matrix-element-count
+           :make-row-vector
+           :make-zero-matrix
+           :make-identity-matrix
+           :matrix+
+           :matrix-
+           :matrix-scalar-multiply
+           :matrix-product
+           :linear-map
+           ))
+(in-package matrix)
+
+(defun make-matrix (row column &rest args &key element-type initial-element initial-contents)
+  (declare (ignore element-type initial-element initial-contents))
+  (apply #'make-array (list row column) args))
+              
+(defun matrix (&rest rows)
+  (assert (every (lambda (row)
+                   (= (length row)
+                      (length (car rows))))
+                 rows))
+  (let ((row (length rows))
+        (col (length (car rows))))
+    (make-matrix row col :initial-contents rows)))
+
+(defun matrixp (matrix) (= (array-rank matrix) 2))
+(defun matrix-ref (matrix y x) (aref matrix y x))
+(defun matrix-row-major-ref (matrix index) (row-major-aref matrix index))
+(defun (setf matrix-ref) (value matrix y x) (setf (aref matrix y x) value))
+
+(defun (setf matrix-row-major-ref) (value matrix index)
+  (setf (row-major-aref matrix index) value))
+
+(defun matrix-element-type (matrix) (array-element-type matrix))
+(defun matrix-row (matrix) (array-dimension matrix 0))
+(defun matrix-column (matrix) (array-dimension matrix 1))
+(defun matrix-element-count (matrix) (array-total-size matrix))
+
+(defun make-row-vector (matrix row)
+  (make-array (matrix-column matrix)
+              :element-type (matrix-element-type matrix)
+              :displaced-to matrix
+              :displaced-index-offset (array-row-major-index matrix row 0)))
+
+(defun make-zero-matrix (row column) (make-matrix row column :initial-element 0))
+
+(defun make-identity-matrix (size)
+  (let ((m (make-zero-matrix size size)))
+    (loop for i below size
+          do (setf (matrix-ref m i i) 1)
+          finally (return m))))
+
+(defun matrix-binary+ (m1 m2)
+  (assert (= (matrix-row m1) (matrix-row m2)))
+  (assert (= (matrix-column m1) (matrix-column m2)))
+  (let* ((row (matrix-row m1))
+         (col (matrix-column m1))
+         (m (make-zero-matrix row col)))
+    (dotimes (i (* row col) m)
+      (setf (matrix-row-major-ref m i)
+            (+ (matrix-row-major-ref m1 i)
+               (matrix-row-major-ref m2 i))))))
+
+(defun matrix+ (matrix &rest more-matrices)
+  (reduce #'matrix-binary+
+          more-matrices
+          :initial-value matrix))
+
+(defun matrix-binary- (m1 m2)
+  (assert (= (matrix-row m1) (matrix-row m2)))
+  (assert (= (matrix-column m1) (matrix-column m2)))
+  (let* ((row (matrix-row m1))
+         (col (matrix-column m1))
+         (m (make-zero-matrix row col)))
+    (dotimes (i (* row col) m)
+      (setf (matrix-row-major-ref m i)
+            (- (matrix-row-major-ref m1 i)
+               (matrix-row-major-ref m2 i))))))
+
+(defun matrix- (matrix &rest more-matrices)
+  (if (null more-matrices)
+      (matrix-binary- (make-zero-matrix (matrix-row matrix)
+                                        (matrix-column matrix))
+                      matrix)
+      (reduce #'matrix-binary-
+              more-matrices
+              :initial-value matrix)))
+
+(defun matrix-binary-scalar-multiply (matrix scalar)
+  (let* ((row (matrix-row matrix))
+         (col (matrix-column matrix))
+         (m (make-zero-matrix row col)))
+    (dotimes (i (* row col) m)
+      (setf (matrix-row-major-ref m i)
+            (* (matrix-row-major-ref matrix i) scalar)))))
+
+(defun matrix-scalar-multiply (matrix &rest scalars)
+  (reduce #'matrix-binary-scalar-multiply
+          scalars
+          :initial-value matrix))
+
+(defun matrix-binary-product (m1 m2)
+  (assert (= (matrix-column m1) (matrix-row m2)))
+  (let* ((row (matrix-row m1))
+         (col (matrix-column m2))
+         (m (make-zero-matrix row col)))
+    (dotimes (i row m)
+      (dotimes (j col)
+        (dotimes (k (matrix-column m1))
+          (incf (matrix-ref m i j)
+                (* (matrix-ref m1 i k)
+                   (matrix-ref m2 k j))))))))
+
+(defun matrix-product (matrix &rest more-matrices)
+  (reduce #'matrix-binary-product
+          more-matrices
+          :initial-value matrix))
+
+(defun linear-map (matrix vector)
+  (assert (= (matrix-column matrix) (vector-dimension vector)))
+  (let* ((row (matrix-row matrix))
+         (v (make-zero-vector row)))
+    (dotimes (i row v)
+      (setf (vector-ref v i)
+            (vector-dot vector (make-row-vector matrix i))))))
+
+;;;
+;;; geometry
+;;;
+(defpackage geometry
+  (:use :cl :utility :vector :matrix)
+  (:export :radian-to-degree
+           :degree-to-radian
+           :vector2-rotate90
+           :vector2-rotate
+           ))
+(in-package geometry)
+
+;;; angle
+
+(defun radian-to-degree (radian) (/ (* radian 180) PI))
+(defun degree-to-radian (degree) (/ (* degree PI) 180))
+
+;;; matrix
+
+(defun make-rotation90-matrix ()
+  (matrix '(0 -1)
+          '(1 0)))
+
+(defun make-rotation-matrix (radian)
+  (let* ((sin (sin radian))
+         (cos (cos radian)))
+    (matrix (list cos (- sin))
+            (list sin cos))))
+
+(defun vector2-rotate90 (vector)
+  "Rotate vector counterclockwise in right-handed coordinates system."
+  (linear-map (make-rotation90-matrix) vector))
+
+(defun vector2-rotate (vector angle)
+  "Rotate vector counterclockwise on right-handed coordinates system."
+  (linear-map (make-rotation-matrix angle) vector))
+
+;;;
 ;;; union-find
 ;;;
 (defpackage union-find
@@ -1250,34 +1660,19 @@
                                  :initial-element 1)))
     (list parents ranks group-sizes)))
 
-(defun union-find-size (uf)
-  (length (first uf)))
-
-(defun union-find-parent (uf n)
-  (aref (first uf) n))
-
-(defun union-find-rank (uf n)
-  (aref (second uf) n))
-
-(defun union-find-group-size (uf n)
-  (aref (third uf) (union-find-root uf n)))
-
-(defun (setf union-find-parent) (parent uf n)
-  (setf (aref (first uf) n) parent))
-
-(defun (setf union-find-rank) (rank uf n)
-  (setf (aref (second uf) n) rank))
-
-(defun (setf union-find-group-size) (group-size uf n)
-  (setf (aref (third uf) n) group-size))
+(defun union-find-size (uf) (length (first uf)))
+(defun union-find-parent (uf n) (aref (first uf) n))
+(defun union-find-rank (uf n) (aref (second uf) n))
+(defun union-find-group-size (uf n) (aref (third uf) (union-find-root uf n)))
+(defun (setf union-find-parent) (parent uf n) (setf (aref (first uf) n) parent))
+(defun (setf union-find-rank) (rank uf n)(setf (aref (second uf) n) rank))
+(defun (setf union-find-group-size) (group-size uf n) (setf (aref (third uf) n) group-size))
 
 (defun union-find-root (uf n)
   (let ((parent (union-find-parent uf n)))
     (if (= parent n)
         n
-        (let ((root (union-find-root uf parent)))
-          (setf (union-find-parent uf n) root)
-          root))))
+        (setf (union-find-parent uf n) (union-find-root uf parent)))))
 
 (defun union-find-merge (uf a b)
   (let ((ar (union-find-root uf a))
@@ -1297,9 +1692,7 @@
       (setf (union-find-parent uf br) ar)
       t)))
 
-(defun union-find-unite-p (uf a b)
-  (= (union-find-root uf a)
-     (union-find-root uf b)))
+(defun union-find-unite-p (uf a b) (= (union-find-root uf a) (union-find-root uf b)))
 
 (defun union-find-groups (uf)
   (let ((size (union-find-size uf)))
@@ -1314,102 +1707,40 @@
 ;;; segment-tree
 ;;;
 (defpackage segment-tree
-  (:use :cl :utility)
+  (:use :cl :utility :vector-bintree)
   (:export :make-segment-tree
-           :make-segment-tree-from-sequence
            :segment-tree-get
            :segment-tree-fold
            :segment-tree-print))
 (in-package segment-tree)
 
-(defun make-bintree (size &key (element-type t) initial-element)
-  (make-array size
-              :element-type element-type
-              :initial-element initial-element))
-
-(defun bintree-size (bt) (length bt))
-(defun bintree-get (bt index) (aref bt index))
-(defun (setf bintree-get) (value bt index)
-  (setf (aref bt index) value))
-
-(defun %bintree-print (bt index level)
-  (let ((size (bintree-size bt))
-        (left-index (bintree-index-left index))
-        (right-index (bintree-index-right index)))
-    (when (>= index size)
-      (return-from %bintree-print))
-    (%bintree-print bt right-index (1+ level))
-    (dotimes (i level)
-      (format t "    "))
-    (format t "~A~%" (bintree-get bt index))
-    (%bintree-print bt left-index (1+ level))))
-
-(defun bintree-print (bt)
-  (%bintree-print bt 0 0))
-
-(defun bintree-index-left (index)
-  (1+ (* index 2)))
-(defun bintree-index-right (index)
-  (+ 2 (* index 2)))
-(defun bintree-index-parent (index)
-  (values (floor (1- index) 2)))
-
 (defstruct (segment-tree
             (:constructor %make-st (&key size op id bintree bintree-size)))
   size op id bintree bintree-size)
 
-(defun make-segment-tree (size op id &key (element-type t))
+(defun make-segment-tree (size op id &key initial-contents)
   "O(n)"
   (let* ((size (next-pow2 size))
          (bintree-size (1- (* size 2)))
-         (bintree (make-bintree bintree-size
-                                :element-type element-type
-                                :initial-element id)))
+         (bintree (make-vector-bintree bintree-size :initial-element id)))
+    (unless (null initial-contents)
+      (setf (subseq bintree (1- size)) initial-contents)
+      (loop for index downfrom (- size 2) downto 0
+            do (setf (bintree-ref bintree index)
+                     (funcall op
+                              (bintree-ref bintree (bintree-left-index index))
+                              (bintree-ref bintree (bintree-right-index index))))))
     (%make-st :size size
               :op op
               :id id
               :bintree bintree
               :bintree-size bintree-size)))
 
-(defun make-segment-tree-from-sequence (seq op id &key (element-type t element-type-p))
-  "O(n)"
-  (let* ((size (next-pow2 (length seq)))
-         (bintree-size (1- (* size 2)))
-         (bintree (cond (element-type-p
-                         (make-bintree bintree-size
-                                       :element-type element-type
-                                       :initial-element id))
-                        ((typep seq 'array)
-                         (make-bintree bintree-size
-                                       :element-type (array-element-type seq)
-                                       :initial-element id))
-                        (t (make-bintree bintree-size
-                                         :initial-element id)))))
-    (loop with iter = (make-iterator seq)
-          with index = 0
-          until (iterator-endp iter)
-          do (setf (bintree-get bintree (1- (+ index size)))
-                   (iterator-element iter))
-             (setf iter (iterator-next iter))
-             (incf index))
-    (loop for index downfrom (- size 2) downto 0
-          do (setf (bintree-get bintree index)
-                   (funcall op
-                            (bintree-get bintree (bintree-index-left index))
-                            (bintree-get bintree (bintree-index-right index)))))
-    (%make-st :size size
-              :op op
-              :id id
-              :bintree bintree
-              :bintree-size bintree-size)))
+(defun %st-index-to-bintree-index (st index) (1- (+ index (segment-tree-size st))))
 
-(defun %st-index-to-bintree-index (st index)
-  (1- (+ index (segment-tree-size st))))
-
-(defun segment-tree-get (st index)
+(defun segment-tree-ref (st index)
   "O(1)"
-  (bintree-get (segment-tree-bintree st)
-               (%st-index-to-bintree-index st index)))
+  (bintree-ref (segment-tree-bintree st) (%st-index-to-bintree-index st index)))
 
 (defun %st-fold (st fold-left fold-right index node-left node-right)
   (when (or (<= node-right fold-left)
@@ -1418,15 +1749,15 @@
   (when (and (<= fold-left node-left)
              (<= node-right fold-right))
     (return-from %st-fold
-      (bintree-get (segment-tree-bintree st) index)))
+      (bintree-ref (segment-tree-bintree st) index)))
   (let ((node-mid (+ node-left (floor (- node-right node-left) 2))))
     (funcall (segment-tree-op st)
              (%st-fold st fold-left fold-right
-                       (bintree-index-left index)
+                       (bintree-left-index index)
                        node-left
                        node-mid)
              (%st-fold st fold-left fold-right
-                       (bintree-index-right index)
+                       (bintree-right-index index)
                        node-mid
                        node-right))))
 
@@ -1436,29 +1767,28 @@
 
 (defun %st-set (st index value)
   (let ((bintree (segment-tree-bintree st)))
-    (setf (bintree-get bintree index) value)
+    (setf (bintree-ref bintree index) value)
     (loop with index = index
           while (> index 0)
           do (setf index
-                   (bintree-index-parent index)
-                   (bintree-get bintree index)
+                   (bintree-parent-index index)
+                   (bintree-ref bintree index)
                    (funcall (segment-tree-op st)
-                            (bintree-get bintree (bintree-index-left index))
-                            (bintree-get bintree (bintree-index-right index)))))))
+                            (bintree-ref bintree (bintree-left-index index))
+                            (bintree-ref bintree (bintree-right-index index)))))))
 
-(defun (setf segment-tree-get) (value st index)
+(defun (setf segment-tree-ref) (value st index)
   "O(log(n))"
   (%st-set st (%st-index-to-bintree-index st index) value)
   value)
 
-(defun segment-tree-print (st)
-  (bintree-print (segment-tree-bintree st)))
+(defun segment-tree-print (st) (bintree-print (segment-tree-bintree st)))
 
 ;;;
 ;;; trie
 ;;;
 (defpackage trie
-  (:use :cl)
+  (:use :cl :utility)
   (:export :make-trie
            :trie-size
            :trie-find
@@ -1472,20 +1802,18 @@
            ))
 (in-package trie)
 
-(defun make-trie-node (char)
-  (vector char 0 0 (make-hash-table :test 'eql) nil))
+(defun make-trie-node (char) (vector char 0 0 (make-hash-table :test 'eql) nil))
 (defun trie-node-char (node) (aref node 0))
 (defun trie-node-end-count (node) (aref node 1))
 (defun trie-node-endp (node) (not (zerop (trie-node-end-count node))))
 (defun trie-node-prefix-count (node) (aref node 2))
-(defun trie-node-next (node char)
-  (values (gethash char (aref node 3) nil)))
+(defun trie-node-next (node char) (values (gethash char (aref node 3) nil)))
 (defun trie-node-value (node) (aref node 4))
 (defun (setf trie-node-end-count) (count node) (setf (aref node 1) count))
 (defun (setf trie-node-prefix-count) (count node) (setf (aref node 2) count))
-(defun (setf trie-node-next) (next node char)
-  (setf (gethash char (aref node 3)) next))
+(defun (setf trie-node-next) (next node char) (setf (gethash char (aref node 3)) next))
 (defun (setf trie-node-value) (value node) (setf (aref node 4) value))
+
 (defun trie-node-find (node str index &key (prefixp nil))
   (when (= index (length str))
     (return-from trie-node-find
@@ -1496,6 +1824,7 @@
     (if (null next)
         nil
         (trie-node-find next str (1+ index)))))
+
 (defun trie-node-insert (node str index &optional value)
   (incf (trie-node-prefix-count node))
   (when (= index (length str))
@@ -1509,6 +1838,7 @@
                                 (make-trie-node char))
                           next)
                       str (1+ index) value)))
+
 (defun trie-node-traverse (node str index fn)
   (funcall fn node str index)
   (when (= index (length str))
@@ -1518,18 +1848,20 @@
         nil
         (trie-node-traverse next str (1+ index) fn))))
 
-(defun make-trie ()
-  (vector 0 (make-trie-node nil)))
+(defun make-trie () (vector 0 (make-trie-node nil)))
 (defun trie-size (trie) (aref trie 0))
 (defun (setf trie-size) (size trie) (setf (aref trie 0) size))
 (defun trie-root (trie) (aref trie 1))
+
 (defun trie-find (trie str &key (prefixp nil))
   "O(|s|)"
   (trie-node-find (trie-root trie) str 0 :prefixp prefixp))
+
 (defun trie-insert (trie str &optional value)
   "O(|s|)"
   (incf (trie-size trie))
   (trie-node-insert (trie-root trie) str 0 value))
+
 (defun trie-traverse (trie str fn)
   "(function (trie string (function (trie-node string fixnum) t)) t)
 O(|s|)"
@@ -1548,16 +1880,13 @@ O(|s|)"
 
 (defun make-graph-from-edges (size edges &key (bidirectional t))
   (let ((graph (make-array size :initial-element nil)))
-    (dovector (edge edges graph)
+    (do-seq (edge edges graph)
       (push (second edge) (aref graph (first edge)))
       (when bidirectional
         (push (first edge) (aref graph (second edge)))))))
 
-(defun graph-neighbors (graph node)
-  (aref graph node))
-
-(defun graph-size (graph)
-  (length graph))
+(defun graph-neighbors (graph node) (aref graph node))
+(defun graph-size (graph) (length graph))
 
 (defun find-leaf (graph)
   (dotimes (node (graph-size graph))
@@ -1568,13 +1897,10 @@ O(|s|)"
 ;;; algorithm
 ;;;
 (defpackage algorithm
-  (:nicknames :algo)
   (:use :cl :utility)
   (:export :meguru-method
            :cumulate
-           :cumsum
            :dp
-           :defdp
            ))
 (in-package algorithm)
 
@@ -1586,21 +1912,18 @@ O(|s|)"
                  (setf ng mid)))
         finally (return ok)))
 
-(defun cumulate (seq op id &key (element-type t))
+(defun cumulate (seq &key (op #'+) (id 0) (element-type t))
   (loop with ret = (make-array (1+ (length seq))
                                :element-type element-type
                                :initial-element id)
-        with iter = (make-iterator seq)
-        with index = 0
+        and iter = (make-iterator seq)
+        and index = 0
         until (iterator-endp iter)
         do (setf (aref ret (1+ index))
                  (funcall op (iterator-element iter) (aref ret index)))
            (setf iter (iterator-next iter))
            (incf index)
         finally (return ret)))
-
-(defun cumsum (seq &key (element-type 'fixnum))
-  (cumulate seq #'+ 0 :element-type element-type))
 
 (defmacro dp (name params &body body)
   (let ((memo (gensym))
@@ -1617,26 +1940,28 @@ O(|s|)"
                               (progn ,@body))))))
          #',name))))
 
-(defmacro defdp (name params &body body)
-  `(defalias ,name (dp ,name ,params ,@body)))
-
 ;;;
 ;;; atcoder
 ;;;
 (defpackage atcoder
-  (:nicknames :ac)
   (:use :cl
         :utility
         :input
         :deque
+        :binary-heap
         :ordered-map
+        :vector
+        :matrix
+        :geometry
         :union-find
         :segment-tree
         :trie
         :graph
-        :algorithm)
+        :algorithm
+        )
   (:export :main
-           :test))
+           :test
+           ))
 (in-package atcoder)
 
 (defun test-case (input expect)
@@ -1652,20 +1977,14 @@ O(|s|)"
         (format t "Pass~%")
         (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output))))
 
-(defun test-case* (&rest input-expects)
-  (cond ((null input-expects) nil)
-        ((null (cdr input-expects)) (error "unmatched"))
-        (t (test-case (car input-expects)
-                      (cadr input-expects))
-           (apply #'test-case* (cddr input-expects)))))
-
 (defun main ()
   (input* ((a fixnum)
            (b fixnum))
     (format t "~A~%" (+ a b))))
 
 (defun test ()
-  (test-case* "1 2" "3"))
+  (test-case "1 2" "3")
+  )
 
 #-swank (main)
 
