@@ -95,6 +95,8 @@
            :flatten
            ;; vector
            :dvector
+           :next-permutation
+           :do-permutations
            ;; string
            :split-string
            :string-prefix-p
@@ -516,6 +518,25 @@
               :initial-contents contents
               :adjustable t
               :fill-pointer t))
+
+(defun next-permutation (vector &key (compare #'<))
+  (let ((i (loop for i downfrom (- (length vector) 2) downto 0
+                 when (funcall compare (aref vector i) (aref vector (1+ i)))
+                   do (return i)
+                 when (zerop i)
+                   do (return-from next-permutation nil))))
+    (let ((j (position-if (lambda (x) (funcall compare (aref vector i) x)) vector :from-end t)))
+      (rotatef (aref vector i) (aref vector j))
+      (setf (subseq vector (1+ i)) (nreverse (subseq vector (1+ i))))
+      vector)))
+
+(defmacro do-permutations ((var vector &optional (compare #'<) result) &body body)
+  (let ((comp (gensym)))
+    `(let ((,comp ,compare))
+       (do ((,var (sort (copy-seq ,vector) ,comp) (next-permutation ,var :compare ,comp)))
+           ((null ,var) ,result)
+         (declare (ignorable ,var))
+         ,@body))))
 
 ;;; char
 
