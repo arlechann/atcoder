@@ -211,7 +211,6 @@
            ,@body)))))
 
 (defmacro do-array* (((&rest vars) (&rest arrays) &optional result) &body body)
-  (assert (= (length vars) (length arrays)))
   (let ((arrs (mapcar (lambda (x)
                         (declare (ignore x))
                         (gensym))
@@ -232,7 +231,6 @@
   `(do-array* ((,var) (,array) ,result) ,@body))
 
 (defmacro do-seq* (((&rest vars) (&rest sequences) &optional result) &body body)
-  (assert (= (length vars) (length sequences)))
   (let ((seqs (mapcar (lambda (x)
                         (declare (ignore x))
                         (gensym))
@@ -290,7 +288,6 @@
 (defun cube (x &optional (op #'*)) (funcall op x x x))
 
 (defun pow (base power &key (op #'*) (identity 1))
-  (assert (>= power 0))
   (let ((ret identity))
     (loop until (zerop power)
           when (oddp power)
@@ -696,11 +693,9 @@
 (defun dec-index (capacity index) (round-index capacity (1- index)))
 
 (defun deque-front (deque)
-  (assert (not (deque-empty-p deque)) nil "DEQUE-FRONT: Deque is empty.")
   (deque-buffer-at deque (deque-front-index deque)))
 
 (defun deque-back (deque)
-  (assert (not (deque-empty-p deque)) nil "DEQUE-BACK: Deque is empty.")
   (deque-buffer-at deque (deque-back-index deque)))
 
 (defun inc-front-index (deque)
@@ -910,7 +905,6 @@
   heap)
 
 (defun binary-heap-pop (heap)
-  (assert (not (binary-heap-empty-p heap)))
   (let ((op (binary-heap-op heap))
         (bintree (binary-heap-bintree heap))
         (size (binary-heap-size heap)))
@@ -920,11 +914,9 @@
     heap))
 
 (defun binary-heap-top (heap)
-  (assert (not (binary-heap-empty-p heap)))
   (bintree-ref (binary-heap-bintree heap) 0))
 
 (defun (setf binary-heap-top) (value heap)
-  (assert (not (binary-heap-empty-p heap)))
   (let ((bintree (binary-heap-bintree heap)))
     (setf (bintree-ref bintree 0) value)
     (downheap bintree 0 (binary-heap-op heap))
@@ -1385,7 +1377,6 @@
 
 (defun make-vector (dimension &rest args &key element-type initial-element initial-contents)
   (declare (ignore element-type initial-element initial-contents))
-  (assert (>= dimension 2))
   (apply #'make-array dimension args))
 
 (defun copy-vector (vector) (copy-seq vector))
@@ -1410,10 +1401,6 @@
 (defun make-zero-vector (dimension) (make-vector dimension :initial-element 0))
 
 (defun vector+ (vector &rest more-vectors)
-  (assert (every (lambda (v)
-                   (= (vector-dimension v)
-                      (vector-dimension vector)))
-                 more-vectors))
   (let ((dimension (vector-dimension vector))
         (ret (copy-vector vector)))
     (dolist (vec more-vectors ret)
@@ -1421,10 +1408,6 @@
         (incf (vector-ref ret i) (vector-ref vec i))))))
 
 (defun vector- (vector &rest more-vectors)
-  (assert (every (lambda (v)
-                   (= (vector-dimension v)
-                      (vector-dimension vector)))
-                 more-vectors))
   (if (null more-vectors)
       (vector* vector -1)
       (let ((dimension (vector-dimension vector))
@@ -1450,14 +1433,12 @@
               (/ (vector-ref ret i) n))))))
 
 (defun vector-dot (v1 v2)
-  (assert (= (vector-dimension v1) (vector-dimension v2)))
   (let ((dimension (vector-dimension v1))
         (ret 0))
     (dotimes (i dimension ret)
       (incf ret (* (vector-ref v1 i) (vector-ref v2 i))))))
 
 (defun vector-cross (v1 v2)
-  (assert (= (vector-dimension v1) (vector-dimension v2)))
   (let ((dimension (vector-dimension v1)))
     (cond ((= dimension 2)
            (- (* (vector-x v1) (vector-y v2))
@@ -1510,10 +1491,6 @@
   (apply #'make-array (list row column) args))
               
 (defun matrix (&rest rows)
-  (assert (every (lambda (row)
-                   (= (length row)
-                      (length (car rows))))
-                 rows))
   (let ((row (length rows))
         (col (length (car rows))))
     (make-matrix row col :initial-contents rows)))
@@ -1546,8 +1523,6 @@
           finally (return m))))
 
 (defun matrix-binary+ (m1 m2)
-  (assert (= (matrix-row m1) (matrix-row m2)))
-  (assert (= (matrix-column m1) (matrix-column m2)))
   (let* ((row (matrix-row m1))
          (col (matrix-column m1))
          (m (make-zero-matrix row col)))
@@ -1562,8 +1537,6 @@
           :initial-value matrix))
 
 (defun matrix-binary- (m1 m2)
-  (assert (= (matrix-row m1) (matrix-row m2)))
-  (assert (= (matrix-column m1) (matrix-column m2)))
   (let* ((row (matrix-row m1))
          (col (matrix-column m1))
          (m (make-zero-matrix row col)))
@@ -1595,7 +1568,6 @@
           :initial-value matrix))
 
 (defun matrix-binary-product (m1 m2)
-  (assert (= (matrix-column m1) (matrix-row m2)))
   (let* ((row (matrix-row m1))
          (col (matrix-column m2))
          (m (make-zero-matrix row col)))
@@ -1612,7 +1584,6 @@
           :initial-value matrix))
 
 (defun linear-map (matrix vector)
-  (assert (= (matrix-column matrix) (vector-dimension vector)))
   (let* ((row (matrix-row matrix))
          (v (make-zero-vector row)))
     (dotimes (i row v)
@@ -1920,6 +1891,8 @@ O(|s|)"
 (defpackage algorithm
   (:use :cl :utility)
   (:export :meguru-method
+           :lower-bound
+           :upper-bound
            :cumulate
            :dp
            ))
@@ -1932,6 +1905,18 @@ O(|s|)"
                  (setf ok mid)
                  (setf ng mid)))
         finally (return ok)))
+
+(defun find-bound (vector element &key (compare #'<=) (start 0) end)
+  (meguru-method (or end (length vector)) (1- start)
+                 (lambda (index) (funcall compare element (aref vector index)))))
+
+(defun lower-bound (vector element &rest args &key (compare #'<=) (start 0) end)
+  (declare (ignore compare start end))
+  (apply #'find-bound vector element args))
+
+(defun upper-bound (vector element &rest args &key (compare #'<) (start 0) end)
+  (declare (ignore compare start end))
+  (apply #'find-bound vector element args))
 
 (defun cumulate (seq &key (op #'+) (id 0) (element-type t))
   (loop with ret = (make-array (1+ (length seq))
