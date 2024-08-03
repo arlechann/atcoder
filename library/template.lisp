@@ -667,7 +667,7 @@
            :deque-pop-back
            :deque-peak-front
            :deque-peak-back
-           :deque-at
+           :deque-ref
            ))
 (in-package deque)
 
@@ -686,17 +686,17 @@
 
 (defun deque-empty-p (deque) (zerop (deque-size deque)))
 (defun deque-full-p (deque) (= (deque-size deque) (deque-capacity deque)))
-(defun deque-buffer-at (deque index) (aref (deque-buffer deque) index))
-(defun (setf deque-buffer-at) (x deque index) (setf (aref (deque-buffer deque) index) x))
+(defun deque-buffer-ref (deque index) (aref (deque-buffer deque) index))
+(defun (setf deque-buffer-ref) (x deque index) (setf (aref (deque-buffer deque) index) x))
 (defun round-index (capacity index) (logand (1- capacity) index))
 (defun inc-index (capacity index) (round-index capacity (1+ index)))
 (defun dec-index (capacity index) (round-index capacity (1- index)))
 
 (defun deque-front (deque)
-  (deque-buffer-at deque (deque-front-index deque)))
+  (deque-buffer-ref deque (deque-front-index deque)))
 
 (defun deque-back (deque)
-  (deque-buffer-at deque (deque-back-index deque)))
+  (deque-buffer-ref deque (deque-back-index deque)))
 
 (defun inc-front-index (deque)
   (setf (deque-front-index deque)
@@ -714,8 +714,8 @@
   (setf (deque-back-index deque)
         (dec-index (deque-capacity deque) (deque-back-index deque))))
 
-(defun (setf deque-front) (x deque) (setf (deque-buffer-at deque (deque-front-index deque)) x))
-(defun (setf deque-back) (x deque) (setf (deque-buffer-at deque (deque-back-index deque)) x))
+(defun (setf deque-front) (x deque) (setf (deque-buffer-ref deque (deque-front-index deque)) x))
+(defun (setf deque-back) (x deque) (setf (deque-buffer-ref deque (deque-back-index deque)) x))
 
 (defun deque-extends-buffer (deque)
   (let* ((prev-capacity (deque-capacity deque))
@@ -755,7 +755,7 @@
 (defun deque-pop-front (deque)
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot pop any element."))
-  (setf (deque-buffer-at deque (deque-front-index deque)) nil)
+  (setf (deque-buffer-ref deque (deque-front-index deque)) nil)
   (inc-front-index deque)
   (decf (deque-size deque))
   deque)
@@ -763,7 +763,7 @@
 (defun deque-pop-back (deque)
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot pop any element."))
-  (setf (deque-buffer-at deque (deque-back-index deque)) nil)
+  (setf (deque-buffer-ref deque (deque-back-index deque)) nil)
   (dec-back-index deque)
   (decf (deque-size deque))
   deque)
@@ -771,17 +771,17 @@
 (defun deque-peak-front (deque) (deque-front deque))
 (defun deque-peak-back (deque) (deque-back deque))
 
-(defun deque-at (deque index)
-  (deque-buffer-at deque
-                   (round-index (deque-capacity deque)
-                                (+ (deque-front-index deque)
-                                   index))))
+(defun deque-ref (deque index)
+  (deque-buffer-ref deque
+                    (round-index (deque-capacity deque)
+                                 (+ (deque-front-index deque)
+                                    index))))
 
-(defun (setf deque-at) (x deque index)
-  (setf (deque-buffer-at deque
-                         (round-index (deque-capacity deque)
-                                      (+ (deque-front-index deque)
-                                         index)))
+(defun (setf deque-ref) (x deque index)
+  (setf (deque-buffer-ref deque
+                          (round-index (deque-capacity deque)
+                                       (+ (deque-front-index deque)
+                                          index)))
         x))
 
 ;;;
