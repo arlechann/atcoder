@@ -1863,20 +1863,33 @@ O(|s|)"
 ;;; graph
 ;;;
 (defpackage graph
-  (:use :cl :utility :binary-heap)
+  (:use :cl :utility :deque :binary-heap)
   (:export :<graph>
            :<edge>
-           :<adlist-graph>
            :graph-size
            :graph-node-ref
            :graph-neighbors
+           :call-with-graph-neighbors
            :graph-add-edge
+           :graph-delete-edge
+           :do-graph-neighbors
            :edge-from
            :edge-to
            :edge-cost
            :make-edge
+           :<adlist-graph>
            :make-adlist-graph
+           :graph-adlist
+           :<matrix-graph>
+           :make-matrix-graph
+           :graph-matrix
+           :<grid-graph>
+           :make-grid-graph
+           :grid-height
+           :grid-width
+           :graph-grid
            :dijkstra
+           :floyd-warshall
            :find-leaf))
 (in-package graph)
 
@@ -1889,11 +1902,18 @@ O(|s|)"
 (defgeneric (setf graph-edge-ref) (edge graph from to))
 (defgeneric graph-neighbors (graph node)
   (:documentation "Returns <edge> list."))
+(defgeneric call-with-graph-neighbors (graph node fn)
+  (:documentation "Calls fn by <edge>."))
 (defgeneric graph-add-edge (graph from to &key cost))
+(defgeneric graph-delete-edge (graph from to))
 
 (defgeneric edge-from (edge))
 (defgeneric edge-to (edge))
 (defgeneric edge-cost (edge))
+
+(defmacro do-graph-neighbors ((var graph node &optional result) &body body)
+  `(progn (call-with-graph-neighbors ,graph ,node (lambda (,var) ,@body))
+          ,result))
 
 (defclass <graph> () ())
 
@@ -1926,15 +1946,23 @@ O(|s|)"
       (return-from graph-edge-ref edge))))
 
 (defmethod (setf graph-edge-ref) (edge (graph <adlist-graph>) from to)
-  (setf (aref (graph-adlist graph) from)
-        (remove-if (lambda (edge) (and (= (edge-from edge) from)
-                                       (= (edge-to edge) to)))
-                   (aref (graph-adlist graph) from))))
+  (graph-delete-edge graph from to)
+  (graph-add-edge graph (edge-from edge) (edge-to edge) :cost (edge-cost edge)))
 
 (defmethod graph-neighbors ((graph <adlist-graph>) node) (aref (graph-adlist graph) node))
 
+(defmethod call-with-graph-neighbors ((graph <adlist-graph>) node fn)
+  (dolist (edge (graph-neighbors graph node))
+    (funcall fn edge)))
+
 (defmethod graph-add-edge ((graph <adlist-graph>) from to &key (cost 1))
   (push (make-edge from to :cost cost) (aref (graph-adlist graph) from)))
+
+(defmethod graph-delete-edge ((graph <adlist-graph>) from to)
+  (setf (aref (graph-adlist graph) from)
+        (delete-if (lambda (edge) (and (= (edge-from edge) from)
+                                       (= (edge-to edge) to)))
+                   (aref (graph-adlist graph) from))))
 
 (defclass <matrix-graph> (<graph>)
   ((size :initarg :size :accessor graph-size)
@@ -1951,15 +1979,124 @@ O(|s|)"
 
 (defmethod graph-node-ref ((graph <matrix-graph>) node) (aref (graph-nodes graph) node))
 
+(defmethod (setf graph-node-ref) (value (graph <matrix-graph>) node)
+  (setf (aref (graph-nodes graph) node) value))
+
+(defmethod graph-edge-ref ((graph <matrix-graph>) from to) (aref (graph-matrix graph) from to))
+
+(defmethod (setf graph-edge-ref) (edge (graph <matrix-graph>) from to)
+  (setf (aref (graph-matrix graph) from to) edge))
+
 (defmethod graph-neighbors ((graph <matrix-graph>) node)
-  (let ((matrix (graph-matrix graph))
-        (neighbors nil))
-    (dotimes (to-node (graph-size graph) (nreverse neighbors))
-      (let ((edge (aref matrix node to-node)))
-        (when edge (push edge neighbors))))))
+  (let ((neighbors nil))
+    (do-graph-neighbors (edge graph node (nreverse neighbors))
+      (push edge neighbors))))
+
+(defmethod call-with-graph-neighbors ((graph <matrix-graph>) node fn)
+  (let ((matrix (graph-matrix graph)))
+    (dotimes (to-node (graph-size graph))
+      (when-let ((edge (aref matrix node to-node)))
+        (funcall fn edge)))))
 
 (defmethod graph-add-edge ((graph <matrix-graph>) from to &key (cost 1))
   (setf (aref (graph-matrix graph) from to) (make-edge from to :cost cost)))
+
+(defmethod graph-delete-edge ((graph <matrix-graph>) from to)
+  (setf (aref (graph-matrix graph) from to) nil))
+
+(defclass <grid-graph> (<graph>)
+  ((height :initarg :height :accessor grid-height)
+   (width :initarg :width :accessor grid-width)
+   (grid :initarg :grid :accessor graph-grid)
+   (nodes :initarg :nodes :accessor graph-nodes)))
+
+(defun make-grid-graph (height width lines &key (wall #\#))
+  (make-instance '<grid-graph>
+                 :height height
+                 :width width
+                 :grid (make-array (list height width)
+                                   :initial-contents
+                                   (map 'list
+                                        (lambda (row)
+                                          (map 'list
+                                               (lambda (e)
+                                                 (if (eql e wall) +graph-cost-infinity+ 1))
+                                               row))
+                                        lines))))
+
+(defun grid-row (graph node) (floor node (grid-width graph)))
+(defun grid-column (graph node) (mod node (grid-width graph)))
+(defun grid-point-to-index (graph row column) (+ (* (grid-height graph) row) column))
+(defun grid-cost (graph row column) (aref (graph-grid graph) row column))
+(defmethod graph-size ((graph <grid-graph>)) (* (grid-height graph) (grid-width graph)))
+(defmethod graph-node-ref ((graph <grid-graph>) node) (aref (graph-nodes graph) node))
+
+(defmethod (setf graph-node-ref) (value (graph <grid-graph>) node)
+  (setf (aref (graph-nodes graph) node) value))
+
+(defmethod graph-edge-ref ((graph <grid-graph>) from to)
+  (let ((from-row (grid-row graph from))
+        (from-col (grid-column graph from))
+        (to-row (grid-row graph to))
+        (to-col (grid-column graph to)))
+    (cond ((and (= from-row to-row) (= from-col to-col)) (make-edge from to :cost 0))
+          ((and (<= -1 (- from-row to-row) 1) (<= -1 (- from-col to-col) 1))
+           (make-edge from to :cost (grid-cost graph to-row to-col)))
+          (t nil))))
+
+(defmethod (setf graph-edge-ref) (edge (graph <grid-graph>) from to) (error "Unsupported method."))
+
+(defmethod graph-neighbors ((graph <grid-graph>) node)
+  (let ((neighbors nil))
+    (call-with-graph-neighbors graph node (lambda (edge) (push edge neighbors)))
+    (nreverse neighbors)))
+
+(defmethod call-with-graph-neighbors ((graph <grid-graph>) node fn)
+  (do-neighbors ((y x) ((grid-row graph node) (grid-column graph node)))
+    (when (and (< -1 y (grid-height graph)) (< -1 x (grid-width graph))
+               (/= (aref (graph-grid graph) y x) +graph-cost-infinity+))
+      (funcall fn (make-edge node (grid-point-to-index graph y x)
+                             :cost (grid-cost graph y x))))))
+
+(defmethod graph-add-edge ((graph <grid-graph>) from to &key cost)
+  (declare (ignore graph from to cost))
+  (error "Unsupported method."))
+
+(defmethod graph-delete-edge ((graph <grid-graph>) from to) (error "Unsupported method."))
+
+(defun bfs (graph &key (start 0) end)
+  (loop with size = (graph-size graph)
+        with distances = (make-array size :initial-element +graph-cost-infinity+)
+        and usedp = (make-array size :initial-element nil)
+        and deque = (make-deque)
+        initially (setf (aref distances start) 0
+                        (aref usedp start) t)
+                  (deque-push-back deque start)
+        until (deque-empty-p deque)
+        do (let ((node (deque-peak-front deque)))
+             (deque-pop-front deque)
+             (do-graph-neighbors (edge graph node)
+               (let ((next-node (edge-to edge)))
+                 (unless (aref usedp next-node)
+                   (setf (aref distances next-node) (1+ (aref distances node))
+                         (aref usedp next-node) t)
+                   (when (and end (= next-node end))
+                     (return-from bfs distances))
+                   (deque-push-back deque next-node)))))
+        finally (return distances)))
+
+(defun floyd-warshall (graph)
+  (let* ((size (graph-size graph))
+         (distances (make-array (list size size) :initial-element +graph-cost-infinity+)))
+    (dotimes (i size)
+      (dotimes (j size)
+        (when-let ((edge (graph-edge-ref graph i j)))
+          (setf (aref distances i j) (edge-cost edge)))))
+    (dotimes (k size)
+      (dotimes (i size)
+        (dotimes (j size)
+          (minf (aref distances i j) (+ (aref distances i k) (aref distances k j))))))
+    distances))
 
 (defun dijkstra-next-distance (distance edge) (+ distance (edge-cost edge)))
 
@@ -1984,7 +2121,7 @@ O(|s|)"
                  (when (and end (= node end))
                    (return-from dijkstra distances))
                  (setf (aref usedp node) t)
-                 (dolist (edge (graph-neighbors graph node))
+                 (do-graph-neighbors (edge graph node)
                    (let ((next-node (edge-to edge))
                          (next-distance (funcall next-distance distance edge)))
                      (when (< next-distance (aref distances next-node))
