@@ -1863,22 +1863,135 @@ O(|s|)"
 ;;; graph
 ;;;
 (defpackage graph
-  (:use :cl :utility)
-  (:export :make-graph-from-edges
-           :graph-neighbors
+  (:use :cl :utility :binary-heap)
+  (:export :<graph>
+           :<edge>
+           :<adlist-graph>
            :graph-size
+           :graph-node-ref
+           :graph-neighbors
+           :graph-add-edge
+           :edge-from
+           :edge-to
+           :edge-cost
+           :make-edge
+           :make-adlist-graph
+           :dijkstra
            :find-leaf))
 (in-package graph)
 
-(defun make-graph-from-edges (size edges &key (bidirectional t))
-  (let ((graph (make-array size :initial-element nil)))
-    (do-seq (edge edges graph)
-      (push (second edge) (aref graph (first edge)))
-      (when bidirectional
-        (push (first edge) (aref graph (second edge)))))))
+(defconstant +graph-cost-infinity+ (ash most-positive-fixnum -1))
 
-(defun graph-neighbors (graph node) (aref graph node))
-(defun graph-size (graph) (length graph))
+(defgeneric graph-size (graph))
+(defgeneric graph-node-ref (graph node))
+(defgeneric (setf graph-node-ref) (value graph node))
+(defgeneric graph-edge-ref (graph from to))
+(defgeneric (setf graph-edge-ref) (edge graph from to))
+(defgeneric graph-neighbors (graph node)
+  (:documentation "Returns <edge> list."))
+(defgeneric graph-add-edge (graph from to &key cost))
+
+(defgeneric edge-from (edge))
+(defgeneric edge-to (edge))
+(defgeneric edge-cost (edge))
+
+(defclass <graph> () ())
+
+(defclass <edge> ()
+  ((from :initarg :from :accessor edge-from)
+   (to :initarg :to :accessor edge-to)
+   (cost :initarg :cost :initform 1 :accessor edge-cost)))
+
+(defun make-edge (from to &key (cost 1)) (make-instance '<edge> :from from :to to :cost cost))
+
+(defclass <adlist-graph> (<graph>)
+  ((size :initarg :size :accessor graph-size)
+   (adlist :initarg :adlist :accessor graph-adlist)
+   (nodes :initarg :nodes :accessor graph-nodes)))
+
+(defun make-adlist-graph (size)
+  (make-instance '<adlist-graph>
+                 :size size
+                 :adlist (make-array size :initial-element nil)
+                 :nodes (make-array size :initial-element nil)))
+
+(defmethod graph-node-ref ((graph <adlist-graph>) node) (aref (graph-nodes graph) node))
+
+(defmethod (setf graph-node-ref) (value (graph <adlist-graph>) node)
+  (setf (aref (graph-nodes graph) node) value))
+
+(defmethod graph-edge-ref ((graph <adlist-graph>) from to)
+  (dolist (edge (aref (graph-adlist graph) from))
+    (when (= (edge-to edge) to)
+      (return-from graph-edge-ref edge))))
+
+(defmethod (setf graph-edge-ref) (edge (graph <adlist-graph>) from to)
+  (setf (aref (graph-adlist graph) from)
+        (remove-if (lambda (edge) (and (= (edge-from edge) from)
+                                       (= (edge-to edge) to)))
+                   (aref (graph-adlist graph) from))))
+
+(defmethod graph-neighbors ((graph <adlist-graph>) node) (aref (graph-adlist graph) node))
+
+(defmethod graph-add-edge ((graph <adlist-graph>) from to &key (cost 1))
+  (push (make-edge from to :cost cost) (aref (graph-adlist graph) from)))
+
+(defclass <matrix-graph> (<graph>)
+  ((size :initarg :size :accessor graph-size)
+   (matrix :initarg :matrix :accessor graph-matrix)
+   (nodes :initarg :nodes :accessor graph-nodes)))
+
+(defun make-matrix-graph (size)
+  (make-instance '<matrix-graph>
+                 :size size
+                 :matrix (let ((matrix (make-array (list size size) :initial-element nil)))
+                           (dotimes (node size matrix)
+                             (setf (aref matrix node node) (make-edge node node :cost 0))))
+                 :nodes (make-array size :initial-element nil)))
+
+(defmethod graph-node-ref ((graph <matrix-graph>) node) (aref (graph-nodes graph) node))
+
+(defmethod graph-neighbors ((graph <matrix-graph>) node)
+  (let ((matrix (graph-matrix graph))
+        (neighbors nil))
+    (dotimes (to-node (graph-size graph) (nreverse neighbors))
+      (let ((edge (aref matrix node to-node)))
+        (when edge (push edge neighbors))))))
+
+(defmethod graph-add-edge ((graph <matrix-graph>) from to &key (cost 1))
+  (setf (aref (graph-matrix graph) from to) (make-edge from to :cost cost)))
+
+(defun dijkstra-next-distance (distance edge) (+ distance (edge-cost edge)))
+
+(defun dijkstra (graph &key (start 0) end (next-distance #'dijkstra-next-distance))
+  (labels ((make-search-node (from to distance) (vector from to distance))
+           (search-node-to (search-node) (elt search-node 1))
+           (search-node-distance (search-node) (elt search-node 2))
+           (search-node-less (search-node1 search-node2)
+             (< (search-node-distance search-node1) (search-node-distance search-node2))))
+    (loop with size = (graph-size graph)
+          with distances = (make-array size :initial-element +graph-cost-infinity+)
+          and usedp = (make-array size :initial-element nil)
+          and heap = (make-binary-heap #'search-node-less)
+                initially (setf (aref distances start) 0)
+                          (binary-heap-push (make-search-node start start 0) heap)
+          until (binary-heap-empty-p heap)
+          do (let* ((top (binary-heap-top heap))
+                    (node (search-node-to top))
+                    (distance (search-node-distance top)))
+               (binary-heap-pop heap)
+               (unless (aref usedp node)
+                 (when (and end (= node end))
+                   (return-from dijkstra distances))
+                 (setf (aref usedp node) t)
+                 (dolist (edge (graph-neighbors graph node))
+                   (let ((next-node (edge-to edge))
+                         (next-distance (funcall next-distance distance edge)))
+                     (when (< next-distance (aref distances next-node))
+                       (setf (aref distances next-node) next-distance)
+                       (binary-heap-push (make-search-node node next-node next-distance)
+                                         heap))))))
+          finally (return distances))))
 
 (defun find-leaf (graph)
   (dotimes (node (graph-size graph))
