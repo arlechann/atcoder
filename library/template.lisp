@@ -46,6 +46,7 @@
            :do-seq
            :do-seq*
            :do-combination
+           :do-popbit
            :do-neighbors
            :let-dyn
            ;; number
@@ -67,6 +68,8 @@
            ;; function
            :do-nothing
            :compose
+           :memoize-lambda
+           :array-memoize-lambda
            ;; sequence
            :sum
            :sortf
@@ -81,7 +84,7 @@
            :ensure-car
            :ensure-list
            :length-n-p
-           :length1p
+           :singlep
            :take
            :drop
            :longerp
@@ -262,6 +265,18 @@
               (do-combination (,(cdr vars) ,(cdr counts) ,result)
                 ,@body)))))
 
+(defmacro do-popbit ((var integer &optional result) &body body)
+  (let ((int (gensym)))
+    `(loop with ,int = ,integer
+           and ,var = 0
+           until (or (zerop ,int)
+                     (= ,int -1))
+           when (logbitp 0 ,int)
+             do (progn ,@body)
+           do (setf ,int (ash ,int -1))
+              (incf ,var)
+           finally (return ,result))))
+
 (defmacro do-neighbors (((var-y var-x) (point-y point-x) &optional result) &body body)
   (let ((name (gensym "DO-NEIGHBORS"))
         (dy (gensym))
@@ -334,6 +349,28 @@
 
 (defun do-nothing (&rest args) (declare (ignore args)))
 (defun compose (&rest fns) (lambda (x) (reduce #'funcall fns :initial-value x :from-end t)))
+
+(defmacro memoize-lambda (args &body body)
+  (let ((memo (gensym))
+        (original-args (gensym)))
+    `(let ((,memo (make-hash-table :test #'equal)))
+       (lambda (&rest ,original-args)
+         (multiple-value-bind (memo-value found-p) (gethash ,original-args ,memo nil)
+           (if found-p
+               memo-value
+               (setf (gethash ,original-args ,memo)
+                     (destructuring-bind ,args ,original-args
+                       ,@body))))))))
+
+(defmacro array-memoize-lambda (arg-and-maxs &body body)
+  (let ((memo (gensym))
+        (args (mapcar #'car arg-and-maxs))
+        (maxs (mapcar #'cadr arg-and-maxs)))
+    `(let ((,memo (make-array (list ,@maxs) :initial-element nil)))
+       (lambda ,args
+         (or (aref ,memo ,@args)
+             (setf (aref ,memo ,@args)
+                   (progn ,@body)))))))
 
 ;;; sequence
 
@@ -419,7 +456,7 @@
         do (setf lst (cdr lst)
                  n (1- n))))
 
-(defun length1p (lst) (and lst (null (cdr lst))))
+(defun singlep (lst) (and lst (null (cdr lst))))
 
 (defun take (lst len)
   (let ((acc nil))
@@ -2132,7 +2169,7 @@ O(|s|)"
 
 (defun find-leaf (graph)
   (dotimes (node (graph-size graph))
-    (when (length1p (graph-neighbors graph node))
+    (when (singlep (graph-neighbors graph node))
       (return-from find-leaf node))))
 
 ;;;
@@ -2145,6 +2182,7 @@ O(|s|)"
            :upper-bound
            :cumulate
            :dp
+           :array-dp
            ))
 (in-package algorithm)
 
@@ -2194,6 +2232,17 @@ O(|s|)"
                         ,memo-value
                         (setf (gethash ,key ,memo)
                               (progn ,@body))))))
+         #',name))))
+
+(defmacro array-dp (name param-and-maxs &body body)
+  (let ((memo (gensym))
+        (params (mapcar #'car param-and-maxs))
+        (maxs (mapcar #'cadr param-and-maxs)))
+    `(let ((,memo (make-array (list ,@maxs) :initial-element nil)))
+       (labels ((,name ,params
+                  (or (aref ,memo ,@params)
+                      (setf (aref ,memo ,@params)
+                            (progn ,@body)))))
          #',name))))
 
 ;;;

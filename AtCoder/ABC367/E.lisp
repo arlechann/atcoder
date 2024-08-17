@@ -46,6 +46,7 @@
            :do-seq
            :do-seq*
            :do-combination
+           :do-popbit
            :do-neighbors
            :let-dyn
            ;; number
@@ -63,7 +64,6 @@
            :minf
            :logipop
            :logmsb
-           :do-popbit
            :range-intersect-p
            ;; function
            :do-nothing
@@ -265,6 +265,18 @@
               (do-combination (,(cdr vars) ,(cdr counts) ,result)
                 ,@body)))))
 
+(defmacro do-popbit ((var integer &optional result) &body body)
+  (let ((int (gensym)))
+    `(loop with ,int = ,integer
+           and ,var = 0
+           until (or (zerop ,int)
+                     (= ,int -1))
+           when (logbitp 0 ,int)
+             do (progn ,@body)
+           do (setf ,int (ash ,int -1))
+              (incf ,var)
+           finally (return ,result))))
+
 (defmacro do-neighbors (((var-y var-x) (point-y point-x) &optional result) &body body)
   (let ((name (gensym "DO-NEIGHBORS"))
         (dy (gensym))
@@ -327,18 +339,6 @@
           return i
         when (> (ash 1 i) n)
           return (1- i)))
-
-(defmacro do-popbit ((var integer &optional result) &body body)
-  (let ((int (gensym)))
-    `(loop with ,int = ,integer
-           and ,var = 0
-           until (or (zerop ,int)
-                     (= ,int -1))
-           when (logbitp 0 ,int)
-             do (progn ,@body)
-           do (setf ,int (ash ,int -1))
-              (incf ,var)
-           finally (return ,result))))
 
 (defun range-intersect-p (a1 a2 b1 b2 &key touchp)
   (let ((comp (if touchp #'< #'<=)))
