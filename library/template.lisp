@@ -38,9 +38,6 @@
            :when-let
            :when-let*
            :aif
-           :fbind
-           :fbind*
-           :dotimes-rev
            :do-array
            :do-array*
            :do-seq
@@ -187,31 +184,6 @@
        ,@body)))
 
 (defmacro aif (test then &optional else) `(let ((it ,test)) (if it ,then ,else)))
-
-(defmacro fbind (binds &body body)
-  (let ((args (gensym)))
-    `(flet ,(mapcar (lambda (bind)
-                      (let ((var (car bind))
-                            (fn (cadr bind)))
-                        `(,var (&rest ,args) (apply ,fn ,args))))
-                    binds)
-       (declare (inline ,@(mapcar #'car binds)))
-       ,@body)))
-
-(defmacro fbind* (binds &body body)
-  (cond ((null binds) `(progn ,@body))
-        ((null (cdr binds)) `(fbind (,(car binds)) ,@body))
-        (t `(fbind (,(car binds))
-              (fbind* ,(cdr binds)
-                ,@body)))))
-
-(defmacro dotimes-rev ((var count &optional result) &body body)
-  (let ((index (gensym))
-        (temp-count (gensym)))
-    `(let ((,temp-count ,count))
-       (dotimes (,index ,temp-count ,result)
-         (let ((,var (- ,temp-count ,index 0)))
-           ,@body)))))
 
 (defmacro do-array* (((&rest vars) (&rest arrays) &optional result) &body body)
   (let ((arrs (mapcar (lambda (x)
@@ -2177,7 +2149,16 @@ O(|s|)"
 ;;;
 (defpackage algorithm
   (:use :cl :utility)
-  (:export :meguru-method
+  (:export :+default-sieve-max+
+           :sieve-of-eratosthenes
+           :linear-sieve
+           :primes
+           :least-prime-factors
+           :trivial-factorize
+           :fast-factorize
+           :trivial-divisors
+           :fast-divisors
+           :meguru-method
            :lower-bound
            :upper-bound
            :cumulate
@@ -2185,6 +2166,86 @@ O(|s|)"
            :array-dp
            ))
 (in-package algorithm)
+
+(defconstant +default-sieve-max+ 200000)
+
+(defun sieve-of-eratosthenes (&optional (max +default-sieve-max+))
+  (let ((sieve (make-array (1+ max) :initial-element t)))
+    (setf (aref sieve 0) nil
+          (aref sieve 1) nil)
+    (loop for k from 4 to max by 2
+          do (setf (aref sieve k) nil))
+    (loop for i from 3 to max by 2
+          do (loop for k from (* i 2) to max by i
+                   do (setf (aref sieve k) nil)))
+    sieve))
+
+(defun linear-sieve (&optional (max +default-sieve-max+))
+  (let ((least-prime-factors (make-array (1+ max) :initial-element nil))
+        (primes (make-array 0 :adjustable t :fill-pointer t)))
+    (loop for i from 2 to max
+          when (null (aref least-prime-factors i))
+            do (setf (aref least-prime-factors i) i)
+               (vector-push-extend i primes)
+          do (loop for p across primes
+                   until (or (> (* p i) max)
+                             (> p (aref least-prime-factors i)))
+                   do (setf (aref least-prime-factors (* p i)) p)))
+    (values (coerce primes 'simple-vector)
+            least-prime-factors)))
+
+(defun primes (&optional (max +default-sieve-max+)) (coerce (linear-sieve max) 'list))
+
+(defun least-prime-factors (&optional (max +default-sieve-max+))
+  (multiple-value-bind (primes least-prime-factors) (linear-sieve max)
+    (declare (ignore primes)) least-prime-factors))
+
+(defun trivial-factorize (n)
+  (loop with ret = nil
+        for i from 2
+        while (<= (square i) n)
+        do (loop with count = 0
+                 while (zerop (mod n i))
+                 do (setf n (floor n i))
+                    (incf count)
+                 finally (when (not (zerop count))
+                           (push (cons i count) ret)))
+        finally (unless (= n 1)
+                  (push (cons n 1) ret))
+                (return ret)))
+
+(defun fast-factorize (n least-prime-factors)
+  (loop with ret = nil
+        while (> n 1)
+        do (loop with lps = (aref least-prime-factors n)
+                 and count = 0
+                 while (eq lps (aref least-prime-factors n))
+                 do (setf n (floor n lps))
+                    (incf count)
+                 finally (push (cons lps count) ret))
+        finally (return ret)))
+
+(defun trivial-divisors (n)
+  (loop with divisors = nil
+        for i from 1
+        while (< (* i i) n)
+        when (zerop (mod n i))
+          do (push i divisors)
+             (push (floor n i) divisors)
+        finally (when (= (* i i) n)
+                  (push i divisors))
+                (return divisors)))
+
+(defun fast-divisors (n least-prime-factors)
+  (loop with divisors = (list 1)
+        and factors = #?(fast-factorize n least-prime-factors)
+        for (factor . exp) in factors
+        do (loop for d in divisors
+                 for m = 1 then 1
+                 do (loop repeat exp
+                          do (setf m (* m factor))
+                             (push (* d m) divisors)))
+        finally (return divisors)))
 
 (defun meguru-method (ok ng pred)
   (loop until (<= (abs (- ok ng)) 1)
