@@ -27,10 +27,11 @@
   (:export :it
            :self
            ;; definition
+           :eval-always
            :defun-always
            :defalias
            ;; control
-           :eval-always
+           :named-let
            :nlet
            :alambda
            :if-let
@@ -69,6 +70,7 @@
            :array-memoize-lambda
            ;; sequence
            :sum
+           :map-with-index
            :sortf
            :emptyp
            :make-iterator
@@ -80,6 +82,13 @@
            ;; list
            :ensure-car
            :ensure-list
+           :xcons
+           :mapc-with-index
+           :mapcar-with-index
+           :mapcan-with-index
+           :mapl-with-index
+           :maplist-with-index
+           :mapcon-with-index
            :length-n-p
            :singlep
            :take
@@ -89,9 +98,8 @@
            :iota
            :unfold
            :unique
-           :chunk
-           :with-index
-           :permutation
+           :chunks
+           :permutations
            :flatten
            ;; vector
            :dvector
@@ -124,8 +132,7 @@
 (defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
 
 (defmacro defalias (alias original)
-  `(progn (setf (symbol-function ,alias) ,original)
-          ,alias))
+  `(progn (setf (symbol-function ,alias) ,original) ,alias))
 
 ;;; reader macro
 
@@ -163,9 +170,39 @@
 
 ;;; control
 
-(defmacro nlet (name binds &body body)
+(defmacro named-let (name binds &body body)
+  "クロージャに展開されるnamed-let"
   `(labels ((,name ,(mapcar #'car binds) ,@body))
      (,name ,@(mapcar #'cadr binds))))
+
+(defmacro nlet (name binds &body body)
+  "ループに展開されるnamed-let"
+  (let ((tag (gensym))
+        (vars (mapcar #'car binds))
+        (vals (mapcar #'cadr binds))
+        (tmp-vars (mapcar #'(lambda (bind)
+                              (declare (ignore bind))
+                              (gensym))
+                          binds))
+        (rec-args (mapcar #'(lambda (bind)
+                          (declare (ignore bind))
+                          (gensym))
+                      binds)))
+    `(block ,name
+       (macrolet ((,name ,rec-args
+                    `(progn (psetq ,@(mapcan #'list ',tmp-vars (list ,@rec-args)))
+                            (go ,',tag))))
+         (let ,(mapcar #'list tmp-vars vals)
+           (tagbody
+              ,tag
+              (let ,(mapcar #'list vars tmp-vars)
+                (return-from ,name (progn ,@body)))))))))
+
+(defmacro until (test &body body)
+  `(do () (,test) ,@body))
+
+(defmacro while (test &body body)
+  `(until (not ,test) ,@body))
 
 (defmacro alambda (params &body body) `(labels ((self ,params ,@body)) #'self))
 
@@ -250,16 +287,14 @@
            finally (return ,result))))
 
 (defmacro do-neighbors (((var-y var-x) (point-y point-x) &optional result) &body body)
-  (let ((name (gensym "DO-NEIGHBORS"))
-        (dy (gensym))
+  (let ((dy (gensym))
         (dx (gensym)))
-    `(loop named ,name
-           for ,dy in '(0 1 0 -1)
+    `(loop for ,dy in '(0 1 0 -1)
            for ,dx in '(1 0 -1 0)
            do (let ((,var-y (+ ,dy ,point-y))
                     (,var-x (+ ,dx ,point-x)))
                 ,@body)
-           finally (return-from ,name ,result))))
+           finally (return ,result))))
 
 (defmacro let-dyn (binds &body body)
   `(let ,binds
@@ -269,49 +304,67 @@
 
 ;;; number
 
+(declaim (ftype (function (number) number) 2*))
 (defun 2* (x) (* x 2))
+(declaim (ftype (function (real) integer) /2))
 (defun /2 (x) (values (floor x 2)))
+
+(declaim (ftype (function (t &optional (function (t t) t)) t) square))
 (defun square (x &optional (op #'*)) (funcall op x x))
-(defun cube (x &optional (op #'*)) (funcall op x x x))
+(declaim (ftype (function (t &optional (function (t t) t)) t) cube))
+(defun cube (x &optional (op #'*)) (funcall op (funcall op x x) x))
+(declaim (ftype (function (t (function (t t) t)) t) cuber))
+(defun cuber (x op) (funcall op x (funcall op x x)))
 
+(declaim (ftype (function (t unsigned-byte &key (:op (function (t t) t)) (:identity t)) t) pow))
 (defun pow (base power &key (op #'*) (identity 1))
-  (let ((ret identity))
-    (loop until (zerop power)
-          when (oddp power)
-            do (setf ret (funcall op ret base))
-          do (setf base (square base op)
-                   power (floor power 2))
-          finally (return ret))))
+  (nlet rec ((base base) (power power) (ret identity))
+    (cond ((zerop power) ret)
+          ((oddp power)
+           (rec (square base op) (floor power 2) (funcall op ret base)))
+          (t (rec (square base op) (floor power 2) ret)))))
 
+(declaim (ftype (function (number number) (real 0 *)) diff))
 (defun diff (a b) (abs (- a b)))
 
+(declaim (ftype (function (unsigned-byte) unsigned-byte) next-pow2))
 (defun next-pow2 (n)
-  (when (zerop (logand n (1- n)))
-    (return-from next-pow2 n))
-  (loop with acc = 1
-        while (> n 0)
-        do (setf n (ash n -1)
-                 acc (ash acc 1))
-        finally (return acc)))
+  (declare (type unsigned-byte n))
+  (if (zerop (logand n (1- n))) n
+      (nlet rec ((n n) (acc 1))
+        (if (zerop n)
+            acc
+            (rec (ash n -1) (ash acc 1))))))
 
+(declaim (ftype (function (unsigned-byte &optional unsigned-byte) unsigned-byte) repunit))
 (defun repunit (n &optional (base 10))
-  (let ((acc 0))
-    (dotimes (i n acc)
-      (setf acc (+ (* acc base) 1)))))
+  (declare (type unsigned-byte n base))
+  (nlet rec ((n n) (acc 0))
+    (if (zerop n) acc
+        (rec (1- n) (+ (* base acc) 1)))))
 
+(declaim (ftype (function (real &rest real) boolean) maxp))
 (defun maxp (x &rest args) (> x (apply #'max args)))
+(declaim (ftype (function (real &rest list) boolean) minp))
 (defun minp (x &rest args) (< x (apply #'min args)))
 (defmacro maxf (place &rest args) `(setf ,place (max ,place ,@args)))
 (defmacro minf (place &rest args) `(setf ,place (min ,place ,@args)))
-(defun logipop (n &rest indexes) (dolist (index indexes n) (setf n (logior n (ash 1 index)))))
 
+(declaim (ftype (function (unsigned-byte &rest unsigned-byte) unsigned-byte) logipop))
+(defun logipop (n &rest indexes)
+  (declare (type unsigned-byte n))
+  (dolist (index indexes n)
+    (declare (type unsigned-byte index))
+    (setf n (logior n (ash 1 index)))))
+
+(declaim (ftype (function (unsigned-byte) (integer -1 *)) logmsb))
 (defun logmsb (n)
-  (loop for i from 0
-        when (= (ash 1 i) n)
-          return i
-        when (> (ash 1 i) n)
-          return (1- i)))
+  (nlet rec ((i 0) (k 1))
+    (cond ((= k n) i)
+          ((> k n) (1- i))
+          (t (rec (1+ i) (ash k 1))))))
 
+(declaim (ftype (function (real real real real &key (:touchp t)) boolean)))
 (defun range-intersect-p (a1 a2 b1 b2 &key touchp)
   (let ((comp (if touchp #'< #'<=)))
     (not (or (funcall comp (max a1 a2) (min b1 b2))
@@ -346,7 +399,22 @@
 
 ;;; sequence
 
+(declaim (ftype (function (sequence) number) sum))
 (defun sum (seq) (reduce #'+ seq :initial-value 0))
+
+(declaim (ftype (function ((or cons symbol class)
+                           (or (function (unsigned-byte t &rest t) t) symbol)
+                           sequence &rest sequence)
+                          sequence)
+                map-with-index))
+(defun map-with-index (result-type fn sequence &rest more-sequences)
+  (let ((index 0))
+    (apply #'map
+           result-type
+           #'(lambda (&rest args) (prog1 (apply fn index args) (incf index)))
+           sequence
+           more-sequences)))
+
 (defmacro sortf (seq-place pred &rest args) `(setf ,seq-place (sort ,seq-place ,pred ,@args)))
 
 (defstruct (%iterator-method
@@ -420,102 +488,113 @@
 (defun-always ensure-car (x) (if (consp x) (car x) x))
 (defun-always ensure-list (x) (if (listp x) x (list x)))
 
-(defun length-n-p (lst n)
-  (loop when (zerop n)
-          return (null lst)
-        when (null lst)
-          return nil
-        do (setf lst (cdr lst)
-                 n (1- n))))
+(declaim (ftype (function (t t) cons) xcons))
+(defun xcons (a b) (cons b a))
 
+(macrolet ((%def-map-list-with-index (map-function-name)
+             (let ((name (symb map-function-name '-with-index))
+                   (fn (gensym "FN"))
+                   (lst (gensym "LST"))
+                   (more-lst (gensym "MORE-LST"))
+                   (index (gensym))
+                   (args (gensym)))
+               `(progn
+                  (declaim (ftype (function ((or (function (unsigned-byte t &rest t) t) symbol)
+                                             list &rest list))
+                                  ,name))
+                  (defun ,name (,fn ,lst &rest ,more-lst)
+                    (let ((,index 0))
+                      (apply #',map-function-name
+                             #'(lambda (&rest ,args)
+                                 (prog1 (apply ,fn ,index ,args) (incf ,index)))
+                             ,lst ,more-lst)))))))
+  (%def-map-list-with-index mapc)
+  (%def-map-list-with-index mapcar)
+  (%def-map-list-with-index mapcan)
+  (%def-map-list-with-index mapl)
+  (%def-map-list-with-index maplist)
+  (%def-map-list-with-index mapcon))
+
+(declaim (ftype (function (list unsigned-byte) boolean) length-n-p))
+(defun length-n-p (lst n)
+  (nlet rec ((lst lst) (n n))
+    (cond ((zerop n) (null lst))
+          ((null lst) nil)
+          (t (rec (cdr lst) (1- n))))))
+
+(declaim (ftype (function (list) boolean) singlep))
 (defun singlep (lst) (and lst (null (cdr lst))))
 
-(defun take (lst len)
-  (let ((acc nil))
-    (dotimes (i len (nreverse acc))
-      (push (car lst) acc)
-      (setf lst (cdr lst)))))
+(declaim (ftype (function (list unsigned-byte) list) take))
+(defun take (lst n)
+  (nlet rec ((lst lst) (n n) (acc nil))
+    (if (or (null lst) (zerop n))
+        (nreverse acc)
+        (rec (cdr lst) (1- n) (cons (car lst) acc)))))
 
-(defun drop (lst len) (dotimes (i len lst) (setf lst (cdr lst))))
+(declaim (ftype (function (list unsigned-byte) list) drop))
+(defun drop (lst n)
+  (nlet rec ((lst lst) (n n))
+    (if (or (null lst) (zerop n)) lst (rec (cdr lst) (1- n)))))
 
+(declaim (ftype (function (list list) list) longerp))
 (defun longerp (lst1 lst2)
-  (loop when (null lst1)
-          return nil
-        when (null lst2)
-          return t
-        do (setf lst1 (cdr lst1)
-                 lst2 (cdr lst2))))
-  
+  (nlet rec ((lst1 lst1) (lst2 lst2))
+    (cond ((null lst1) nil)
+          ((null lst2) lst1)
+          (t (rec (cdr lst1) (cdr lst2))))))
+
+(declaim (ftype (function (list list) list) longer))  
 (defun longer (lst1 lst2) (if (longerp lst1 lst2) lst1 lst2))
 
-(defun iota (count &key (start 0) (step 1))
-  (let ((acc nil))
-    (dotimes (i count (nreverse acc))
-      (push start acc)
-      (setf start (+ start step)))))
+(declaim (ftype (function (unsigned-byte &key (:start number) (:step number)) list) iota))
+(defun iota (n &key (start 0) (step 1))
+  (nlet rec ((n n) (start start) (acc nil))
+    (if (zerop n)
+        (nreverse acc)
+        (rec (1- n) (+ start step) (cons start acc)))))
 
-(defun unfold (pred fn next-gen seed)
-  (loop with acc = nil
-        until (funcall pred next-gen)
-        do (push (funcall fn seed) acc)
-           (setf seed (funcall next-gen seed))
-        finally (return (nreverse acc))))
+(declaim (ftype (function ((function (t) t) (function (t) t) (function (t) t) t &optional (function (t) t)) list) unfold))
+(defun unfold (pred fn next-gen seed &optional (tail (constantly nil)))
+  (nlet rec ((seed seed) (acc nil))
+    (if (funcall pred seed)
+        (nreverse (append (funcall tail seed) acc))
+        (rec (funcall next-gen seed) (cons (funcall fn seed) acc)))))
 
+(declaim (ftype (function (list &key (:test (function (t t) t))) list) unique))
 (defun unique (lst &key (test #'eql))
-  (nreverse (reduce (lambda (acc x)
-                      (if (funcall test x (car acc))
-                          acc
-                          (cons x acc)))
-                    lst
+  (nreverse (reduce (lambda (acc x)  (if (funcall test x (car acc)) acc (cons x acc))) lst
                     :initial-value nil)))
 
-(defun chunk (lst size &key (fractionp t))
-  (loop with lst = lst
-        and chunk = nil
-        and chunk-size = 0
-        and acc = nil
-        until (null lst)
-        if (= chunk-size size)
-          do (psetq chunk nil
-                    chunk-size 0
-                    acc (cons (nreverse chunk) acc))
-        else
-          do (psetq lst (cdr lst)
-                    chunk (cons (car lst) chunk)
-                    chunk-size (1+ chunk-size))
-        finally (return (nreverse (if fractionp
-                                      (cons (nreverse chunk) acc)
-                                      acc)))))
+(declaim (ftype (function (list (integer 1 *) &key (:fractionp t)) list) chunks))
+(defun chunks (lst size &key (fractionp t))
+  (nlet outer ((lst lst) (acc nil))
+    (if (null lst)
+        (nreverse acc)
+        (nlet inner ((lst lst) (rest size) (chunk nil) (acc acc))
+          (cond ((zerop rest) (outer lst (cons (nreverse chunk) acc)))
+                ((null lst) (outer nil (if fractionp (cons (nreverse chunk) acc) acc)))
+                (t (inner (cdr lst) (1- rest) (cons (car lst) chunk) acc)))))))
 
-(defun with-index (lst)
-  (loop with acc = nil
-        for x in lst
-        for i from 0
-        do (push (cons i x) acc)
-        finally (return (nreverse acc))))
-
-(defun permutation (lst)
+(declaim (ftype (function (list) list) permutations))
+(defun permutations (lst)
   (let ((ret nil))
     (labels ((rec (lst acc)
                (if (null lst)
                    (push acc ret)
                    (dolist (item lst)
-                     (rec (remove-if (lambda (x)
-                                       (eql (car x) (car item)))
-                                     lst)
+                     (rec (remove-if (lambda (x) (eql x (car item)))
+                                     lst :key #'car)
                           (cons (cdr item) acc))))))
-      (rec (with-index lst) nil))
+      (rec (mapcar-with-index #'cons lst) nil))
     ret))
 
+(declaim (ftype (function (list) list) flatten))
 (defun flatten (lst)
-  (let ((acc nil))
-    (labels ((rec (lst)
-               (dolist (obj lst)
-                 (if (listp obj)
-                     (rec obj)
-                     (push obj acc)))))
-      (rec lst))
-    (nreverse acc)))
+  (nreverse (named-let rec ((lst lst) (acc nil))
+              (cond ((null lst) acc)
+                    ((listp (car lst)) (rec (cdr lst) (rec (car lst) acc)))
+                    (t (rec (cdr lst) (cons (car lst) acc)))))))
 
 ;;; vector
 
@@ -530,19 +609,18 @@
                  when (funcall compare (aref vector i) (aref vector (1+ i)))
                    do (return i)
                  when (zerop i)
-                   do (return-from next-permutation nil))))
+                   do (return-from next-permutation nil)
+                 finally (return-from next-permutation nil))))
     (let ((j (position-if (lambda (x) (funcall compare (aref vector i) x)) vector :from-end t)))
       (rotatef (aref vector i) (aref vector j))
       (setf (subseq vector (1+ i)) (nreverse (subseq vector (1+ i))))
       vector)))
 
-(defmacro do-permutations ((var vector &optional (compare #'<) result) &body body)
-  (let ((comp (gensym)))
-    `(let ((,comp ,compare))
-       (do ((,var (sort (copy-seq ,vector) ,comp) (next-permutation ,var :compare ,comp)))
-           ((null ,var) ,result)
-         (declare (ignorable ,var))
-         ,@body))))
+(defmacro do-permutations ((var vector &optional result) &body body)
+  `(do ((,var (sort (copy-seq ,vector) #'<) (next-permutation ,var)))
+       ((null ,var) ,result)
+     (declare (ignorable ,var))
+     ,@body))
 
 ;;; char
 
@@ -579,20 +657,6 @@
            :def-input-reader))
 (in-package :input)
 
-;; (input* ((n fixnum)
-;;          (m fixnum1)
-;;          (f double)
-;;          (s string)
-;;          (p (cons* fixnum fixnum nil))
-;;          (l (list fixnum n))
-;;          (v (vector fixnum m)))
-;;   (list n m f s p l v))
-;; 2 3 10.5
-;; input
-;; 1000000007 -1
-;; 10 20
-;; 30 40
-;; => (2 2 10.5d0 "input" (1000000007 -1) (10 20) #(30 40))
 
 (eval-always (defvar *input-reader-table* (make-hash-table :test #'eq)))
 
@@ -621,7 +685,22 @@
                       (input-typespec-reader (cadr form))))
               forms)))
 
-(defmacro input* (forms &body body) `(let* ,(input-expand forms) ,@body))
+(defmacro input* (forms &body body)
+  "(input* ((n fixnum)
+         (m fixnum1)
+         (f double)
+         (s string)
+         (p (cons* fixnum fixnum nil))
+         (l (list fixnum n))
+         (v (vector fixnum m)))
+  (list n m f s p l v))
+2 3 10.5
+input
+1000000007 -1
+10 20
+30 40
+=> (2 2 10.5d0 \"input\" (1000000007 -1) (10 20) #(30 40))"
+    `(let* ,(input-expand forms) ,@body))
 
 (defmacro def-input-reader (marker params &body body)
   `(eval-always
@@ -636,7 +715,9 @@
 (def-input-reader fixnum () '(read))
 (def-input-reader fixnum1 () '(1- (read)))
 (def-input-reader double () '(let ((*read-default-float-format* 'double-float)) (read)))
+(def-input-reader rational () '(let ((*read-default-float-format* 'rational)) (read)))
 (def-input-reader string () `(read-line))
+(def-input-reader symbol () '(read))
 
 (def-input-reader cons* (typespec)
   (let ((elems (cdr typespec)))
@@ -2008,7 +2089,10 @@ O(|s|)"
         (funcall fn edge)))))
 
 (defmethod graph-add-edge ((graph <matrix-graph>) from to &key (cost 1))
-  (setf (aref (graph-matrix graph) from to) (make-edge from to :cost cost)))
+  (let ((edge (aref (graph-matrix graph) from to)))
+    (when (or (null edge)
+              (< cost (edge-cost edge)))
+      (setf (aref (graph-matrix graph) from to) (make-edge from to :cost cost)))))
 
 (defmethod graph-delete-edge ((graph <matrix-graph>) from to)
   (setf (aref (graph-matrix graph) from to) nil))
@@ -2281,30 +2365,42 @@ O(|s|)"
         finally (return ret)))
 
 (defmacro dp (name params &body body)
-  (let ((memo (gensym))
+  (let ((tmp-name (gensym))
+        (args (mapcar #'(lambda (param)
+                          (declare (ignore param))
+                          (gensym))
+                      params))
+        (memo (gensym))
         (key (gensym))
         (memo-value (gensym))
         (none-value (gensym)))
-    `(let ((,memo (make-hash-table :test 'equal)))
-       (labels ((,name ,params
-                  (let* ((,key (list ,@params))
-                         (,memo-value (gethash ,key ,memo ',none-value)))
-                    (if (not (eq ,memo-value ',none-value))
-                        ,memo-value
-                        (setf (gethash ,key ,memo)
-                              (progn ,@body))))))
-         #',name))))
+    `(macrolet ((,name ,args `(,tmp-name ,@(list ,@args))))
+       ((let ((,memo (make-hash-table :test 'equal)))
+          (labels ((,tmp-name ,params
+                     (let* ((,key (list ,@params))
+                            (,memo-value (gethash ,key ,memo ',none-value)))
+                       (if (not (eq ,memo-value ',none-value))
+                           ,memo-value
+                           (setf (gethash ,key ,memo)
+                                 (block ,name ,@body))))))
+            #',tmp-name))))))
 
 (defmacro array-dp (name param-and-maxs &body body)
-  (let ((memo (gensym))
-        (params (mapcar #'car param-and-maxs))
-        (maxs (mapcar #'cadr param-and-maxs)))
-    `(let ((,memo (make-array (list ,@maxs) :initial-element nil)))
-       (labels ((,name ,params
-                  (or (aref ,memo ,@params)
-                      (setf (aref ,memo ,@params)
-                            (progn ,@body)))))
-         #',name))))
+  (let* ((tmp-name (gensym))
+         (memo (gensym))
+         (params (mapcar #'car param-and-maxs))
+         (maxs (mapcar #'cadr param-and-maxs))
+         (args (mapcar #'(lambda (param)
+                           (declare (ignore param))
+                           (gensym))
+                       params)))
+    `(macrolet ((,name ,args `(,',tmp-name ,@(list ,@args))))
+       (let ((,memo (make-array (list ,@maxs) :initial-element nil)))
+         (labels ((,tmp-name ,params
+                    (or (aref ,memo ,@params)
+                        (setf (aref ,memo ,@params)
+                              (block ,name ,@body)))))
+           #',tmp-name)))))
 
 ;;;
 ;;; atcoder
