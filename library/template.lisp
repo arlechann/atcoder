@@ -330,6 +330,8 @@
 
 ;;; number
 
+(declaim (ftype (function (number) number) onep))
+(defun onep (x) (= x 1))
 (declaim (ftype (function (number) number) 2*))
 (defun 2* (x) (* x 2))
 (declaim (ftype (function (real) integer) /2))
