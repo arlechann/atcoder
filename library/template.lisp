@@ -26,19 +26,23 @@
                 :println)
   (:export :it
            :self
+           ;; symbol
+           :symb
            ;; definition
            :eval-always
            :defun-always
            :defalias
+           :defabbrev
            ;; control
            :named-let
            :nlet
+           :aif
            :alambda
+           :aprog1
            :if-let
            :if-let*
            :when-let
            :when-let*
-           :aif
            :do-array
            :do-array*
            :do-seq
@@ -47,6 +51,12 @@
            :do-popbit
            :do-neighbors
            :let-dyn
+           :dbind
+           :mvcall
+           :mvbind
+           :mvlist
+           :mvprog1
+           :mvsetq
            ;; number
            :2*
            :/2
@@ -70,8 +80,11 @@
            :array-memoize-lambda
            ;; sequence
            :sum
-           :map-with-index
            :sortf
+           :map-with-index
+           :map-into-with-index
+           :nmap
+           :namp-with-index
            :emptyp
            :make-iterator
            :copy-iterator
@@ -118,8 +131,6 @@
            ;; lazy
            :delay
            :force
-           ;; symbol
-           :symb
            ))
 (in-package utility)
 
@@ -127,12 +138,22 @@
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      ,@body))
 
+;;; symbol
+
+(eval-always
+  (defun symb (&rest args)
+    (values (intern (with-output-to-string (s)
+                      (mapcar (lambda (x) (princ x s)) args)))
+            *package*)))
+
 ;;; definition
 
 (defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
 
 (defmacro defalias (alias original)
   `(progn (setf (symbol-function ,alias) ,original) ,alias))
+
+(defmacro defabbrev (short long) `(defmacro ,short (&rest args) `(,',long ,@args)))
 
 ;;; reader macro
 
@@ -165,8 +186,6 @@
 (defmacro def-delimiter-macro (left right params &body body)
   `(eval-always
      (def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body))))
-
-(def-delimiter-macro #\[ #\] (arr &rest indecies) `(aref ,arr ,@indecies))
 
 ;;; control
 
@@ -204,7 +223,9 @@
 (defmacro while (test &body body)
   `(until (not ,test) ,@body))
 
+(defmacro aif (test then &optional else) `(let ((it ,test)) (if it ,then ,else)))
 (defmacro alambda (params &body body) `(labels ((self ,params ,@body)) #'self))
+(defmacro aprog1 (result &body body) `(let ((it ,result)) (prog1 it ,@body)))
 
 (defmacro if-let* (binds then &optional else)
   `(let* ,binds
@@ -219,8 +240,6 @@
   `(let* ,binds
      (when (and ,@(mapcar #'car binds))
        ,@body)))
-
-(defmacro aif (test then &optional else) `(let ((it ,test)) (if it ,then ,else)))
 
 (defmacro do-array* (((&rest vars) (&rest arrays) &optional result) &body body)
   (let ((arrs (mapcar (lambda (x)
@@ -301,6 +320,13 @@
      (declare (dynamic-extent
                ,@(mapcar (lambda (x) (if (listp x) (car x) x)) binds)))
      ,@body))
+
+(defabbrev dbind destructuring-bind)
+(defabbrev mvcall multiple-value-call)
+(defabbrev mvbind multiple-value-bind)
+(defabbrev mvlist multiple-value-list)
+(defabbrev mvprog1 multiple-value-prog1)
+(defabbrev mvsetq multiple-value-setq)
 
 ;;; number
 
@@ -399,8 +425,15 @@
 
 ;;; sequence
 
+(declaim (inline sort))
+
 (declaim (ftype (function (sequence) number) sum))
 (defun sum (seq) (reduce #'+ seq :initial-value 0))
+
+(define-modify-macro sortf (compare &rest args)
+  (lambda (sequence compare &rest args &key key)
+    (declare (ignore key))
+    (apply #'sort sequence compare args)))
 
 (declaim (ftype (function ((or cons symbol class)
                            (or (function (unsigned-byte t &rest t) t) symbol)
@@ -415,7 +448,38 @@
            sequence
            more-sequences)))
 
-(defmacro sortf (seq-place pred &rest args) `(setf ,seq-place (sort ,seq-place ,pred ,@args)))
+(declaim (ftype (function (sequence (or (function (unsigned-byte t &rest t) t) symbol)
+                                    &rest sequence))
+                map-into-with-index))
+(defun map-into-with-index (result-sequence fn &rest sequences)
+  (let ((index 0))
+    (apply #'map-into
+           result-sequence
+           #'(lambda (&rest args)
+               (prog1 (apply fn index args)
+                 (incf index)))
+           sequences)))
+
+(declaim (ftype (function ((or (function (t &rest t) t) symbol)
+                           sequence &rest sequence)
+                          sequence)
+                nmap))
+(defun nmap (fn sequence &rest more-sequences)
+  (apply #'map-into sequence fn sequence more-sequences))
+
+(declaim (ftype (function ((or (function (unsigned-byte t &rest t) t) symbol)
+                           sequence &rest sequence)
+                          sequence)
+                nmap-with-index))
+(defun nmap-with-index (fn sequence &rest more-sequences)
+  (let ((index 0))
+    (apply #'map-into
+           sequence
+           (lambda (&rest args)
+             (prog1 (apply fn index args)
+               (incf index)))
+           sequence
+           more-sequences)))
 
 (defstruct (%iterator-method
             (:constructor %make-iterator-method (step-fn endp-fn elm-fn
@@ -640,13 +704,6 @@
     (setf (promise-value ps) (funcall (promise-thunk ps))
           (promise-thunk ps) nil))
   (promise-value ps))
-
-;;; symbol
-
-(defun-always symb (&rest args)
-  (values (intern (with-output-to-string (s)
-                    (mapcar (lambda (x) (princ x s)) args)))
-           *package*))
 
 ;;;
 ;;; input
