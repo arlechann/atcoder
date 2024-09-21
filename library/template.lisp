@@ -38,6 +38,7 @@
            :nlet
            :aif
            :alambda
+           :aand
            :aprog1
            :if-let
            :if-let*
@@ -116,6 +117,7 @@
            :flatten
            ;; vector
            :dvector
+           :subvec/shared
            :next-permutation
            :do-permutations
            ;; string
@@ -225,6 +227,13 @@
 
 (defmacro aif (test then &optional else) `(let ((it ,test)) (if it ,then ,else)))
 (defmacro alambda (params &body body) `(labels ((self ,params ,@body)) #'self))
+
+(defmacro aand (&body body)
+  (cond ((null body) 't)
+        ((null (cdr body)) (car body))
+        (t `(let ((it ,(car body)))
+              (and it (aand ,@(cdr body)))))))
+
 (defmacro aprog1 (result &body body) `(let ((it ,result)) (prog1 it ,@body)))
 
 (defmacro if-let* (binds then &optional else)
@@ -330,7 +339,7 @@
 
 ;;; number
 
-(declaim (ftype (function (number) number) onep))
+(declaim (ftype (function (number) t) onep))
 (defun onep (x) (= x 1))
 (declaim (ftype (function (number) number) 2*))
 (defun 2* (x) (* x 2))
@@ -669,6 +678,12 @@
               :initial-contents contents
               :adjustable t
               :fill-pointer t))
+
+(defun subvec/shared (vector start &optional end)
+  (make-array (- start (or end (length vector))
+              :element-type (array-element-type vector)
+              :displaced-to vector
+              :displaced-index-offset start))
 
 (defun next-permutation (vector &key (compare #'<))
   (let ((i (loop for i downfrom (- (length vector) 2) downto 0
@@ -1850,7 +1865,7 @@ input
 (defpackage segment-tree
   (:use :cl :utility :vector-bintree)
   (:export :make-segment-tree
-           :segment-tree-get
+           :segment-tree-ref
            :segment-tree-fold
            :segment-tree-print))
 (in-package segment-tree)
