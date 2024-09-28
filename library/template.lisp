@@ -680,7 +680,7 @@
               :fill-pointer t))
 
 (defun subvec/shared (vector start &optional end)
-  (make-array (- start (or end (length vector))
+  (make-array (- start (or end (length vector)))
               :element-type (array-element-type vector)
               :displaced-to vector
               :displaced-index-offset start))
