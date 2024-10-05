@@ -789,9 +789,16 @@ input
 (def-input-reader fixnum () '(read))
 (def-input-reader fixnum1 () '(1- (read)))
 (def-input-reader double () '(let ((*read-default-float-format* 'double-float)) (read)))
+
+(def-input-reader double-float ()
+  '(let ((*read-default-float-format* 'double-float)) (read)))
+
 (def-input-reader rational () '(let ((*read-default-float-format* 'rational)) (read)))
 (def-input-reader string () `(read-line))
 (def-input-reader symbol () '(read))
+
+(def-input-reader cons (typespec)
+  `(cons ,(reader (cadr typespec)) ,(reader (caddr typespec))))
 
 (def-input-reader cons* (typespec)
   (let ((elems (cdr typespec)))
@@ -800,7 +807,7 @@ input
         `(cons ,(reader (car elems))
                ,(reader (cons 'cons* (cdr elems)))))))
 
-(def-input-reader nil () nil)
+(def-input-reader null () nil)
 
 (def-input-reader list (typespec)
   (let ((elem (cadr typespec))
@@ -2448,7 +2455,7 @@ O(|s|)"
         (key (gensym))
         (memo-value (gensym))
         (none-value (gensym)))
-    `(macrolet ((,name ,args `(,tmp-name ,@(list ,@args))))
+    `(macrolet ((,name ,args `(,',tmp-name ,@(list ,@args))))
        ((let ((,memo (make-hash-table :test 'equal)))
           (labels ((,tmp-name ,params
                      (let* ((,key (list ,@params))
@@ -2501,17 +2508,47 @@ O(|s|)"
 (in-package atcoder)
 
 (defun test-case (input expect)
-  (let ((output (make-array 0
-                            :element-type 'character
-                            :fill-pointer t
-                            :adjustable t)))
-    (with-output-to-string (*standard-output* output)
-      (with-input-from-string (*standard-input* input)
-        (main)))
+  (let ((output (with-output-to-string (*standard-output*)
+                  (with-input-from-string (*standard-input* input)
+                    (main)))))
     (if (string= (string-trim '(#\Space #\Newline) output)
                  (string-trim '(#\Space #\Newline) expect))
         (format t "Pass~%")
         (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output))))
+
+(defun print-boolean (boolean &optional (stream *standard-output*))
+  (write-line (if boolean "Yes" "No") stream)
+  (values))
+
+(defun print-double (double &optional (stream *standard-output*))
+  (let ((*read-default-float-format* 'double-float))
+    (princ double stream)
+    (terpri stream)
+    (values)))
+
+(defun print-sequence (sequence
+                       &optional (stream *standard-output*)
+                       &key (element-type 'base-char) (spacer #\ ))
+  #+sbcl (declare (sb-ext:muffle-conditions style-warning))
+  (write-string
+   (with-output-to-string (s nil :element-type element-type)
+     (let ((headp t))
+       (do-seq (elem sequence)
+         (unless headp
+           (write-char spacer s))
+         (princ elem s)
+         (setf headp nil))
+       (terpri s)))
+   stream)
+  (values))
+
+(defun print-list (list &rest args &key element-type spacer)
+  (declare (ignore element-type spacer))
+  (apply #'print-sequence list args))
+
+(defun print-vector (vector &rest args &key element-type spacer)
+  (declare (ignore element-type spacer))
+  (apply #'print-sequence vector args))
 
 (defun main ()
   (input* ((a fixnum)
