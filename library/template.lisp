@@ -105,11 +105,14 @@
            :mapcon-with-index
            :length-n-p
            :singlep
+           :last1
+           :mklist
            :take
            :drop
            :longerp
            :longer
            :iota
+           :reverse-nconc
            :unfold
            :unique
            :chunks
@@ -600,6 +603,12 @@
 (declaim (ftype (function (list) boolean) singlep))
 (defun singlep (lst) (and lst (null (cdr lst))))
 
+(declaim (ftype (function (list) t) last1))
+(defun last1 (lst) (car (last lst)))
+
+(declaim (ftype (function (t) list) mklist))
+(defun mklist (obj) (if (listp obj) obj (list obj)))
+
 (declaim (ftype (function (list unsigned-byte) list) take))
 (defun take (lst n)
   (nlet rec ((lst lst) (n n) (acc nil))
@@ -621,6 +630,13 @@
 
 (declaim (ftype (function (list list) list) longer))  
 (defun longer (lst1 lst2) (if (longerp lst1 lst2) lst1 lst2))
+
+(declaim (ftype (function (list t) t) reverse-nconc))
+(defun reverse-nconc (lst tail)
+  (nlet rec ((lst lst) (tail tail))
+    (if (null lst)
+        tail
+        (rec (cdr lst) (rplacd lst tail)))))
 
 (declaim (ftype (function (unsigned-byte &key (:start number) (:step number)) list) iota))
 (defun iota (n &key (start 0) (step 1))
@@ -823,6 +839,39 @@ input
     `(let ((,vec (make-array ,len)))
        (dotimes (,index ,len ,vec)
          (setf (aref ,vec ,index) ,(reader elem))))))
+
+;;;
+;;; list-queue
+;;;
+(defpackage list-queue
+  (:use :cl :utility)
+  (:export :make-list-queue
+           :list-queue-empty-p
+           :list-queue-peak
+           :list-queue-raw
+           :list-queue-enqueue
+           :list-queue-dequeue
+           ))
+(in-package list-queue)
+
+(defun make-list-queue () (cons nil nil))
+(defun list-queue-empty-p (queue) (null (car queue)))
+(defun list-queue-peak (queue) (caar queue))
+(defun list-queue-raw (queue) (car queue))
+
+(defun list-queue-enqueue (queue value)
+  (let ((new-cell (cons value nil)))
+    (if (list-queue-empty-p queue)
+        (setf (car queue) new-cell
+              (cdr queue) new-cell)
+        (setf (cddr queue) new-cell
+              (cdr queue) new-cell))
+    queue))
+
+(defun list-queue-dequeue (queue)
+  (prog1 (caar queue)
+    (or (setf (car queue) (cdar queue))
+        (setf (cdr queue) nil))))
 
 ;;;
 ;;; deque
@@ -2490,6 +2539,7 @@ O(|s|)"
   (:use :cl
         :utility
         :input
+        :list-queue
         :deque
         :binary-heap
         :ordered-map
