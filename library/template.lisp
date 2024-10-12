@@ -74,6 +74,7 @@
            :logipop
            :logmsb
            :range-intersect-p
+           :dp-combination
            ;; function
            :do-nothing
            :compose
@@ -121,6 +122,7 @@
            ;; vector
            :dvector
            :subvec/shared
+           :run-length-encode
            :next-permutation
            :do-permutations
            ;; string
@@ -128,9 +130,14 @@
            :string-prefix-p
            :string-suffix-p
            :strcat
+           :count-chars
            ;; char
            :count-alphabet
+           :lower-to-index
+           :upper-to-index
            :char-to-index
+           :index-to-lower
+           :index-to-upper
            ;; io
            :println
            ;; lazy
@@ -409,6 +416,24 @@
   (let ((comp (if touchp #'< #'<=)))
     (not (or (funcall comp (max a1 a2) (min b1 b2))
              (funcall comp (max b1 b2) (min a1 a2))))))
+
+(let* ((dp-combination-max 2501)
+       (memo (make-array (list dp-combination-max dp-combination-max)
+                        :element-type 'integer
+                        :initial-element 0)))
+  (proclaim `(ftype (function ((mod ,dp-combination-max) (mod ,dp-combination-max))
+                              unsigned-byte)
+                    dp-combination))
+  (defun dp-combination (n k)
+    (cond ((< n k) 0)
+          ((= n k) 1)
+          ((zerop k) 1)
+          (t (let ((memo-value (aref memo n k)))
+               (if (> memo-value 0)
+                   memo-value
+                   (setf (aref memo n k)
+                         (+ (dp-combination (1- n) (1- k))
+                            (dp-combination (1- n) k)))))))))
 
 ;;; function
 
@@ -701,6 +726,17 @@
               :displaced-to vector
               :displaced-index-offset start))
 
+(defun run-length-encode (string)
+  (let ((n (length string)))
+    (nlet rec ((i 0) (prev nil) (acc nil))
+      (if (= i n)
+          (nreverse acc)
+          (let ((c (aref string i)))
+            (if (or (null prev)
+                    (not (char= c prev)))
+                (rec (1+ i) c (cons (cons c 1) acc))
+                (rec (1+ i) c (cons (cons c (1+ (cdar acc))) (cdr acc)))))))))
+
 (defun next-permutation (vector &key (compare #'<))
   (let ((i (loop for i downfrom (- (length vector) 2) downto 0
                  when (funcall compare (aref vector i) (aref vector (1+ i)))
@@ -719,12 +755,22 @@
      (declare (ignorable ,var))
      ,@body))
 
+;;; string
+
+(defun count-chars (string)
+  (loop with count = (make-array (count-alphabet) :initial-element 0)
+        for c across string
+        do (incf (aref count (char-to-index c)))
+        finally (return count)))
+
 ;;; char
 
 (defun count-alphabet () #.(1+ (- (char-code #\Z) (char-code #\A))))
 (defun lower-to-index (char) (- (char-code char) #.(char-code #\a)))
 (defun upper-to-index (char) (- (char-code char) #.(char-code #\A)))
 (defun char-to-index (char) (if (char< char #\a) (upper-to-index char) (lower-to-index char)))
+(defun index-to-lower (index) (code-char (+ index #.(char-code #\a))))
+(defun index-to-upper (index) (code-char (+ index #.(char-code #\A))))
 
 ;;; lazy
 
