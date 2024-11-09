@@ -52,6 +52,7 @@
            :do-popbit
            :do-neighbors
            :let-dyn
+           :flet-accessor
            :dbind
            :mvcall
            :mvbind
@@ -65,6 +66,7 @@
            :cube
            :pow
            :diff
+           :triangular-number
            :next-pow2
            :repunit
            :maxp
@@ -340,6 +342,18 @@
                ,@(mapcar (lambda (x) (if (listp x) (car x) x)) binds)))
      ,@body))
 
+(defmacro flet-accessor (definitions &body body)
+  (let ((value (gensym)))
+    `(flet ,(mapcan #'(lambda (definition)
+                        (let ((name (car definition))
+                              (params (cadr definition))
+                              (accessor (caddr definition)))
+                          (list (list name params accessor)
+                                (list (list 'setf name) (cons value params)
+                                      (list 'setf accessor value)))))
+                    definitions)
+       ,@body)))
+
 (defabbrev dbind destructuring-bind)
 (defabbrev mvcall multiple-value-call)
 (defabbrev mvbind multiple-value-bind)
@@ -373,6 +387,10 @@
 
 (declaim (ftype (function (number number) (real 0 *)) diff))
 (defun diff (a b) (abs (- a b)))
+
+(declaim (ftype (function (unsigned-byte) unsigned-byte) triangular-number))
+(defun triangular-number (n)
+  (values (floor (* n (1+ n)) 2)))
 
 (declaim (ftype (function (unsigned-byte) unsigned-byte) next-pow2))
 (defun next-pow2 (n)
@@ -720,22 +738,22 @@
               :adjustable t
               :fill-pointer t))
 
-(defun subvec/shared (vector start &optional end)
-  (make-array (- start (or end (length vector)))
+(defun subvec/shared (vector &key (start 0) end)
+  (make-array (- (or end (length vector)) start)
               :element-type (array-element-type vector)
               :displaced-to vector
               :displaced-index-offset start))
 
-(defun run-length-encode (string)
-  (let ((n (length string)))
+(defun run-length-encode (vector &key (test #'eql))
+  (let ((n (length vector)))
     (nlet rec ((i 0) (prev nil) (acc nil))
       (if (= i n)
           (nreverse acc)
-          (let ((c (aref string i)))
+          (let ((e (aref vector i)))
             (if (or (null prev)
-                    (not (char= c prev)))
-                (rec (1+ i) c (cons (cons c 1) acc))
-                (rec (1+ i) c (cons (cons c (1+ (cdar acc))) (cdr acc)))))))))
+                    (not (funcall test e prev)))
+                (rec (1+ i) e (cons (cons e 1) acc))
+                (rec (1+ i) e (cons (cons e (1+ (cdar acc))) (cdr acc)))))))))
 
 (defun next-permutation (vector &key (compare #'<))
   (let ((i (loop for i downfrom (- (length vector) 2) downto 0
