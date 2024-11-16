@@ -12,24 +12,61 @@
                       :output t :error t :input t))))
 
 ;;;
-;;; utility
+;;; utility.v0.macro
 ;;;
-(defpackage utility
+(defpackage utility.v0.macro
   (:use :cl)
-  (:import-from :uiop
-                :split-string
-                :if-let
-                :emptyp
-                :string-prefix-p
-                :string-suffix-p
-                :strcat
-                :println)
+  (:export :eval-always
+           :symb
+           :def-dispatch-macro
+           :def-delimiter-macro
+           ))
+(in-package :utility.v0.macro)
+
+(defmacro eval-always (&body body)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     ,@body))
+
+(eval-always
+  (defun symb (&rest args)
+    (values (intern (with-output-to-string (s)
+                      (mapcar (lambda (x) (princ x s)) args)))
+            *package*)))
+
+(eval-always
+  (defun def-dispatch-fn (char fn)
+    (set-dispatch-macro-character #\# char
+                                  (lambda (stream char1 char2)
+                                    (declare (ignorable stream char1 char2))
+                                    (funcall fn (read stream t nil t))))))
+
+(defmacro def-dispatch-macro (char params &body body)
+  `(eval-always
+     (def-dispatch-fn ,char (lambda ,params ,@body))))
+
+(eval-always
+  (let ((rpar (get-macro-character #\) )))
+    (defun def-delimiter-macro-fn (left right fn)
+      (set-macro-character right rpar)
+      (set-dispatch-macro-character #\# left
+                                    (lambda (stream char1 char2)
+                                      (declare (ignorable stream char1 char2))
+                                      (apply fn
+                                             (read-delimited-list right stream t)))))))
+
+(defmacro def-delimiter-macro (left right params &body body)
+  `(eval-always
+     (def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body))))
+
+;;;
+;;; utility.v1.control
+;;;
+(defpackage utility.v1.control
+  (:use :cl :utility.v0.macro)
+  (:import-from :uiop :if-let)
   (:export :it
            :self
-           ;; symbol
-           :symb
            ;; definition
-           :eval-always
            :defun-always
            :defalias
            :defabbrev
@@ -59,106 +96,8 @@
            :mvlist
            :mvprog1
            :mvsetq
-           ;; number
-           :2*
-           :/2
-           :square
-           :cube
-           :pow
-           :diff
-           :triangular-number
-           :next-pow2
-           :repunit
-           :maxp
-           :minp
-           :maxf
-           :minf
-           :logipop
-           :logmsb
-           :range-intersect-p
-           :dp-combination
-           ;; function
-           :do-nothing
-           :compose
-           :memoize-lambda
-           :array-memoize-lambda
-           ;; sequence
-           :sum
-           :sortf
-           :map-with-index
-           :map-into-with-index
-           :nmap
-           :namp-with-index
-           :emptyp
-           :make-iterator
-           :copy-iterator
-           :iterator-next
-           :iterator-endp
-           :iterator-element
-           :iterator-index
-           ;; list
-           :ensure-car
-           :ensure-list
-           :xcons
-           :mapc-with-index
-           :mapcar-with-index
-           :mapcan-with-index
-           :mapl-with-index
-           :maplist-with-index
-           :mapcon-with-index
-           :length-n-p
-           :singlep
-           :last1
-           :mklist
-           :take
-           :drop
-           :longerp
-           :longer
-           :iota
-           :reverse-nconc
-           :unfold
-           :unique
-           :chunks
-           :permutations
-           :flatten
-           ;; vector
-           :dvector
-           :subvec/shared
-           :run-length-encode
-           :next-permutation
-           :do-permutations
-           ;; string
-           :split-string
-           :string-prefix-p
-           :string-suffix-p
-           :strcat
-           :count-chars
-           ;; char
-           :count-alphabet
-           :lower-to-index
-           :upper-to-index
-           :char-to-index
-           :index-to-lower
-           :index-to-upper
-           ;; io
-           :println
-           ;; lazy
-           :delay
-           :force
            ))
-(in-package utility)
-
-(defmacro eval-always (&body body)
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     ,@body))
-
-;;; symbol
-
-(eval-always
-  (defun symb (&rest args)
-    (values (intern (with-output-to-string (s)
-                      (mapcar (lambda (x) (princ x s)) args)))
-            *package*)))
+(in-package :utility.v1.control)
 
 ;;; definition
 
@@ -171,35 +110,12 @@
 
 ;;; reader macro
 
-(defun-always def-dispatch-fn (char fn)
-  (set-dispatch-macro-character #\# char
-                                (lambda (stream char1 char2)
-                                  (declare (ignorable stream char1 char2))
-                                  (funcall fn (read stream t nil t)))))
-
-(defmacro def-dispatch-macro (char params &body body)
-  `(eval-always (def-dispatch-fn ,char (lambda ,params ,@body))))
-
 (def-dispatch-macro #\? (expr)
   (let ((value (gensym)))
     `(let ((,value ,expr))
        (fresh-line *error-output*)
        (format *error-output* "DEBUG PRINT: ~S => ~S~%" ',expr ,value)
        ,value)))
-
-(eval-always
-  (let ((rpar (get-macro-character #\) )))
-    (defun def-delimiter-macro-fn (left right fn)
-      (set-macro-character right rpar)
-      (set-dispatch-macro-character #\# left
-                                    (lambda (stream char1 char2)
-                                      (declare (ignorable stream char1 char2))
-                                      (apply fn
-                                             (read-delimited-list right stream t)))))))
-
-(defmacro def-delimiter-macro (left right params &body body)
-  `(eval-always
-     (def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body))))
 
 ;;; control
 
@@ -360,6 +276,149 @@
 (defabbrev mvlist multiple-value-list)
 (defabbrev mvprog1 multiple-value-prog1)
 (defabbrev mvsetq multiple-value-setq)
+
+;;;
+;;; utility
+;;;
+(defpackage utility
+  (:use :cl
+        :utility.v0.macro
+        :utility.v1.control
+        )
+  (:import-from :uiop
+                :split-string
+                :if-let
+                :emptyp
+                :string-prefix-p
+                :string-suffix-p
+                :strcat
+                :println)
+  (:export ;; utility.v0.macro
+           :eval-always
+           :symb
+           :def-dispatch-macro
+           :def-delimiter-macro
+           ;; utility.v1.contorl
+           :it
+           :self
+           :defun-always
+           :defalias
+           :defabbrev
+           :named-let
+           :nlet
+           :aif
+           :alambda
+           :aand
+           :aprog1
+           :if-let
+           :if-let*
+           :when-let
+           :when-let*
+           :do-array
+           :do-array*
+           :do-seq
+           :do-seq*
+           :do-combination
+           :do-popbit
+           :do-neighbors
+           :let-dyn
+           :flet-accessor
+           :dbind
+           :mvcall
+           :mvbind
+           :mvlist
+           :mvprog1
+           :mvsetq
+           ;; number
+           :2*
+           :/2
+           :square
+           :cube
+           :pow
+           :diff
+           :triangular-number
+           :next-pow2
+           :repunit
+           :maxp
+           :minp
+           :maxf
+           :minf
+           :logipop
+           :logmsb
+           :range-intersect-p
+           :dp-combination
+           ;; function
+           :do-nothing
+           :compose
+           :memoize-lambda
+           :array-memoize-lambda
+           ;; sequence
+           :sum
+           :sortf
+           :map-with-index
+           :map-into-with-index
+           :nmap
+           :namp-with-index
+           ;:window-map
+           ;:window-nmap
+           :run-length-encode
+           :next-permutation
+           :do-permutations
+           :emptyp
+           :make-iterator
+           :copy-iterator
+           :iterator-next
+           :iterator-endp
+           :iterator-element
+           :iterator-index
+           ;; list
+           :ensure-car
+           :ensure-list
+           :xcons
+           :mapc-with-index
+           :mapcar-with-index
+           :mapcan-with-index
+           :mapl-with-index
+           :maplist-with-index
+           :mapcon-with-index
+           :length-n-p
+           :singlep
+           :last1
+           :mklist
+           :take
+           :drop
+           :longerp
+           :longer
+           :iota
+           :reverse-nconc
+           :unfold
+           :unique
+           :chunks
+           :permutations
+           :flatten
+           ;; vector
+           :dvector
+           :subvec/shared
+           ;; string
+           :split-string
+           :string-prefix-p
+           :string-suffix-p
+           :strcat
+           :count-chars
+           ;; char
+           :count-alphabet
+           :lower-to-index
+           :upper-to-index
+           :char-to-index
+           :index-to-lower
+           :index-to-upper
+           ;; io
+           :println
+           ;; lazy
+           :delay
+           :force
+           ))
+(in-package utility)
 
 ;;; number
 
@@ -538,6 +597,90 @@
            sequence
            more-sequences)))
 
+;(declaim (ftype (function ((or cons symbol class)
+;                           (integer 1 *)
+;                           (or (function (t &rest t) t) symbol)
+;                           sequence)
+;                          sequence)
+;                window-map))
+;(let ((t-fn (constantly t)))
+;  (defun window-map (result-type window-size fn sequence)
+;    (let ((result (let ((index 0)
+;                        (queue (list-queue:make-list-queue)))
+;                    (map result-type
+;                         (lambda (e)
+;                           (list-queue:list-queue-enqueue queue e)
+;                           (incf index)
+;                           (when (>= index window-size)
+;                             (prog1 (apply fn (list-queue:list-queue-raw queue))
+;                               (list-queue:list-queue-dequeue queue))))
+;                         sequence))))
+;      (and result
+;           (delete-if t-fn result :end (1- window-size))))))
+
+;(declaim (ftype (function ((integer 1 *)
+;                           (or (function (t &rest t) t) symbol)
+;                           sequence)
+;                          sequence)
+;                window-nmap))
+;(let ((t-fn (constantly t)))
+;  (defun window-nmap (window-size fn sequence)
+;    (delete-if t-fn
+;               (let ((index 0)
+;                     (queue (make-list-queue)))
+;                 (nmap (lambda (e)
+;                         (list-queue-enqueue queue e)
+;                         (incf index)
+;                         (when (>= index window-size)
+;                           (prog1 (apply fn (list-queue-raw queue))
+;                             (list-queue-dequeue queue))))
+;                       sequence))
+;               :end (1- window-size))))
+
+(declaim (ftype (function (sequence &key (:test (or symbol (function (t t) t))))
+                          list)
+                run-length-encode))
+(defun run-length-encode (sequence &key (test #'eql))
+  (let ((prev '#.(gensym))
+        (acc nil))
+    (map nil
+         (lambda (e)
+           (if (funcall test e prev)
+               (incf (cdar acc))
+               (push (cons e 1) acc))
+           (setf prev e))
+         sequence)
+    (nreverse acc)))
+
+(declaim (ftype (function (sequence &key (:compare (function (t t) t)))
+                          sequence)
+                next-permutation))
+(defun next-permutation (sequence &key (compare #'<))
+  (let* ((item nil)
+         (index nil))
+    (let ((prev nil))
+      (map-with-index nil
+                      #'(lambda (i x)
+                          (when (and prev (funcall compare prev x))
+                            (setf item prev
+                                  index (1- i)))
+                          (setf prev x))
+                      sequence))
+    (when (null index)
+      (return-from next-permutation nil))
+    (rotatef (elt sequence index)
+             (elt sequence (position-if #'(lambda (x) (funcall compare item x))
+                                        sequence
+                                        :from-end t)))
+    (setf (subseq sequence (1+ index)) (nreverse (subseq sequence (1+ index))))
+    sequence))
+
+(defmacro do-permutations ((var vector &optional result) &body body)
+  `(do ((,var (sort (copy-seq ,vector) #'<) (next-permutation ,var)))
+       ((null ,var) ,result)
+     (declare (ignorable ,var))
+     ,@body))
+
 (defstruct (%iterator-method
             (:constructor %make-iterator-method (step-fn endp-fn elm-fn
                                                  setf-elm-fn index-fn copy-fn)))
@@ -688,12 +831,17 @@
         (nreverse acc)
         (rec (1- n) (+ start step) (cons start acc)))))
 
-(declaim (ftype (function ((function (t) t) (function (t) t) (function (t) t) t &optional (function (t) t)) list) unfold))
-(defun unfold (pred fn next-gen seed &optional (tail (constantly nil)))
+(declaim (ftype (function ((function (t) t) (function (t) t) (function (t) t) t
+                                            &optional (function (t) t))
+                          list)
+                unfold))
+(defun unfold (predicate fn next-generator seed &optional tail)
   (nlet rec ((seed seed) (acc nil))
-    (if (funcall pred seed)
-        (nreverse (append (funcall tail seed) acc))
-        (rec (funcall next-gen seed) (cons (funcall fn seed) acc)))))
+    (if (funcall predicate seed)
+        (if (null tail)
+            (nreverse acc)
+            (reverse-nconc acc (funcall tail seed)))
+        (rec (funcall next-generator seed) (cons (funcall fn seed) acc)))))
 
 (declaim (ftype (function (list &key (:test (function (t t) t))) list) unique))
 (defun unique (lst &key (test #'eql))
@@ -732,46 +880,21 @@
 
 ;;; vector
 
+(declaim (ftype (function (&rest list) vector) dvector))
 (defun dvector (&rest contents)
   (make-array (length contents)
               :initial-contents contents
               :adjustable t
               :fill-pointer t))
 
+(declaim (ftype (function (vector &key (:start unsigned-byte) (:end unsigned-byte))
+                          vector)
+                subvec/shared))
 (defun subvec/shared (vector &key (start 0) end)
   (make-array (- (or end (length vector)) start)
               :element-type (array-element-type vector)
               :displaced-to vector
               :displaced-index-offset start))
-
-(defun run-length-encode (vector &key (test #'eql))
-  (let ((n (length vector)))
-    (nlet rec ((i 0) (prev nil) (acc nil))
-      (if (= i n)
-          (nreverse acc)
-          (let ((e (aref vector i)))
-            (if (or (null prev)
-                    (not (funcall test e prev)))
-                (rec (1+ i) e (cons (cons e 1) acc))
-                (rec (1+ i) e (cons (cons e (1+ (cdar acc))) (cdr acc)))))))))
-
-(defun next-permutation (vector &key (compare #'<))
-  (let ((i (loop for i downfrom (- (length vector) 2) downto 0
-                 when (funcall compare (aref vector i) (aref vector (1+ i)))
-                   do (return i)
-                 when (zerop i)
-                   do (return-from next-permutation nil)
-                 finally (return-from next-permutation nil))))
-    (let ((j (position-if (lambda (x) (funcall compare (aref vector i) x)) vector :from-end t)))
-      (rotatef (aref vector i) (aref vector j))
-      (setf (subseq vector (1+ i)) (nreverse (subseq vector (1+ i))))
-      vector)))
-
-(defmacro do-permutations ((var vector &optional result) &body body)
-  `(do ((,var (sort (copy-seq ,vector) #'<) (next-permutation ,var)))
-       ((null ,var) ,result)
-     (declare (ignorable ,var))
-     ,@body))
 
 ;;; string
 
@@ -801,108 +924,6 @@
     (setf (promise-value ps) (funcall (promise-thunk ps))
           (promise-thunk ps) nil))
   (promise-value ps))
-
-;;;
-;;; input
-;;;
-(defpackage :input
-  (:use :cl :utility)
-  (:export :input*
-           :def-input-reader))
-(in-package :input)
-
-
-(eval-always (defvar *input-reader-table* (make-hash-table :test #'eq)))
-
-(defun-always set-input-reader (marker reader)
-  (setf (gethash marker *input-reader-table*) reader))
-
-(defun-always get-input-reader (marker) (gethash marker *input-reader-table*))
-
-(defun-always input-typespec-marker (typespec)
-  (let ((*package* #.*package*))
-    (symb (if (listp typespec)
-              (car typespec)
-              typespec))))
-
-(defun-always input-typespec-reader (typespec)
-  (let ((marker (input-typespec-marker typespec)))
-    (if (null marker)
-        nil
-        (funcall (get-input-reader marker) typespec))))
-
-(defun-always input-expand (forms)
-  (if (null forms)
-      nil
-      (mapcar (lambda (form)
-                (list (car form)
-                      (input-typespec-reader (cadr form))))
-              forms)))
-
-(defmacro input* (forms &body body)
-  "(input* ((n fixnum)
-         (m fixnum1)
-         (f double)
-         (s string)
-         (p (cons* fixnum fixnum nil))
-         (l (list fixnum n))
-         (v (vector fixnum m)))
-  (list n m f s p l v))
-2 3 10.5
-input
-1000000007 -1
-10 20
-30 40
-=> (2 2 10.5d0 \"input\" (1000000007 -1) (10 20) #(30 40))"
-    `(let* ,(input-expand forms) ,@body))
-
-(defmacro def-input-reader (marker params &body body)
-  `(eval-always
-     (set-input-reader ',marker
-                       (macrolet ((reader (typespec)
-                                    `(input-typespec-reader ,typespec)))
-                         (lambda (,@params &optional arg)
-                           (declare (ignore arg))
-                           ,@body)))
-     ',marker))
-
-(def-input-reader fixnum () '(read))
-(def-input-reader fixnum1 () '(1- (read)))
-(def-input-reader double () '(let ((*read-default-float-format* 'double-float)) (read)))
-
-(def-input-reader double-float ()
-  '(let ((*read-default-float-format* 'double-float)) (read)))
-
-(def-input-reader rational () '(let ((*read-default-float-format* 'rational)) (read)))
-(def-input-reader string () `(read-line))
-(def-input-reader symbol () '(read))
-
-(def-input-reader cons (typespec)
-  `(cons ,(reader (cadr typespec)) ,(reader (caddr typespec))))
-
-(def-input-reader cons* (typespec)
-  (let ((elems (cdr typespec)))
-    (if (null (cdr elems))
-        (reader (car elems))
-        `(cons ,(reader (car elems))
-               ,(reader (cons 'cons* (cdr elems)))))))
-
-(def-input-reader null () nil)
-
-(def-input-reader list (typespec)
-  (let ((elem (cadr typespec))
-        (len (caddr typespec)))
-    `(loop repeat ,len
-           collect ,(reader elem))))
-
-(def-input-reader vector (typespec)
-  (let ((vec (gensym))
-        (index (gensym))
-        (elem (cadr typespec))
-        (len (caddr typespec)))
-    `(let ((,vec (make-array ,len)))
-       (dotimes (,index ,len ,vec)
-         (setf (aref ,vec ,index) ,(reader elem))))))
 
 ;;;
 ;;; list-queue
@@ -2595,6 +2616,108 @@ O(|s|)"
                         (setf (aref ,memo ,@params)
                               (block ,name ,@body)))))
            #',tmp-name)))))
+
+;;;
+;;; input
+;;;
+(defpackage :input
+  (:use :cl :utility)
+  (:export :input*
+           :def-input-reader))
+(in-package :input)
+
+
+(eval-always (defvar *input-reader-table* (make-hash-table :test #'eq)))
+
+(defun-always set-input-reader (marker reader)
+  (setf (gethash marker *input-reader-table*) reader))
+
+(defun-always get-input-reader (marker) (gethash marker *input-reader-table*))
+
+(defun-always input-typespec-marker (typespec)
+  (let ((*package* #.*package*))
+    (symb (if (listp typespec)
+              (car typespec)
+              typespec))))
+
+(defun-always input-typespec-reader (typespec)
+  (let ((marker (input-typespec-marker typespec)))
+    (if (null marker)
+        nil
+        (funcall (get-input-reader marker) typespec))))
+
+(defun-always input-expand (forms)
+  (if (null forms)
+      nil
+      (mapcar (lambda (form)
+                (list (car form)
+                      (input-typespec-reader (cadr form))))
+              forms)))
+
+(defmacro input* (forms &body body)
+  "(input* ((n fixnum)
+         (m fixnum1)
+         (f double)
+         (s string)
+         (p (cons* fixnum fixnum nil))
+         (l (list fixnum n))
+         (v (vector fixnum m)))
+  (list n m f s p l v))
+2 3 10.5
+input
+1000000007 -1
+10 20
+30 40
+=> (2 2 10.5d0 \"input\" (1000000007 -1) (10 20) #(30 40))"
+    `(let* ,(input-expand forms) ,@body))
+
+(defmacro def-input-reader (marker params &body body)
+  `(eval-always
+     (set-input-reader ',marker
+                       (macrolet ((reader (typespec)
+                                    `(input-typespec-reader ,typespec)))
+                         (lambda (,@params &optional arg)
+                           (declare (ignore arg))
+                           ,@body)))
+     ',marker))
+
+(def-input-reader fixnum () '(read))
+(def-input-reader fixnum1 () '(1- (read)))
+(def-input-reader double () '(let ((*read-default-float-format* 'double-float)) (read)))
+
+(def-input-reader double-float ()
+  '(let ((*read-default-float-format* 'double-float)) (read)))
+
+(def-input-reader rational () '(let ((*read-default-float-format* 'rational)) (read)))
+(def-input-reader string () `(read-line))
+(def-input-reader symbol () '(read))
+
+(def-input-reader cons (typespec)
+  `(cons ,(reader (cadr typespec)) ,(reader (caddr typespec))))
+
+(def-input-reader cons* (typespec)
+  (let ((elems (cdr typespec)))
+    (if (null (cdr elems))
+        (reader (car elems))
+        `(cons ,(reader (car elems))
+               ,(reader (cons 'cons* (cdr elems)))))))
+
+(def-input-reader null () nil)
+
+(def-input-reader list (typespec)
+  (let ((elem (cadr typespec))
+        (len (caddr typespec)))
+    `(loop repeat ,len
+           collect ,(reader elem))))
+
+(def-input-reader vector (typespec)
+  (let ((vec (gensym))
+        (index (gensym))
+        (elem (cadr typespec))
+        (len (caddr typespec)))
+    `(let ((,vec (make-array ,len)))
+       (dotimes (,index ,len ,vec)
+         (setf (aref ,vec ,index) ,(reader elem))))))
 
 ;;;
 ;;; atcoder
