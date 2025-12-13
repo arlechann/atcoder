@@ -1,5 +1,6 @@
 (in-package :cl-user)
 
+#|
 #-swank
 (unless (member :child-sbcl *features*)
   (quit :recklessly-p t
@@ -10,42 +11,72 @@
                         "--lose-on-corruption" "--end-runtime-options" "--eval"
                         "(push :child-sbcl *features*)" "--script" ,(namestring *load-pathname*))
                       :output t :error t :input t))))
+|#
 
 ;;;
-;;; utility.v0.macro
+;;; utility.v0
 ;;;
-(defpackage utility.v0.macro
+(defpackage utility.v0
   (:use :cl)
-  (:export :eval-always
+  (:export :it
+           :self
+           :eval-always
+           :defun-always
+           :defalias
+           :defabbrev
            :symb
            :def-dispatch-macro
            :def-delimiter-macro
+           :named-let
+           :nlet
+           :aif
+           :alambda
+           :aand
+           :aprog1
+           :if-let*
+           :when-let
+           :when-let*
+           :do-array
+           :do-array*
+           :do-seq
+           :do-seq*
+           :dbind
+           :mvcall
+           :mvbind
+           :mvlist
+           :mvprog1
+           :mvsetq
            ))
-(in-package :utility.v0.macro)
+(in-package :utility.v0)
 
 (defmacro eval-always (&body body)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      ,@body))
 
-(eval-always
-  (defun symb (&rest args)
-    (values (intern (with-output-to-string (s)
-                      (mapcar (lambda (x) (princ x s)) args)))
-            *package*)))
+(defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
 
-(eval-always
-  (defun def-dispatch-fn (char fn)
-    (set-dispatch-macro-character #\# char
-                                  (lambda (stream char1 char2)
-                                    (declare (ignorable stream char1 char2))
-                                    (funcall fn (read stream t nil t))))))
+(defmacro defalias (alias original)
+  `(progn (setf (symbol-function ,alias) ,original) ,alias))
+
+(defmacro defabbrev (short long) `(defmacro ,short (&rest args) `(,',long ,@args)))
+
+(defun-always symb (&rest args)
+  (values (intern (with-output-to-string (s)
+                    (mapcar (lambda (x) (princ x s)) args)))
+          *package*))
+
+(defun-always def-dispatch-fn (char fn)
+  (set-dispatch-macro-character #\# char
+                                (lambda (stream char1 char2)
+                                  (declare (ignorable stream char1 char2))
+                                  (funcall fn (read stream t nil t)))))
 
 (defmacro def-dispatch-macro (char params &body body)
   `(eval-always
      (def-dispatch-fn ,char (lambda ,params ,@body))))
 
 (eval-always
-  (let ((rpar (get-macro-character #\) )))
+  (let ((rpar (get-macro-character #\))))
     (defun def-delimiter-macro-fn (left right fn)
       (set-macro-character right rpar)
       (set-dispatch-macro-character #\# left
@@ -58,66 +89,12 @@
   `(eval-always
      (def-delimiter-macro-fn ,left ,right #'(lambda ,params ,@body))))
 
-;;;
-;;; utility.v1.control
-;;;
-(defpackage utility.v1.control
-  (:use :cl :utility.v0.macro)
-  (:import-from :uiop :if-let)
-  (:export :it
-           :self
-           ;; definition
-           :defun-always
-           :defalias
-           :defabbrev
-           ;; control
-           :named-let
-           :nlet
-           :aif
-           :alambda
-           :aand
-           :aprog1
-           :if-let
-           :if-let*
-           :when-let
-           :when-let*
-           :do-array
-           :do-array*
-           :do-seq
-           :do-seq*
-           :do-combination
-           :do-popbit
-           :do-neighbors
-           :let-dyn
-           :flet-accessor
-           :dbind
-           :mvcall
-           :mvbind
-           :mvlist
-           :mvprog1
-           :mvsetq
-           ))
-(in-package :utility.v1.control)
-
-;;; definition
-
-(defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
-
-(defmacro defalias (alias original)
-  `(progn (setf (symbol-function ,alias) ,original) ,alias))
-
-(defmacro defabbrev (short long) `(defmacro ,short (&rest args) `(,',long ,@args)))
-
-;;; reader macro
-
 (def-dispatch-macro #\? (expr)
   (let ((value (gensym)))
     `(let ((,value ,expr))
        (fresh-line *error-output*)
        (format *error-output* "DEBUG PRINT: ~S => ~S~%" ',expr ,value)
        ,value)))
-
-;;; control
 
 (defmacro named-let (name binds &body body)
   "クロージャに展開されるnamed-let"
@@ -138,14 +115,15 @@
                           (gensym))
                       binds)))
     `(block ,name
-       (macrolet ((,name ,rec-args
-                    `(progn (psetq ,@(mapcan #'list ',tmp-vars (list ,@rec-args)))
-                            (go ,',tag))))
-         (let ,(mapcar #'list tmp-vars vals)
-           (tagbody
-              ,tag
-              (let ,(mapcar #'list vars tmp-vars)
-                (return-from ,name (progn ,@body)))))))))
+       (let ,(mapcar #'list tmp-vars vals)
+         (tagbody
+            ,tag
+            (let ,(mapcar #'list vars tmp-vars)
+              (return-from ,name
+                (macrolet ((,name ,rec-args
+                             `(progn (psetq ,@(mapcan #'list ',tmp-vars (list ,@rec-args)))
+                                     (go ,',tag))))
+                  ,@body))))))))
 
 (defmacro until (test &body body)
   `(do () (,test) ,@body))
@@ -153,8 +131,11 @@
 (defmacro while (test &body body)
   `(until (not ,test) ,@body))
 
-(defmacro aif (test then &optional else) `(let ((it ,test)) (if it ,then ,else)))
-(defmacro alambda (params &body body) `(labels ((self ,params ,@body)) #'self))
+(defmacro aif (test then &optional else)
+  `(let ((it ,test)) (if it ,then ,else)))
+
+(defmacro alambda (params &body body)
+  `(labels ((self ,params ,@body)) #'self))
 
 (defmacro aand (&body body)
   (cond ((null body) 't)
@@ -199,59 +180,80 @@
   `(do-array* ((,var) (,array) ,result) ,@body))
 
 (defmacro do-seq* (((&rest vars) (&rest sequences) &optional result) &body body)
-  (let ((seqs (mapcar (lambda (x)
-                        (declare (ignore x))
-                        (gensym))
-                      sequences))
-        (iters (mapcar (lambda (x)
-                         (declare (ignore x))
-                         (gensym))
-                       sequences)))
-  `(let* (,@(mapcar #'list seqs sequences))
-     (do ,(mapcar (lambda (seq iter)
-                    `(,iter (make-iterator ,seq) (iterator-next ,iter)))
-                   seqs iters)
-         ((some #'iterator-endp (list ,@iters)) ,result)
-       (let ,(mapcar (lambda (var iter)
-                        `(,var (iterator-element ,iter)))
-                      vars iters)
-         (declare (ignorable ,@vars))
-         ,@body)))))
+  `(block nil
+     (map nil
+          (lambda ,vars
+            (declare (ignorable ,@vars))
+            ,@body)
+          ,@sequences)
+     ,result))
 
 (defmacro do-seq ((var sequence &optional result) &body body)
   `(do-seq* ((,var) (,sequence) ,result) ,@body))
 
-(defmacro do-combination (((&rest vars) (&rest counts) &optional result) &body body)
-  (cond ((or (null vars) (null counts)) result)
-        ((or (null (cdr vars)) (null (cdr counts)))
-         `(dotimes (,(car vars) ,(car counts) ,result)
-            ,@body))
-        (t `(dotimes (,(car vars) ,(car counts) ,result)
-              (do-combination (,(cdr vars) ,(cdr counts) ,result)
-                ,@body)))))
+(defabbrev dbind destructuring-bind)
+(defabbrev mvcall multiple-value-call)
+(defabbrev mvbind multiple-value-bind)
+(defabbrev mvlist multiple-value-list)
+(defabbrev mvprog1 multiple-value-prog1)
+(defabbrev mvsetq multiple-value-setq)
 
-(defmacro do-popbit ((var integer &optional result) &body body)
+;;;
+;;; utility.v1
+;;;
+(defpackage utility.v1
+  (:use :cl :utility.v0)
+  (:import-from :uiop :if-let)
+  (:export ;; control
+           :do-bit
+           :do-4neighbors
+           :do-8neighbors
+           :let-dyn
+           :flet-accessor
+           :if-let
+           ;; number
+           :2*
+           :/2
+           :square
+           :cube
+           :cuber
+           :pow
+           :diff
+           :triangular-number
+           :next-pow2
+           :repunit
+           :maxp
+           :minp
+           :maxf
+           :minf
+           :logipop
+           :logmsb
+           :range-intersect-p
+           :dp-combination
+           ))
+(in-package :utility.v1)
+
+(defmacro do-bit ((index bitpopp integer &optional result) &body body)
   (let ((int (gensym)))
-    `(loop with ,int = ,integer
-           and ,var = 0
-           until (or (zerop ,int)
-                     (= ,int -1))
-           when (logbitp 0 ,int)
-             do (progn ,@body)
-           do (setf ,int (ash ,int -1))
-              (incf ,var)
-           finally (return ,result))))
+    `(do* ((,int ,integer (ash ,int -1))
+           (,index 0 (1+ ,index))
+           (,bitpopp (logbitp 0 ,int) (logbitp 0 ,int)))
+          ((<= ,int 0) ,result)
+       ,@body)))
 
-(defmacro do-neighbors (((var-y var-x) (point-y point-x) &optional result) &body body)
-  (let ((dy (gensym))
-        (dx (gensym)))
-    `(loop for ,dy in '(0 1 0 -1)
-           for ,dx in '(1 0 -1 0)
-           do (let ((,var-y (+ ,dy ,point-y))
-                    (,var-x (+ ,dx ,point-x)))
-                ,@body)
-           finally (return ,result))))
-
+(macrolet ((def-do-neighbors (name neighbors-y neighbors-x)
+             `(defmacro ,name (((var-y var-x) (point-y point-x) &optional result) &body body)
+                (let ((dy (gensym))
+                      (dx (gensym)))
+                  `(loop for ,dy in ,',neighbors-y
+                         and ,dx in ,',neighbors-x
+                         for ,var-y = (+ ,dy ,point-y)
+                         and ,var-x = (+ ,dx ,point-x)
+                         do (progn ,@body)
+                         finally (return ,result))))))
+  (def-do-neighbors do-4neighbors '(0 1 0 -1) '(1 0 -1 0))
+  (def-do-neighbors do-8neighbors '(0 1 1 1 0 -1 -1 -1) '(1 1 0 -1 -1 -1 0 1)))
+      
 (defmacro let-dyn (binds &body body)
   `(let ,binds
      (declare (dynamic-extent
@@ -269,158 +271,6 @@
                                       (list 'setf accessor value)))))
                     definitions)
        ,@body)))
-
-(defabbrev dbind destructuring-bind)
-(defabbrev mvcall multiple-value-call)
-(defabbrev mvbind multiple-value-bind)
-(defabbrev mvlist multiple-value-list)
-(defabbrev mvprog1 multiple-value-prog1)
-(defabbrev mvsetq multiple-value-setq)
-
-;;;
-;;; utility
-;;;
-(defpackage utility
-  (:use :cl
-        :utility.v0.macro
-        :utility.v1.control
-        )
-  (:import-from :uiop
-                :split-string
-                :if-let
-                :emptyp
-                :string-prefix-p
-                :string-suffix-p
-                :strcat
-                :println)
-  (:export ;; utility.v0.macro
-           :eval-always
-           :symb
-           :def-dispatch-macro
-           :def-delimiter-macro
-           ;; utility.v1.contorl
-           :it
-           :self
-           :defun-always
-           :defalias
-           :defabbrev
-           :named-let
-           :nlet
-           :aif
-           :alambda
-           :aand
-           :aprog1
-           :if-let
-           :if-let*
-           :when-let
-           :when-let*
-           :do-array
-           :do-array*
-           :do-seq
-           :do-seq*
-           :do-combination
-           :do-popbit
-           :do-neighbors
-           :let-dyn
-           :flet-accessor
-           :dbind
-           :mvcall
-           :mvbind
-           :mvlist
-           :mvprog1
-           :mvsetq
-           ;; number
-           :2*
-           :/2
-           :square
-           :cube
-           :pow
-           :diff
-           :triangular-number
-           :next-pow2
-           :repunit
-           :maxp
-           :minp
-           :maxf
-           :minf
-           :logipop
-           :logmsb
-           :range-intersect-p
-           :dp-combination
-           ;; function
-           :do-nothing
-           :compose
-           :memoize-lambda
-           :array-memoize-lambda
-           ;; sequence
-           :sum
-           :sortf
-           :map-with-index
-           :map-into-with-index
-           :nmap
-           :namp-with-index
-           ;:window-map
-           ;:window-nmap
-           :run-length-encode
-           :next-permutation
-           :do-permutations
-           :emptyp
-           :make-iterator
-           :copy-iterator
-           :iterator-next
-           :iterator-endp
-           :iterator-element
-           :iterator-index
-           ;; list
-           :ensure-car
-           :ensure-list
-           :xcons
-           :mapc-with-index
-           :mapcar-with-index
-           :mapcan-with-index
-           :mapl-with-index
-           :maplist-with-index
-           :mapcon-with-index
-           :length-n-p
-           :singlep
-           :last1
-           :mklist
-           :take
-           :drop
-           :longerp
-           :longer
-           :iota
-           :reverse-nconc
-           :unfold
-           :unique
-           :chunks
-           :permutations
-           :flatten
-           ;; vector
-           :dvector
-           :subvec/shared
-           ;; string
-           :split-string
-           :string-prefix-p
-           :string-suffix-p
-           :strcat
-           :count-chars
-           ;; char
-           :count-alphabet
-           :lower-to-index
-           :upper-to-index
-           :char-to-index
-           :index-to-lower
-           :index-to-upper
-           ;; io
-           :println
-           ;; lazy
-           :delay
-           :force
-           ))
-(in-package utility)
-
-;;; number
 
 (declaim (ftype (function (number) t) onep))
 (defun onep (x) (= x 1))
@@ -494,13 +344,19 @@
     (not (or (funcall comp (max a1 a2) (min b1 b2))
              (funcall comp (max b1 b2) (min a1 a2))))))
 
-(let* ((dp-combination-max 2501)
+(let* ((dp-combination-max 0)
        (memo (make-array (list dp-combination-max dp-combination-max)
-                        :element-type 'integer
-                        :initial-element 0)))
-  (proclaim `(ftype (function ((mod ,dp-combination-max) (mod ,dp-combination-max))
-                              unsigned-byte)
-                    dp-combination))
+                         :element-type 'unsigned-byte
+                         :initial-element 0)))
+  (defun set-dp-combination-max (max)
+    (setf dp-combination-max max)
+    (setf memo (make-array (list dp-combination-max dp-combination-max)
+                           :element-type 'unsigned-byte
+                           :initial-element 0))
+    (proclaim `(ftype (function ((mod ,dp-combination-max) (mod ,dp-combination-max))
+                                unsigned-byte)
+                      dp-combination)))
+  (set-dp-combination-max 2501)
   (defun dp-combination (n k)
     (cond ((< n k) 0)
           ((= n k) 1)
@@ -511,6 +367,89 @@
                    (setf (aref memo n k)
                          (+ (dp-combination (1- n) (1- k))
                             (dp-combination (1- n) k)))))))))
+
+;;;
+;;; utility.v2
+;;;
+(defpackage utility.v2
+  (:use :cl :utility.v0 :utility.v1)
+  (:import-from :uiop
+                :split-string
+                :emptyp
+                :string-prefix-p
+                :string-suffix-p
+                :strcat
+                :println)
+  (:export ;; function
+           :do-nothing
+           :compose
+           :memoize-lambda
+           :array-memoize-lambda
+           ;; sequence
+           :sum
+           :sortf
+           :map-with-index
+           :map-into-with-index
+           :nmap
+           :namp-with-index
+           ;:window-map
+           ;:window-nmap
+           :run-length-encode
+           :next-permutation
+           :do-permutations
+           :emptyp
+           ;; list
+           :ensure-car
+           :ensure-list
+           :xcons
+           :mapc-with-index
+           :mapcar-with-index
+           :mapcan-with-index
+           :mapl-with-index
+           :maplist-with-index
+           :mapcon-with-index
+           :length-n-p
+           :singlep
+           :last1
+           :mklist
+           :take
+           :drop
+           :longerp
+           :longer
+           :iota
+           :reverse-nconc
+           :unfold
+           :unique
+           :chunks
+           :permutations
+           :flatten
+           ;; vector
+           :dvector
+           :subvec/shared
+           ;; string
+           :split-string
+           :string-prefix-p
+           :string-suffix-p
+           :strcat
+           :count-chars
+           ;; char
+           :count-alphabet
+           :lower-to-index
+           :upper-to-index
+           :char-to-index
+           :index-to-lower
+           :index-to-upper
+           :char-digit
+           ;; io
+           :println
+           :print-boolean
+           :print-double
+           :print-sequence
+           ;; lazy
+           :delay
+           :force
+           ))
+(in-package utility.v2)
 
 ;;; function
 
@@ -597,46 +536,6 @@
            sequence
            more-sequences)))
 
-;(declaim (ftype (function ((or cons symbol class)
-;                           (integer 1 *)
-;                           (or (function (t &rest t) t) symbol)
-;                           sequence)
-;                          sequence)
-;                window-map))
-;(let ((t-fn (constantly t)))
-;  (defun window-map (result-type window-size fn sequence)
-;    (let ((result (let ((index 0)
-;                        (queue (list-queue:make-list-queue)))
-;                    (map result-type
-;                         (lambda (e)
-;                           (list-queue:list-queue-enqueue queue e)
-;                           (incf index)
-;                           (when (>= index window-size)
-;                             (prog1 (apply fn (list-queue:list-queue-raw queue))
-;                               (list-queue:list-queue-dequeue queue))))
-;                         sequence))))
-;      (and result
-;           (delete-if t-fn result :end (1- window-size))))))
-
-;(declaim (ftype (function ((integer 1 *)
-;                           (or (function (t &rest t) t) symbol)
-;                           sequence)
-;                          sequence)
-;                window-nmap))
-;(let ((t-fn (constantly t)))
-;  (defun window-nmap (window-size fn sequence)
-;    (delete-if t-fn
-;               (let ((index 0)
-;                     (queue (make-list-queue)))
-;                 (nmap (lambda (e)
-;                         (list-queue-enqueue queue e)
-;                         (incf index)
-;                         (when (>= index window-size)
-;                           (prog1 (apply fn (list-queue-raw queue))
-;                             (list-queue-dequeue queue))))
-;                       sequence))
-;               :end (1- window-size))))
-
 (declaim (ftype (function (sequence &key (:test (or symbol (function (t t) t))))
                           list)
                 run-length-encode))
@@ -680,72 +579,6 @@
        ((null ,var) ,result)
      (declare (ignorable ,var))
      ,@body))
-
-(defstruct (%iterator-method
-            (:constructor %make-iterator-method (step-fn endp-fn elm-fn
-                                                 setf-elm-fn index-fn copy-fn)))
-  step-fn endp-fn elm-fn setf-elm-fn index-fn copy-fn)
-
-(defstruct (iterator (:constructor %make-iterator (&key sequence internal limit
-                                                     from-end method))
-                     (:copier %copy-iterator))
-  sequence internal limit from-end method)
-
-(defun make-iterator (seq &key (from-end nil))
-  #-sbcl (error "Not supported implementation.")
-  (multiple-value-bind (iter limit from-end step-fn endp-fn
-                        elm-fn setf-elm-fn index-fn copy-fn)
-      (sb-sequence:make-sequence-iterator seq :from-end from-end)
-    (%make-iterator :sequence seq
-                    :internal iter
-                    :limit limit
-                    :from-end from-end
-                    :method (%make-iterator-method
-                             step-fn endp-fn elm-fn
-                             setf-elm-fn index-fn copy-fn))))
-
-(defun iterator-rev-p (iter)
-  (iterator-from-end iter))
-
-(defun iterator-next (iter)
-  (let ((next-iter (%copy-iterator iter)))
-    (setf (iterator-internal next-iter)
-          (funcall (%iterator-method-step-fn (iterator-method iter))
-                   (iterator-sequence iter)
-                   (iterator-internal iter)
-                   (iterator-from-end iter)))
-    next-iter))
-
-(defun iterator-endp (iter)
-  (funcall (%iterator-method-endp-fn (iterator-method iter))
-           (iterator-sequence iter)
-           (iterator-internal iter)
-           (iterator-limit iter)
-           (iterator-from-end iter)))
-
-(defun iterator-element (iter)
-  (funcall (%iterator-method-elm-fn (iterator-method iter))
-           (iterator-sequence iter)
-           (iterator-internal iter)))
-
-(defun (setf iterator-element) (value iter)
-  (funcall (%iterator-method-setf-elm-fn (iterator-method iter))
-           value
-           (iterator-sequence iter)
-           (iterator-internal iter)))
-
-(defun iterator-index (iter)
-  (funcall (%iterator-method-index-fn (iterator-method iter))
-           (iterator-sequence iter)
-           (iterator-internal iter)))
-
-(defun copy-iterator (iter)
-  (let ((copied-iter (%copy-iterator iter)))
-    (setf (iterator-internal copied-iter)
-          (funcall (%iterator-method-copy-fn (iterator-method iter))
-                   (iterator-sequence iter)
-                   (iterator-internal iter)))
-    copied-iter))
 
 ;;; list
 
@@ -912,6 +745,35 @@
 (defun char-to-index (char) (if (char< char #\a) (upper-to-index char) (lower-to-index char)))
 (defun index-to-lower (index) (code-char (+ index #.(char-code #\a))))
 (defun index-to-upper (index) (code-char (+ index #.(char-code #\A))))
+(defun char-digit (char) (- (char-code char) #.(char-code #\0)))
+
+;;; io
+
+(defun print-boolean (boolean &optional (stream *standard-output*))
+  (write-line (if boolean "Yes" "No") stream)
+  (values))
+
+(defun print-double (double &optional (stream *standard-output*))
+  (let ((*read-default-float-format* 'double-float))
+    (princ double stream)
+    (terpri stream)
+    (values)))
+
+(defun print-sequence (sequence
+                       &optional (stream *standard-output*)
+                       &key (element-type 'base-char) (spacer #\ ))
+  #+sbcl (declare (sb-ext:muffle-conditions style-warning))
+  (write-string
+   (with-output-to-string (s nil :element-type element-type)
+     (let ((headp t))
+       (do-seq (elem sequence)
+         (unless headp
+           (write-char spacer s))
+         (princ elem s)
+         (setf headp nil))
+       (terpri s)))
+   stream)
+  (values))
 
 ;;; lazy
 
@@ -929,7 +791,7 @@
 ;;; list-queue
 ;;;
 (defpackage list-queue
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :make-list-queue
            :list-queue-empty-p
            :list-queue-peak
@@ -959,10 +821,62 @@
         (setf (cdr queue) nil))))
 
 ;;;
+;;; utility.v3
+;;;
+(defpackage utility.v3
+  (:use :cl :utility.v2)
+  (:export ;; sequence
+           :window-map
+           :window-nmap))
+(in-package :utility.v3)
+
+;;; sequence
+
+(declaim (ftype (function ((or cons symbol class)
+                           (integer 1 *)
+                           (or (function (t &rest t) t) symbol)
+                           sequence)
+                          sequence)
+                window-map))
+(let ((t-fn (constantly t)))
+  (defun window-map (result-type window-size fn sequence)
+    (let ((result (let ((index 0)
+                        (queue (list-queue:make-list-queue)))
+                    (map result-type
+                         (lambda (e)
+                           (list-queue:list-queue-enqueue queue e)
+                           (incf index)
+                           (when (>= index window-size)
+                             (prog1 (apply fn (list-queue:list-queue-raw queue))
+                               (list-queue:list-queue-dequeue queue))))
+                         sequence))))
+      (and result
+           (delete-if t-fn result :end (1- window-size))))))
+
+(declaim (ftype (function ((integer 1 *)
+                           (or (function (t &rest t) t) symbol)
+                           sequence)
+                          sequence)
+                window-nmap))
+(let ((t-fn (constantly t)))
+  (defun window-nmap (window-size fn sequence)
+    (delete-if t-fn
+               (let ((index 0)
+                     (queue (list-queue:make-list-queue)))
+                 (nmap (lambda (e)
+                         (list-queue:list-queue-enqueue queue e)
+                         (incf index)
+                         (when (>= index window-size)
+                           (prog1 (apply fn (list-queue:list-queue-raw queue))
+                             (list-queue:list-queue-dequeue queue))))
+                       sequence))
+               :end (1- window-size))))
+
+;;;
 ;;; deque
 ;;;
 (defpackage deque
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :make-deque
            :deque-size
            :deque-empty-p
@@ -1093,7 +1007,7 @@
 ;;; vector-bintree
 ;;;
 (defpackage vector-bintree
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :make-vector-bintree
            :make-extensible-vector-bintree
            :bintree-size
@@ -1147,7 +1061,7 @@
 ;;; binary-heap
 ;;;
 (defpackage binary-heap
-  (:use :cl :utility :vector-bintree)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector-bintree)
   (:export :make-binary-heap
            :binary-heap-size
            :binary-heap-empty-p
@@ -1233,7 +1147,7 @@
 ;;; ordered-map
 ;;;
 (defpackage ordered-map
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :make-rbtree
            :rbtree-search
            :rbtree-each
@@ -1655,7 +1569,7 @@
 ;;; vector
 ;;;
 (defpackage vector
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :make-vector
            :vector
            :copy-vector
@@ -1770,7 +1684,7 @@
 ;;; matrix
 ;;;
 (defpackage matrix
-  (:use :cl :utility :vector)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector)
   (:export :make-matrix
            :matrix
            :matrixp
@@ -1899,7 +1813,7 @@
 ;;; geometry
 ;;;
 (defpackage geometry
-  (:use :cl :utility :vector :matrix)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector :matrix)
   (:export :radian-to-degree
            :degree-to-radian
            :vector2-rotate90
@@ -1936,7 +1850,7 @@
 ;;; union-find
 ;;;
 (defpackage union-find
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :make-union-find
            :union-find-size
            :union-find-merge
@@ -2004,7 +1918,7 @@
 ;;; segment-tree
 ;;;
 (defpackage segment-tree
-  (:use :cl :utility :vector-bintree)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector-bintree)
   (:export :make-segment-tree
            :segment-tree-ref
            :segment-tree-fold
@@ -2085,7 +1999,7 @@
 ;;; trie
 ;;;
 (defpackage trie
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :make-trie
            :trie-size
            :trie-find
@@ -2168,7 +2082,7 @@ O(|s|)"
 ;;; graph
 ;;;
 (defpackage graph
-  (:use :cl :utility :deque :binary-heap)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2 :deque :binary-heap)
   (:export :<graph>
            :<edge>
            :graph-size
@@ -2360,7 +2274,7 @@ O(|s|)"
     (nreverse neighbors)))
 
 (defmethod call-with-graph-neighbors ((graph <grid-graph>) node fn)
-  (do-neighbors ((y x) ((grid-row graph node) (grid-column graph node)))
+  (do-4neighbors ((y x) ((grid-row graph node) (grid-column graph node)))
     (when (and (< -1 y (grid-height graph)) (< -1 x (grid-width graph))
                (/= (aref (graph-grid graph) y x) +graph-cost-infinity+))
       (funcall fn (make-edge node (grid-point-to-index graph y x)
@@ -2447,7 +2361,7 @@ O(|s|)"
 ;;; algorithm
 ;;;
 (defpackage algorithm
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :+default-sieve-max+
            :sieve-of-eratosthenes
            :linear-sieve
@@ -2558,26 +2472,21 @@ O(|s|)"
   (meguru-method (or end (length vector)) (1- start)
                  (lambda (index) (funcall compare element (aref vector index)))))
 
-(defun lower-bound (vector element &rest args &key (compare #'<=) (start 0) end)
-  (declare (ignore compare start end))
-  (apply #'find-bound vector element args))
+(defun lower-bound (vector element &key (start 0) end)
+  (find-bound vector element :start start :end (or end (length vector))))
 
-(defun upper-bound (vector element &rest args &key (compare #'<) (start 0) end)
-  (declare (ignore compare start end))
-  (apply #'find-bound vector element args))
+(defun upper-bound (vector element &key (start 0) end)
+  (find-bound vector element :compare #'< :start start :end (or end (length vector))))
 
-(defun cumulate (seq &key (op #'+) (id 0) (element-type t))
-  (loop with ret = (make-array (1+ (length seq))
-                               :element-type element-type
-                               :initial-element id)
-        and iter = (make-iterator seq)
-        and index = 0
-        until (iterator-endp iter)
-        do (setf (aref ret (1+ index))
-                 (funcall op (iterator-element iter) (aref ret index)))
-           (setf iter (iterator-next iter))
-           (incf index)
-        finally (return ret)))
+(defun cumulate (sequence &key (op #'+) (id 0) (element-type 't))
+  (aprog1 (make-array (1+ (length sequence))
+                         :element-type element-type
+                         :initial-element id)
+    (map-with-index nil
+                    (lambda (i x)
+                      (setf (aref it (1+ i))
+                            (funcall op x (aref it i))))
+                    sequence)))
 
 (defmacro dp (name params &body body)
   (let ((tmp-name (gensym))
@@ -2618,10 +2527,66 @@ O(|s|)"
            #',tmp-name)))))
 
 ;;;
+;;; amb
+;;;
+(defpackage amb
+  (:use :cl)
+  (:export :*failed*
+           :reset
+           :amb
+           :amb-bind
+           ))
+(in-package :amb)
+
+(defvar *stack* nil)
+(defvar *failed* nil)
+
+(defun reset () (setf *stack* nil))
+
+(defun fail ()
+  (if (null *stack*)
+      *failed*
+      (funcall (pop *stack*))))
+
+(defmacro amb (&rest options)
+  (if (null options)
+      `(fail)
+      `(progn ,@(mapcar #'(lambda (c)
+                            `(push #'(lambda () ,c) *stack*))
+                        (reverse (cdr options)))
+              ,(car options))))
+
+(defmacro amb-bind (var options &body body)
+  `(amb-bind-fn (lambda (,var) ,@body) ,options))
+
+(defun amb-bind-fn (cont options)
+  (etypecase options
+    (list (amb-bind-fn-list cont options))
+    (vector (amb-bind-fn-vector cont options))))
+
+(defun amb-bind-fn-list (cont options)
+  (if (null options)
+      (fail)
+      (progn (push #'(lambda ()
+                       (amb-bind-fn-list cont (cdr options)))
+                   *stack*)
+             (funcall cont (car options)))))
+
+(defun amb-bind-fn-vector (cont vector)
+  (labels ((fn (index)
+             (if (= index (length vector))
+                 (fail)
+                 (progn (push #'(lambda ()
+                                  (fn (1+ index)))
+                              *stack*)
+                        (funcall cont (aref vector index))))))
+    (fn 0)))
+
+;;;
 ;;; input
 ;;;
 (defpackage :input
-  (:use :cl :utility)
+  (:use :cl :utility.v0 :utility.v1 :utility.v2)
   (:export :input*
            :def-input-reader))
 (in-package :input)
@@ -2724,7 +2689,10 @@ input
 ;;;
 (defpackage atcoder
   (:use :cl
-        :utility
+        :utility.v0
+        :utility.v1
+        :utility.v2
+        :utility.v3
         :input
         :list-queue
         :deque
@@ -2752,40 +2720,6 @@ input
                  (string-trim '(#\Space #\Newline) expect))
         (format t "Pass~%")
         (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output))))
-
-(defun print-boolean (boolean &optional (stream *standard-output*))
-  (write-line (if boolean "Yes" "No") stream)
-  (values))
-
-(defun print-double (double &optional (stream *standard-output*))
-  (let ((*read-default-float-format* 'double-float))
-    (princ double stream)
-    (terpri stream)
-    (values)))
-
-(defun print-sequence (sequence
-                       &optional (stream *standard-output*)
-                       &key (element-type 'base-char) (spacer #\ ))
-  #+sbcl (declare (sb-ext:muffle-conditions style-warning))
-  (write-string
-   (with-output-to-string (s nil :element-type element-type)
-     (let ((headp t))
-       (do-seq (elem sequence)
-         (unless headp
-           (write-char spacer s))
-         (princ elem s)
-         (setf headp nil))
-       (terpri s)))
-   stream)
-  (values))
-
-(defun print-list (list &rest args &key element-type spacer)
-  (declare (ignore element-type spacer))
-  (apply #'print-sequence list args))
-
-(defun print-vector (vector &rest args &key element-type spacer)
-  (declare (ignore element-type spacer))
-  (apply #'print-sequence vector args))
 
 (defun main ()
   (input* ((a fixnum)
