@@ -2551,8 +2551,8 @@ O(|s|)"
 (defmacro amb (&rest options)
   (if (null options)
       `(fail)
-      `(progn ,@(mapcar #'(lambda (c)
-                            `(push #'(lambda () ,c) *stack*))
+      `(progn ,@(mapcar #'(lambda (option)
+                            `(push #'(lambda () ,option) *stack*))
                         (reverse (cdr options)))
               ,(car options))))
 
@@ -2560,27 +2560,20 @@ O(|s|)"
   `(amb-bind-fn (lambda (,var) ,@body) ,options))
 
 (defun amb-bind-fn (cont options)
-  (etypecase options
-    (list (amb-bind-fn-list cont options))
-    (vector (amb-bind-fn-vector cont options))))
-
-(defun amb-bind-fn-list (cont options)
-  (if (null options)
-      (fail)
-      (progn (push #'(lambda ()
-                       (amb-bind-fn-list cont (cdr options)))
-                   *stack*)
-             (funcall cont (car options)))))
-
-(defun amb-bind-fn-vector (cont vector)
-  (labels ((fn (index)
-             (if (= index (length vector))
-                 (fail)
-                 (progn (push #'(lambda ()
-                                  (fn (1+ index)))
-                              *stack*)
-                        (funcall cont (aref vector index))))))
-    (fn 0)))
+  #-sbcl (error "Unsupported implementation.")
+  (when (sb-sequence:emptyp options)
+    (return-from amb-bind-fn (fail)))
+  (sb-sequence:with-sequence-iterator (iterator limit from-end-p step endp element set-element index copy)
+      (options)
+    (declare (ignore set-element index copy))
+    (labels ((rec (iterator)
+               (if (not (funcall endp options iterator limit from-end-p))
+                   (progn (push #'(lambda ()
+                                    (rec (funcall step options iterator from-end-p)))
+                                *stack*)
+                          (funcall cont (funcall element options iterator)))
+                   (fail))))
+      (rec iterator))))
 
 ;;;
 ;;; input
@@ -2684,6 +2677,25 @@ input
        (dotimes (,index ,len ,vec)
          (setf (aref ,vec ,index) ,(reader elem))))))
 
+(def-input-reader array (typespec)
+  (let ((arr (gensym))
+        (index (gensym))
+        (dimensions (gensym))
+        (dims (gensym))
+        (indexes (gensym))
+        (elem (cadr typespec))
+        (size (ensure-list (caddr typespec))))
+    `(let* ((,dimensions (list ,@size))
+            (,arr (make-array ,dimensions)))
+       (labels ((rec (,dims ,indexes)
+                  (if (null (cdr ,dims))
+                      (dotimes (,index (car ,dims))
+                        (setf (apply #'aref ,arr (reverse (cons ,index ,indexes))) ,(reader elem)))
+                      (dotimes (,index (car ,dims))
+                        (rec (cdr ,dims) (cons ,index ,indexes))))))
+         (rec ,dimensions nil)
+         ,arr))))
+
 ;;;
 ;;; atcoder
 ;;;
@@ -2706,6 +2718,7 @@ input
         :trie
         :graph
         :algorithm
+        :amb
         )
   (:export :main
            :test
