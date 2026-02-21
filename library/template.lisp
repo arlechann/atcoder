@@ -13,6 +13,8 @@
                       :output t :error t :input t))))
 |#
 
+(require :asdf)
+
 ;;;
 ;;; utility.v0
 ;;;
@@ -318,9 +320,13 @@
         (rec (1- n) (+ (* base acc) 1)))))
 
 (declaim (ftype (function (real &rest real) boolean) maxp))
-(defun maxp (x &rest args) (> x (apply #'max args)))
-(declaim (ftype (function (real &rest list) boolean) minp))
-(defun minp (x &rest args) (< x (apply #'min args)))
+(defun maxp (x &rest args)
+  (or (null args)
+      (> x (apply #'max args))))
+(declaim (ftype (function (real &rest real) boolean) minp))
+(defun minp (x &rest args)
+  (or (null args)
+      (< x (apply #'min args))))
 (defmacro maxf (place &rest args) `(setf ,place (max ,place ,@args)))
 (defmacro minf (place &rest args) `(setf ,place (min ,place ,@args)))
 
@@ -391,7 +397,7 @@
            :map-with-index
            :map-into-with-index
            :nmap
-           :namp-with-index
+           :nmap-with-index
            ;:window-map
            ;:window-nmap
            :run-length-encode
@@ -2248,7 +2254,7 @@ O(|s|)"
 
 (defun grid-row (graph node) (floor node (grid-width graph)))
 (defun grid-column (graph node) (mod node (grid-width graph)))
-(defun grid-point-to-index (graph row column) (+ (* (grid-height graph) row) column))
+(defun grid-point-to-index (graph row column) (+ (* (grid-width graph) row) column))
 (defun grid-cost (graph row column) (aref (graph-grid graph) row column))
 (defmethod graph-size ((graph <grid-graph>)) (* (grid-height graph) (grid-width graph)))
 (defmethod graph-node-ref ((graph <grid-graph>) node) (aref (graph-nodes graph) node))
@@ -2362,7 +2368,7 @@ O(|s|)"
 ;;;
 (defpackage algorithm
   (:use :cl :utility.v0 :utility.v1 :utility.v2)
-  (:export :+default-sieve-max+
+  (:export :*default-sieve-max*
            :sieve-of-eratosthenes
            :linear-sieve
            :primes
@@ -2380,20 +2386,22 @@ O(|s|)"
            ))
 (in-package algorithm)
 
-(defconstant +default-sieve-max+ 200000)
+(defparameter *default-sieve-max* 200000)
 
-(defun sieve-of-eratosthenes (&optional (max +default-sieve-max+))
+(defun sieve-of-eratosthenes (&optional (max *default-sieve-max*))
   (let ((sieve (make-array (1+ max) :initial-element t)))
     (setf (aref sieve 0) nil
           (aref sieve 1) nil)
     (loop for k from 4 to max by 2
           do (setf (aref sieve k) nil))
-    (loop for i from 3 to max by 2
-          do (loop for k from (* i 2) to max by i
-                   do (setf (aref sieve k) nil)))
+    (loop for i from 3 by 2
+          while (<= (* i i) max)
+          when (aref sieve i)
+            do (loop for k from (* i i) to max by i
+                     do (setf (aref sieve k) nil)))
     sieve))
 
-(defun linear-sieve (&optional (max +default-sieve-max+))
+(defun linear-sieve (&optional (max *default-sieve-max*))
   (let ((least-prime-factors (make-array (1+ max) :initial-element nil))
         (primes (make-array 0 :adjustable t :fill-pointer t)))
     (loop for i from 2 to max
@@ -2407,9 +2415,9 @@ O(|s|)"
     (values (coerce primes 'simple-vector)
             least-prime-factors)))
 
-(defun primes (&optional (max +default-sieve-max+)) (coerce (linear-sieve max) 'list))
+(defun primes (&optional (max *default-sieve-max*)) (coerce (linear-sieve max) 'list))
 
-(defun least-prime-factors (&optional (max +default-sieve-max+))
+(defun least-prime-factors (&optional (max *default-sieve-max*))
   (multiple-value-bind (primes least-prime-factors) (linear-sieve max)
     (declare (ignore primes)) least-prime-factors))
 
@@ -2499,7 +2507,7 @@ O(|s|)"
         (memo-value (gensym))
         (none-value (gensym)))
     `(macrolet ((,name ,args `(,',tmp-name ,@(list ,@args))))
-       ((let ((,memo (make-hash-table :test 'equal)))
+       (let ((,memo (make-hash-table :test 'equal)))
           (labels ((,tmp-name ,params
                      (let* ((,key (list ,@params))
                             (,memo-value (gethash ,key ,memo ',none-value)))
@@ -2507,7 +2515,7 @@ O(|s|)"
                            ,memo-value
                            (setf (gethash ,key ,memo)
                                  (block ,name ,@body))))))
-            #',tmp-name))))))
+            #',tmp-name)))))
 
 (defmacro array-dp (name param-and-maxs &body body)
   (let* ((tmp-name (gensym))
@@ -2732,7 +2740,7 @@ input
     (if (string= (string-trim '(#\Space #\Newline) output)
                  (string-trim '(#\Space #\Newline) expect))
         (format t "Pass~%")
-        (format t "Failed~%expect: ~A~%but acctual: ~A~%" expect output))))
+        (format t "Failed~%expect: ~A~%but actual: ~A~%" expect output))))
 
 (defun main ()
   (input* ((a fixnum)
@@ -2744,4 +2752,3 @@ input
   )
 
 #-swank (main)
-
