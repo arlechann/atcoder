@@ -1,5 +1,11 @@
 (in-package :cl-user)
 
+(require :asdf)
+
+#-swank
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (pushnew :atcoder *features*))
+
 #|
 #-swank
 (unless (member :child-sbcl *features*)
@@ -12,8 +18,6 @@
                         "(push :child-sbcl *features*)" "--script" ,(namestring *load-pathname*))
                       :output t :error t :input t))))
 |#
-
-(require :asdf)
 
 ;;;
 ;;; utility.syntax
@@ -65,6 +69,7 @@
 (defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
 
 (defmacro defalias (alias original)
+  #-atcoder
   (unless (symbolp alias)
     (error "DEFALIAS: ALIAS must be a symbol literal, got ~S" alias))
   `(progn
@@ -460,8 +465,11 @@
            :chunks
            :permutations
            :flatten
+           :join
            ;; string / char
            :split-string
+           :strjoin
+           :trim-spaces
            :string-prefix-p
            :string-suffix-p
            :strcat
@@ -767,6 +775,15 @@
                     ((listp (car lst)) (rec (cdr lst) (rec (car lst) acc)))
                     (t (rec (cdr lst) (cons (car lst) acc)))))))
 
+(declaim (ftype (function (list t) list) join))
+(defun join (lst separator)
+  (when (null lst)
+    (return-from join nil))
+  (nlet rec ((lst (cdr lst)) (acc (list (car lst))))
+    (if (null lst)
+        (nreverse acc)
+        (rec (cdr lst) (cons (car lst) (cons separator acc))))))
+
 ;;; vector
 
 (declaim (ftype (function (&rest list) vector) dvector))
@@ -789,7 +806,6 @@
 
 (declaim (inline count-alphabet lower-to-index upper-to-index char-to-index index-to-lower index-to-upper char-digit))
 
-
 (defun count-alphabet () #.(1+ (- (char-code #\Z) (char-code #\A))))
 (defun lower-to-index (char) (- (char-code char) #.(char-code #\a)))
 (defun upper-to-index (char) (- (char-code char) #.(char-code #\A)))
@@ -799,6 +815,14 @@
 (defun char-digit (char) (- (char-code char) #.(char-code #\0)))
 
 ;;; string
+
+(defun strjoin (strings &key (spacer (string #\Newline)))
+  (with-output-to-string (out)
+    (dolist (item (join strings spacer))
+      (write-string item out))))
+
+(defun trim-spaces (string)
+  (string-trim '(#\Space #\Tab #\Newline #\Return) string))
 
 (defun count-chars (string)
   (loop with count = (make-array (count-alphabet) :initial-element 0)
@@ -860,17 +884,26 @@
            ))
 (in-package list-queue)
 
-(defun make-list-queue () (cons nil nil))
-(defun list-queue-empty-p (queue) (null (car queue)))
+(defun make-list-queue ()
+  "空の連結リストキューを生成して返す。"
+  (cons nil nil))
+(defun list-queue-empty-p (queue)
+  "QUEUE が空なら真を返す。"
+  (null (car queue)))
 
 (defun list-queue-peek (queue)
+  "先頭要素を返す（削除しない）。"
+  #-atcoder
   (when (list-queue-empty-p queue)
     (error "LIST-QUEUE is empty. Cannot peek any element."))
   (caar queue))
 
-(defun list-queue-raw (queue) (car queue))
+(defun list-queue-raw (queue)
+  "内部リスト（先頭から末尾まで）を返す。"
+  (car queue))
 
 (defun list-queue-enqueue (queue value)
+  "末尾に VALUE を追加し、QUEUE を返す。"
   (let ((new-cell (cons value nil)))
     (if (list-queue-empty-p queue)
         (setf (car queue) new-cell
@@ -880,6 +913,8 @@
     queue))
 
 (defun list-queue-dequeue (queue)
+  "先頭要素を取り出して返す。"
+  #-atcoder
   (when (list-queue-empty-p queue)
     (error "LIST-QUEUE is empty. Cannot dequeue any element."))
   (prog1 (caar queue)
@@ -988,7 +1023,14 @@
   (back-index (1- +deque-default-buffer-size+) :type fixnum)
   (buffer (make-deque-buffer 64) :type simple-array))
 
-(defun deque-empty-p (deque) (zerop (deque-size deque)))
+(setf (documentation 'make-deque 'function)
+      "空の deque を生成して返す。")
+(setf (documentation 'deque-size 'function)
+      "deque の要素数を返す。")
+
+(defun deque-empty-p (deque)
+  "DEQUE が空なら真を返す。"
+  (zerop (deque-size deque)))
 (defun deque-full-p (deque) (= (deque-size deque) (deque-capacity deque)))
 
 (defun deque-index-in-range-p (deque index)
@@ -1047,6 +1089,7 @@
                   (return deque))))
 
 (defun deque-push-front (deque x)
+  "先頭に X を追加し、DEQUE を返す。"
   (when (deque-full-p deque)
     (deque-extends-buffer deque))
   (dec-front-index deque)
@@ -1055,6 +1098,7 @@
   deque)
 
 (defun deque-push-back (deque x)
+  "末尾に X を追加し、DEQUE を返す。"
   (when (deque-full-p deque)
     (deque-extends-buffer deque))
   (inc-back-index deque)
@@ -1063,6 +1107,8 @@
   deque)
 
 (defun deque-pop-front (deque)
+  "先頭要素を削除し、DEQUE を返す。"
+  #-atcoder
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot pop any element."))
   (setf (deque-buffer-ref deque (deque-front-index deque)) nil)
@@ -1071,6 +1117,8 @@
   deque)
 
 (defun deque-pop-back (deque)
+  "末尾要素を削除し、DEQUE を返す。"
+  #-atcoder
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot pop any element."))
   (setf (deque-buffer-ref deque (deque-back-index deque)) nil)
@@ -1079,17 +1127,23 @@
   deque)
 
 (defun deque-peek-front (deque)
+  "先頭要素を返す（削除しない）。"
+  #-atcoder
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot peek front."))
   (deque-front deque))
 
 (defun deque-peek-back (deque)
+  "末尾要素を返す（削除しない）。"
+  #-atcoder
   (when (deque-empty-p deque)
     (error "DEQUE is empty. Cannot peek back."))
   (deque-back deque))
 
 
 (defun deque-ref (deque index)
+  "先頭から INDEX 番目（0始まり）の要素を返す。"
+  #-atcoder
   (unless (deque-index-in-range-p deque index)
     (error "DEQUE-REF index out of range: ~S (size=~S)." index (deque-size deque)))
   (deque-buffer-ref deque
@@ -1098,6 +1152,7 @@
                                     index))))
 
 (defun (setf deque-ref) (x deque index)
+  #-atcoder
   (unless (deque-index-in-range-p deque index)
     (error "(SETF DEQUE-REF) index out of range: ~S (size=~S)." index (deque-size deque)))
   (setf (deque-buffer-ref deque
@@ -1151,11 +1206,13 @@
 (defun (setf bintree-ref) (value bt index) (setf (aref bt index) value))
 
 (defun bintree-push (value bintree)
+  #-atcoder
   (unless (array-has-fill-pointer-p bintree)
     (error "BINTREE-PUSH requires an array with fill-pointer."))
   (vector-push-extend value bintree))
 
 (defun bintree-pop (bintree)
+  #-atcoder
   (unless (array-has-fill-pointer-p bintree)
     (error "BINTREE-POP requires an array with fill-pointer."))
   (vector-pop bintree))
@@ -1299,9 +1356,11 @@
 
 (defun (setf node-color) (color node)
   (if (node-empty-p node)
-      (if (eq color 'black)
-          'black
+      (progn
+        #-atcoder
+        (unless (eq color 'black)
           (error "Leaf is must be black."))
+        'black)
       (setf (first node) color)))
 
 (defun (setf node-value) (value node) (setf (third node) value))
@@ -1631,6 +1690,7 @@
 ;;; rbtree
 
 (defun make-rbtree (&key root (key #'identity) (key-eq-p #'eql) (key-less-p #'<))
+  "空または ROOT 指定の赤黒木マップを作成して返す。"
   (list (or root (make-empty-node)) key key-eq-p key-less-p))
 
 (defun rbtree-root (rbtree) (first rbtree))
@@ -1638,9 +1698,12 @@
 (defun rbtree-key-eq-p (rbtree) (third rbtree))
 (defun rbtree-key-less-p (rbtree) (fourth rbtree))
 (defun (setf rbtree-root) (root rbtree) (setf (first rbtree) root))
-(defun rbtree-each (rbtree fn) (node-each (rbtree-root rbtree) fn))
+(defun rbtree-each (rbtree fn)
+  "キー順（中順）に各要素へ FN を適用する。"
+  (node-each (rbtree-root rbtree) fn))
 
 (defun rbtree-to-list (rbtree)
+  "木の要素をキー昇順のリストとして返す。"
   (let ((acc nil))
     (rbtree-each rbtree
                  (lambda (v)
@@ -1648,18 +1711,21 @@
     (nreverse acc)))
 
 (defun rbtree-first (rbtree)
+  "最小キーの要素を返す。空なら NIL。"
   (let ((node (node-first (rbtree-root rbtree))))
     (if (node-empty-p node)
         nil
         (node-value node))))
 
 (defun rbtree-last (rbtree)
+  "最大キーの要素を返す。空なら NIL。"
   (let ((node (node-last (rbtree-root rbtree))))
     (if (node-empty-p node)
         nil
         (node-value node))))
 
 (defun rbtree-search (rbtree search-key &key default)
+  "SEARCH-KEY に一致する要素を返す。未発見時は DEFAULT。"
   (node-search (rbtree-root rbtree)
                search-key
                (rbtree-key rbtree)
@@ -1668,6 +1734,7 @@
                :default default))
 
 (defun rbtree-lower-bound (rbtree search-key &key end)
+  "SEARCH-KEY 以上の最小要素を返す。存在しなければ END。"
   (node-lower-bound (rbtree-root rbtree)
                     search-key
                     (rbtree-key rbtree)
@@ -1676,6 +1743,7 @@
                     :end end))
 
 (defun rbtree-upper-bound (rbtree search-key &key end)
+  "SEARCH-KEY より大きい最小要素を返す。存在しなければ END。"
   (node-upper-bound (rbtree-root rbtree)
                     search-key
                     (rbtree-key rbtree)
@@ -1684,6 +1752,7 @@
                     :end end))
 
 (defun rbtree-insert (rbtree value)
+  "VALUE を挿入（同一キーは上書き）し、RBTree を返す。"
   (multiple-value-bind (root needs-balance)
       (node-insert (rbtree-root rbtree)
                    value
@@ -1696,6 +1765,7 @@
     rbtree))
 
 (defun rbtree-remove (rbtree remove-key)
+  "REMOVE-KEY の要素を削除し、RBTree を返す。"
   (let ((root (node-remove (rbtree-root rbtree)
                            remove-key
                            (rbtree-key rbtree)
@@ -1707,6 +1777,7 @@
     rbtree))
 
 (defun rbtree-print (rbtree &key (stream t) show-nil)
+  "木構造を整形して STREAM に出力する。"
   (node-print (rbtree-root rbtree) 0 :stream stream :show-nil show-nil))
 
 ;;;
@@ -1778,6 +1849,7 @@
 (defun assert-same-dimension (v1 v2 op-name)
   (let ((d1 (vector-dimension v1))
         (d2 (vector-dimension v2)))
+    #-atcoder
     (unless (= d1 d2)
       (error "~A: dimension mismatch (~S vs ~S)." op-name d1 d2))
     d1))
@@ -1860,12 +1932,14 @@
                       (* (vector-x v1) (vector-z v2)))
                    (- (* (vector-x v1) (vector-y v2))
                       (* (vector-y v1) (vector-x v2)))))
+          #-atcoder
           (t (error "VECTOR-CROSS: Not implemented on the dimension.")))))
 
 (defun vector-squared-length (vector) (vector-dot vector vector))
 (defun vector-length (vector) (sqrt (vector-squared-length vector)))
 (defun vector-normalize (vector)
   (let ((length (vector-length vector)))
+    #-atcoder
     (when (zerop length)
       (error "VECTOR-NORMALIZE: zero vector cannot be normalized."))
     (vector/ vector length)))
@@ -1873,6 +1947,7 @@
 
 (defun vector-angle (v1 v2)
   (let ((denominator (* (vector-length v1) (vector-length v2))))
+    #-atcoder
     (when (zerop denominator)
       (error "VECTOR-ANGLE: zero vector is not allowed."))
     (let ((cosine (/ (vector-dot v1 v2) denominator)))
@@ -1949,6 +2024,7 @@
                (cdr matrices)))))
 
 (defun assert-same-shape (m1 m2 op-name)
+  #-atcoder
   (unless (and (= (matrix-row m1) (matrix-row m2))
                (= (matrix-column m1) (matrix-column m2)))
     (error "~A: shape mismatch (~Sx~S) vs (~Sx~S)."
@@ -2083,6 +2159,7 @@
         (setf (matrix-ref ret j i) (matrix-ref matrix i j))))))
 
 (defun matrix-binary-product (m1 m2)
+  #-atcoder
   (unless (= (matrix-column m1) (matrix-row m2))
     (error "MATRIX-PRODUCT: dimension mismatch (~Sx~S) * (~Sx~S)."
            (matrix-row m1) (matrix-column m1) (matrix-row m2) (matrix-column m2)))
@@ -2102,6 +2179,7 @@
           :initial-value matrix))
 
 (defun linear-map (matrix vector)
+  #-atcoder
   (unless (= (matrix-column matrix) (vector-dimension vector))
     (error "LINEAR-MAP: dimension mismatch matrix-column=~S vector-dimension=~S."
            (matrix-column matrix) (vector-dimension vector)))
@@ -2115,6 +2193,7 @@
   (linear-map matrix vector))
 
 (defun vector-matrix-product (vector matrix)
+  #-atcoder
   (unless (= (vector-dimension vector) (matrix-row matrix))
     (error "VECTOR-MATRIX-PRODUCT: dimension mismatch vector=~S matrix-row=~S."
            (vector-dimension vector) (matrix-row matrix)))
@@ -2137,6 +2216,7 @@
               (* (vector-ref v1 i) (vector-ref v2 j)))))))
 
 (defun matrix-trace (matrix)
+  #-atcoder
   (unless (= (matrix-row matrix) (matrix-column matrix))
     (error "MATRIX-TRACE: matrix must be square, got (~Sx~S)."
            (matrix-row matrix) (matrix-column matrix)))
@@ -2152,6 +2232,7 @@
 
 (defun (setf matrix-diagonal) (value matrix)
   (let ((n (min (matrix-row matrix) (matrix-column matrix))))
+    #-atcoder
     (unless (= (vector-dimension value) n)
       (error "(SETF MATRIX-DIAGONAL): dimension mismatch vector=~S diagonal-size=~S."
              (vector-dimension value) n))
@@ -2181,8 +2262,10 @@
       (return-from zero-matrix-p nil))))
 
 (defun matrix-power (matrix exponent)
+  #-atcoder
   (unless (and (integerp exponent) (<= 0 exponent))
     (error "MATRIX-POWER: exponent must be a non-negative integer, got ~S." exponent))
+  #-atcoder
   (unless (= (matrix-row matrix) (matrix-column matrix))
     (error "MATRIX-POWER: matrix must be square, got (~Sx~S)."
            (matrix-row matrix) (matrix-column matrix)))
@@ -2348,8 +2431,8 @@
 (in-package segment-tree)
 
 (defstruct (segment-tree
-            (:constructor %make-st (&key size op id bintree bintree-size)))
-  size op id bintree bintree-size)
+            (:constructor %make-st (&key size capacity op id bintree bintree-size)))
+  size capacity op id bintree bintree-size)
 
 (defun segment-tree-index-in-range-p (st index)
   (and (integerp index)
@@ -2364,29 +2447,38 @@
        (<= right (segment-tree-size st))))
 
 (defun make-segment-tree (size op id &key initial-contents)
-  "O(n)"
+  "セグメント木を構築して返す。OP は二項演算、ID は単位元。構築は O(n)。"
+  #-atcoder
   (unless (and (integerp size) (> size 0))
     (error "MAKE-SEGMENT-TREE: size must be a positive integer, got ~S." size))
-  (let* ((size (next-pow2 size))
-         (bintree-size (1- (* size 2)))
+  (let* ((logical-size size)
+         (capacity (next-pow2 size))
+         (bintree-size (1- (* capacity 2)))
          (bintree (make-vector-bintree bintree-size :initial-element id)))
     (unless (null initial-contents)
-      (setf (subseq bintree (1- size)) initial-contents)
-      (loop for index downfrom (- size 2) downto 0
+      #-atcoder
+      (when (> (length initial-contents) logical-size)
+        (error "MAKE-SEGMENT-TREE: initial-contents length (~S) must be <= size (~S)."
+               (length initial-contents) logical-size))
+      (setf (subseq bintree (1- capacity) (+ (1- capacity) (length initial-contents)))
+            initial-contents)
+      (loop for index downfrom (- capacity 2) downto 0
             do (setf (bintree-ref bintree index)
                      (funcall op
                               (bintree-ref bintree (bintree-left-index index))
                               (bintree-ref bintree (bintree-right-index index))))))
-    (%make-st :size size
+    (%make-st :size logical-size
+              :capacity capacity
               :op op
               :id id
               :bintree bintree
               :bintree-size bintree-size)))
 
-(defun %st-index-to-bintree-index (st index) (1- (+ index (segment-tree-size st))))
+(defun %st-index-to-bintree-index (st index) (1- (+ index (segment-tree-capacity st))))
 
 (defun segment-tree-ref (st index)
-  "O(1)"
+  "葉 INDEX の値を返す。取得は O(1)。"
+  #-atcoder
   (unless (segment-tree-index-in-range-p st index)
     (error "SEGMENT-TREE-REF: index out of range: ~S (size=~S)." index (segment-tree-size st)))
   (bintree-ref (segment-tree-bintree st) (%st-index-to-bintree-index st index)))
@@ -2411,11 +2503,12 @@
                        node-right))))
 
 (defun segment-tree-fold (st left right)
-  "[left, right), O(log(n))"
+  "半開区間 [LEFT, RIGHT) の畳み込み結果を返す。計算量 O(log n)。"
+  #-atcoder
   (unless (segment-tree-fold-range-valid-p st left right)
     (error "SEGMENT-TREE-FOLD: invalid range [~S, ~S) for size ~S."
            left right (segment-tree-size st)))
-  (%st-fold st left right 0 0 (segment-tree-size st)))
+  (%st-fold st left right 0 0 (segment-tree-capacity st)))
 
 (defun %st-set (st index value)
   (let ((bintree (segment-tree-bintree st)))
@@ -2431,13 +2524,16 @@
 
 (defun (setf segment-tree-ref) (value st index)
   "O(log(n))"
+  #-atcoder
   (unless (segment-tree-index-in-range-p st index)
     (error "(SETF SEGMENT-TREE-REF): index out of range: ~S (size=~S)."
            index (segment-tree-size st)))
   (%st-set st (%st-index-to-bintree-index st index) value)
   value)
 
-(defun segment-tree-print (st) (bintree-print (segment-tree-bintree st)))
+(defun segment-tree-print (st)
+  "セグメント木の内部構造を標準出力向けに表示する。"
+  (bintree-print (segment-tree-bintree st)))
 
 ;;;
 ;;; trie
@@ -2458,12 +2554,22 @@
 (in-package trie)
 
 (defun make-trie-node (char) (vector char 0 0 (make-hash-table :test 'eql) nil))
-(defun trie-node-char (node) (aref node 0))
-(defun trie-node-end-count (node) (aref node 1))
-(defun trie-node-endp (node) (not (zerop (trie-node-end-count node))))
-(defun trie-node-prefix-count (node) (aref node 2))
+(defun trie-node-char (node)
+  "NODE が表す文字を返す。根ノードでは通常 NIL。"
+  (aref node 0))
+(defun trie-node-end-count (node)
+  "NODE を終端とする登録キー数を返す。"
+  (aref node 1))
+(defun trie-node-endp (node)
+  "NODE が少なくとも1つのキー終端かどうかを返す。"
+  (not (zerop (trie-node-end-count node))))
+(defun trie-node-prefix-count (node)
+  "NODE を接頭辞として通過するキー数を返す。"
+  (aref node 2))
 (defun trie-node-next (node char) (values (gethash char (aref node 3) nil)))
-(defun trie-node-value (node) (aref node 4))
+(defun trie-node-value (node)
+  "NODE に紐づく値を返す（終端ノードで主に利用）。"
+  (aref node 4))
 (defun (setf trie-node-end-count) (count node) (setf (aref node 1) count))
 (defun (setf trie-node-prefix-count) (count node) (setf (aref node 2) count))
 (defun (setf trie-node-next) (next node char) (setf (gethash char (aref node 3)) next))
@@ -2475,10 +2581,8 @@
       (if (or prefixp (trie-node-endp node))
           (values t (trie-node-value node))
           nil)))
-  (let ((next (trie-node-next node (aref str index))))
-    (if (null next)
-        nil
-        (trie-node-find next str (1+ index)))))
+  (when-let ((next (trie-node-next node (aref str index))))
+    (trie-node-find next str (1+ index) :prefixp prefixp)))
 
 (defun trie-node-insert (node str index &optional value)
   (incf (trie-node-prefix-count node))
@@ -2504,17 +2608,21 @@
         nil
         (trie-node-traverse next str (1+ index) fn))))
 
-(defun make-trie () (vector 0 (make-trie-node nil)))
-(defun trie-size (trie) (aref trie 0))
+(defun make-trie ()
+  "空の trie を生成して返す。"
+  (vector 0 (make-trie-node nil)))
+(defun trie-size (trie)
+  "trie に登録されたユニークキー数を返す。"
+  (aref trie 0))
 (defun (setf trie-size) (size trie) (setf (aref trie 0) size))
 (defun trie-root (trie) (aref trie 1))
 
 (defun trie-find (trie str &key (prefixp nil))
-  "O(|s|)"
+  "STR を検索する。見つかれば (values t value) を返す。計算量 O(|STR|)。"
   (trie-node-find (trie-root trie) str 0 :prefixp prefixp))
 
 (defun trie-insert (trie str &optional value)
-  "O(|s|)"
+  "STR を trie に登録し、VALUE を終端ノードへ設定する。計算量 O(|STR|)。"
   (multiple-value-bind (inserted-key inserted-value new-key-p)
       (trie-node-insert (trie-root trie) str 0 value)
     (declare (ignore inserted-key inserted-value))
@@ -2523,8 +2631,7 @@
     value))
 
 (defun trie-traverse (trie str fn)
-  "(function (trie string (function (trie-node string fixnum) t)) t)
-O(|s|)"
+  "STR を辿る各ノードで FN を呼ぶ。FN は (node str index) を受ける。O(|STR|)。"
   (trie-node-traverse (trie-root trie) str 0 fn))
 
 ;;;
@@ -2622,6 +2729,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
        (< node (graph-size graph))))
 
 (defun assert-graph-node-index (graph node who)
+  #-atcoder
   (unless (graph-node-index-valid-p graph node)
     (error "~A: node index out of range: ~S (size=~S)." who node (graph-size graph))))
 
@@ -2647,6 +2755,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
 
 (defmethod (setf graph-multi-edges-ref) (edges (graph <single-edge-graph>) from to)
   (assert-graph-edge-index graph from to "(SETF GRAPH-MULTI-EDGES-REF)")
+  #-atcoder
   (when (> (length edges) 1)
     (error "(SETF GRAPH-MULTI-EDGES-REF): single-edge-graph accepts at most one edge."))
   (setf (graph-low-level-edge-ref graph from to) (car edges))
@@ -2732,6 +2841,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
 
 (defmethod (setf graph-low-level-multi-edges-ref) (edges (graph <adlist-graph>) from to)
   (assert-graph-edge-index graph from to "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF)")
+  #-atcoder
   (unless (every (lambda (edge)
                    (and (= from (edge-from edge))
                         (= to (edge-to edge))))
@@ -2793,8 +2903,10 @@ For single-edge graphs, EDGES must be empty or singleton."))
 
 (defmethod (setf graph-low-level-multi-edges-ref) (edges (graph <matrix-graph>) from to)
   (assert-graph-edge-index graph from to "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF)")
+  #-atcoder
   (unless (length<= edges 1)
     (error "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF): matrix-single-edge-graph accepts at most one edge."))
+  #-atcoder
   (unless (every (lambda (edge)
                    (and (= from (edge-from edge))
                         (= to (edge-to edge))))
@@ -2854,13 +2966,15 @@ For single-edge graphs, EDGES must be empty or singleton."))
 (defmethod graph-node-ref ((graph <grid-graph>) node)
   (assert-graph-node-index graph node "GRAPH-NODE-REF")
   (let ((nodes (graph-nodes graph)))
-    (if (null nodes)
-        (error "GRID-GRAPH nodes is NIL. Pass :NODES to MAKE-GRID-GRAPH before using GRAPH-NODE-REF.")
-        (aref nodes node))))
+    #-atcoder
+    (when (null nodes)
+      (error "GRID-GRAPH nodes is NIL. Pass :NODES to MAKE-GRID-GRAPH before using GRAPH-NODE-REF."))
+    (aref nodes node)))
 
 (defmethod (setf graph-node-ref) (value (graph <grid-graph>) node)
   (assert-graph-node-index graph node "(SETF GRAPH-NODE-REF)")
   (let ((nodes (graph-nodes graph)))
+    #-atcoder
     (when (null nodes)
       (error "GRID-GRAPH nodes is NIL. Pass :NODES to MAKE-GRID-GRAPH before using (SETF GRAPH-NODE-REF)."))
     (setf (aref nodes node) value)))
@@ -3008,6 +3122,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
 (defparameter *default-sieve-max* 200000)
 
 (defun sieve-of-eratosthenes (&optional (max *default-sieve-max*))
+  "0..MAX の素数判定表（真偽ベクタ）をエラトステネス法で返す。"
   (let ((sieve (make-array (1+ max) :initial-element t)))
     (setf (aref sieve 0) nil
           (aref sieve 1) nil)
@@ -3021,6 +3136,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
     sieve))
 
 (defun linear-sieve (&optional (max *default-sieve-max*))
+  "線形篩を実行し、(values primes least-prime-factors) を返す。"
   (let ((least-prime-factors (make-array (1+ max) :initial-element nil))
         (primes (make-array 0 :adjustable t :fill-pointer t)))
     (loop for i from 2 to max
@@ -3034,13 +3150,17 @@ For single-edge graphs, EDGES must be empty or singleton."))
     (values (coerce primes 'simple-vector)
             least-prime-factors)))
 
-(defun primes (&optional (max *default-sieve-max*)) (coerce (linear-sieve max) 'list))
+(defun primes (&optional (max *default-sieve-max*))
+  "MAX 以下の素数リストを返す。"
+  (coerce (linear-sieve max) 'list))
 
 (defun least-prime-factors (&optional (max *default-sieve-max*))
+  "各 n (0..MAX) の最小素因数テーブルを返す。"
   (multiple-value-bind (primes least-prime-factors) (linear-sieve max)
     (declare (ignore primes)) least-prime-factors))
 
 (defun trivial-factorize (n)
+  "試し割りで N を素因数分解し、(prime . exponent) のリストを返す。"
   (loop with ret = nil
         for i from 2
         while (<= (square i) n)
@@ -3055,6 +3175,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
                 (return ret)))
 
 (defun fast-factorize (n least-prime-factors)
+  "最小素因数テーブルを使って N を高速に素因数分解する。"
   (loop with ret = nil
         while (> n 1)
         do (loop with lps = (aref least-prime-factors n)
@@ -3066,6 +3187,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
         finally (return ret)))
 
 (defun trivial-divisors (n)
+  "試し割りで N の約数リストを返す。"
   (loop with divisors = nil
         for i from 1
         while (< (* i i) n)
@@ -3077,6 +3199,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
                 (return divisors)))
 
 (defun fast-divisors (n least-prime-factors)
+  "素因数分解結果から N の約数リストを生成して返す。"
   (loop with divisors = (list 1)
         and factors = (fast-factorize n least-prime-factors)
         for (factor . exp) in factors
@@ -3088,6 +3211,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
         finally (return divisors)))
 
 (defun meguru-method (ok ng pred)
+  "めぐる式二分探索。PRED が真となる境界側の値 OK を返す。"
   (loop until (<= (abs (- ok ng)) 1)
         do (let ((mid (floor (+ ok ng) 2)))
              (if (funcall pred mid)
@@ -3096,16 +3220,20 @@ For single-edge graphs, EDGES must be empty or singleton."))
         finally (return ok)))
 
 (defun find-bound (vector element &key (compare #'<=) (start 0) end)
+  "二分探索で ELEMENT を挿入できる境界インデックスを返す内部関数。"
   (meguru-method (or end (length vector)) (1- start)
                  (lambda (index) (funcall compare element (aref vector index)))))
 
 (defun lower-bound (vector element &key (start 0) end)
+  "昇順 VECTOR の lower_bound（最初の >= ELEMENT の位置）を返す。"
   (find-bound vector element :start start :end (or end (length vector))))
 
 (defun upper-bound (vector element &key (start 0) end)
+  "昇順 VECTOR の upper_bound（最初の > ELEMENT の位置）を返す。"
   (find-bound vector element :compare #'< :start start :end (or end (length vector))))
 
 (defun cumulate (sequence &key (op #'+) (id 0) (element-type 't))
+  "長さ+1 の累積配列を返す。先頭は ID、以降は OP で畳み込む。"
   (aprog1 (make-array (1+ (length sequence))
                          :element-type element-type
                          :initial-element id)
@@ -3116,6 +3244,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
                     sequence)))
 
 (defmacro dp (name params &body body)
+  "ハッシュ表メモ化付き再帰関数を生成して返す。"
   (let ((tmp-name (gensym))
         (args (mapcar #'(lambda (param)
                           (declare (ignore param))
@@ -3137,6 +3266,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
             #',tmp-name)))))
 
 (defmacro array-dp (name param-and-maxs &body body)
+  "配列メモ化付き再帰関数を生成して返す。各引数の上限を指定する。"
   (let* ((tmp-name (gensym))
          (memo (gensym))
          (none-value (gensym))
@@ -3215,7 +3345,6 @@ For single-edge graphs, EDGES must be empty or singleton."))
            :def-input-reader))
 (in-package :input)
 
-
 (eval-always (defvar *input-reader-table* (make-hash-table :test #'eq)))
 
 (defun-always set-input-reader (marker reader)
@@ -3245,26 +3374,82 @@ For single-edge graphs, EDGES must be empty or singleton."))
               forms)))
 
 (defmacro input* (forms &body body)
-  "(input* ((n fixnum)
-         (m fixnum1)
-         (f double)
-         (s string)
-         (p (cons* fixnum fixnum nil))
-         (l (list fixnum n))
-         (v (vector fixnum m)))
-  (list n m f s p l v))
-2 3 10.5
-input
-1000000007 -1
-10 20
-30 40
-=> (2 2 10.5d0 \"input\" (1000000007 -1) (10 20) #(30 40))"
+  "競技プログラミング向けの入力束縛マクロ。
+
+形式:
+  (input* ((var1 typespec1)
+           (var2 typespec2)
+           ...)
+    body...)
+
+概要:
+  - 各 (var typespec) を入力式に展開し、LET* で順に束縛する。
+  - 後続の typespec から先行変数を参照できる。
+    例: (list fixnum n), (vector fixnum m), (array fixnum (h w))
+  - 未使用変数警告を避けるため、展開後に (declare (ignorable ...)) を付与する。
+
+標準で使える主な typespec:
+  - fixnum / fixnum1 / double / double-float / rational / string / symbol
+  - (cons A B), (cons* A B ...), nil
+  - (list ELEM LEN), (vector ELEM LEN), (array ELEM DIMS)
+
+拡張:
+  - `def-input-reader` で marker ごとの読み取り規則を追加できる。
+  - 未登録 marker を指定するとエラーになる。
+
+例:
+  (input* ((n fixnum)
+           (m fixnum1)
+           (f double)
+           (s string)
+           (p (cons* fixnum fixnum nil))
+           (l (list fixnum n))
+           (v (vector fixnum m)))
+    (list n m f s p l v))
+
+入力:
+  2 3 10.5
+  input
+  1000000007 -1
+  10 20
+  30 40
+
+結果:
+  (2 2 10.5d0 \"input\" (1000000007 -1) (10 20) #(30 40))
+
+多次元 array の例:
+  (input* ((h fixnum)
+           (w fixnum)
+           (a (array fixnum (h w))))
+    a)
+
+入力:
+  2 3
+  1 2 3
+  4 5 6
+
+結果:
+  #2A((1 2 3) (4 5 6))"
     (let ((vars (mapcar #'car forms)))
       `(let* ,(input-expand forms)
          (declare (ignorable ,@vars))
          ,@body)))
 
 (defmacro def-input-reader (marker (typespec read-of) &body body)
+  "新しい input typespec reader を登録する。
+
+形式:
+  (def-input-reader marker (typespec read-of)
+    expansion-form)
+
+概要:
+  - MARKER は typespec 先頭シンボル（例: list, vector, my-type）。
+  - BODY は「入力式そのもの」を返す。実行結果ではなく式を返す点に注意。
+  - READ-OF はサブ typespec を再帰的に入力式へ変換する補助関数。
+
+例:
+  (def-input-reader pair (typespec read-of)
+    `(cons ,(read-of 'fixnum) ,(read-of 'fixnum)))"
   `(eval-always
      (set-input-reader ',marker
                        (lambda (,typespec)
@@ -3341,6 +3526,173 @@ input
          ,arr))))
 
 ;;;
+;;; test
+;;;
+(defpackage :atcoder.test
+  (:use :cl :utility)
+  (:export :test-case
+           :*atcoder-session-cookie*
+           :fetch-atcoder-samples
+           :test-url
+           :test))
+(in-package :atcoder.test)
+
+(defun normalize-whitespaces (string)
+  (with-output-to-string (out)
+    (loop with pending-space = nil
+          and wrote-char-p = nil
+          for ch across string
+          do (if (find ch '(#\Space #\Tab #\Newline #\Return))
+                 (setf pending-space t)
+                 (progn
+                   (when (and pending-space wrote-char-p)
+                     (write-char #\Space out))
+                   (write-char ch out)
+                   (setf wrote-char-p t)
+                   (setf pending-space nil))))))
+
+(defun test-case (fn input expect)
+  (let ((output (with-output-to-string (*standard-output*)
+                  (with-input-from-string (*standard-input* input)
+                    (funcall fn)))))
+    (if (string= (normalize-whitespaces output)
+                 (normalize-whitespaces expect))
+        (format t "Pass~%")
+        (format t "Failed~%expect: ~A~%but actual: ~A~%" expect output))))
+
+(defun atcoder-html-unescape (string)
+  (labels ((replace-all (s from to)
+             (with-output-to-string (out)
+               (loop with start = 0
+                     and from-len = (length from)
+                     for pos = (search from s :start2 start)
+                     if pos
+                       do (write-string s out :start start :end pos)
+                          (write-string to out)
+                          (setf start (+ pos from-len))
+                     else
+                       do (write-string s out :start start)
+                          (return)))))
+    (let ((out string))
+      (setf out (replace-all out "&lt;" "<"))
+      (setf out (replace-all out "&gt;" ">"))
+      (setf out (replace-all out "&amp;" "&"))
+      (setf out (replace-all out "&quot;" "\""))
+      (setf out (replace-all out "&#39;" "'"))
+      out)))
+
+(defun atcoder-strip-tags (string)
+  (with-output-to-string (out)
+    (loop with in-tag = nil
+          for ch across string
+          do (cond ((char= ch #\<) (setf in-tag t))
+                   ((char= ch #\>) (setf in-tag nil))
+                   ((not in-tag) (write-char ch out))))))
+
+(defun atcoder-clean-pre-text (text)
+  (let* ((lines (split-string text :separator '(#\Newline)))
+         (filtered (loop for line in lines
+                         unless (string-prefix-p "```" (trim-spaces line))
+                           collect line)))
+    (trim-spaces (atcoder-html-unescape (strjoin filtered)))))
+
+(defun detect-sample-kind (heading)
+  (let ((h (string-downcase (trim-spaces heading))))
+    (cond ((or (search "入力例" h)
+               (search "sample input" h))
+           :input)
+          ((or (search "出力例" h)
+               (search "sample output" h))
+           :output)
+          (t nil))))
+
+(defun parse-atcoder-samples-from-html (html)
+  (let ((pos 0)
+        (pending-input nil)
+        (cases nil))
+    (loop
+      for h3-open = (search "<h3" html :start2 pos)
+      while h3-open
+      do (let* ((h3-tag-end (search ">" html :start2 h3-open))
+                (h3-close (and h3-tag-end (search "</h3>" html :start2 (1+ h3-tag-end)))))
+           (if (and h3-tag-end h3-close)
+               (let* ((heading-raw (subseq html (1+ h3-tag-end) h3-close))
+                      (kind (detect-sample-kind (atcoder-strip-tags heading-raw)))
+                      (pre-open (search "<pre" html :start2 h3-close))
+                      (pre-tag-end (and pre-open (search ">" html :start2 pre-open)))
+                      (pre-close (and pre-tag-end (search "</pre>" html :start2 (1+ pre-tag-end)))))
+                 (if (and kind pre-open pre-tag-end pre-close)
+                     (let ((text (atcoder-clean-pre-text (subseq html (1+ pre-tag-end) pre-close))))
+                       (cond ((eq kind :input)
+                              (setf pending-input text))
+                             ((and (eq kind :output) pending-input)
+                              (push (list pending-input text) cases)
+                              (setf pending-input nil)))
+                       (setf pos (+ pre-close (length "</pre>"))))
+                     (setf pos (+ h3-close (length "</h3>")))))
+               (setf pos (1+ h3-open)))))
+    (nreverse cases)))
+
+(defparameter *atcoder-session-cookie* nil
+  "AtCoder session cookie string for authenticated fetch.
+Either full cookie pair (e.g. \"REVEL_SESSION=...\") or just cookie value.")
+
+(defun normalize-atcoder-cookie (cookie)
+  (cond ((null cookie) nil)
+        ((search "=" cookie) cookie)
+        (t (format nil "REVEL_SESSION=~A" cookie))))
+
+(defun ensure-load-dexador ()
+  (unless (find-package :dexador)
+    (when (find-package :ql)
+      (funcall (intern (string :quickload) :ql) :dexador :silent t)))
+  (unless (find-package :dexador)
+    (error "Dexador package is not loaded. Load dexador before calling fetch-atcoder-samples.")))
+
+(defun resolve-dexador-get-function ()
+  "Resolve and return the function object of DEXADOR:GET lazily.
+
+This indirection intentionally avoids writing DEXADOR:GET directly at read/load
+time, so this file can still be loaded in environments where the DEXADOR package
+is not present yet. We first ensure dexador is loaded, then resolve GET from the
+DEXADOR package at runtime and return its function object."
+  (ensure-load-dexador)
+  (let ((symbol (find-symbol (string :get) :dexador)))
+    (unless (and symbol (fboundp symbol))
+      (error "DEXADOR:GET function is not available."))
+    (symbol-function symbol)))
+
+(defun fetch-url (url &key cookie)
+  (let ((cookie-header (normalize-atcoder-cookie cookie))
+        (dexador-get (resolve-dexador-get-function)))
+    (if cookie-header
+        (funcall dexador-get
+                 url
+                 :headers `(("Cookie" . ,cookie-header)))
+        (funcall dexador-get url))))
+
+(defun fetch-atcoder-samples (url &key cookie)
+  "Fetch sample input/output pairs from an AtCoder task URL.
+Returns a list of (input output)."
+  (let* ((html (fetch-url url :cookie (or cookie *atcoder-session-cookie*)))
+         (cases (parse-atcoder-samples-from-html html)))
+    #-atcoder (when (null cases)
+      (error "No samples found in URL: ~A" url))
+    cases))
+
+(defun test-url (fn url &key cookie)
+  "Run test-case for all samples fetched from AtCoder task URL."
+  (let ((cases (fetch-atcoder-samples url :cookie cookie)))
+    (loop for (input expect) in cases
+          for index from 1
+          do (format t "[Sample ~D]~%" index)
+             (test-case fn input expect))
+    (length cases)))
+
+(defun test (fn url &key cookie)
+  (test-url fn url :cookie cookie))
+
+;;;
 ;;; atcoder
 ;;;
 (defpackage atcoder
@@ -3360,10 +3712,9 @@ input
         :graph
         :algorithm
         :amb
+        :atcoder.test
         )
-  (:export :main
-           :test
-           ))
+  (:export :main))
 (in-package atcoder)
 
 (defun main ()
@@ -3371,17 +3722,4 @@ input
            (b fixnum))
     (format t "~A~%" (+ a b))))
 
-(defun test-case (input expect)
-  (let ((output (with-output-to-string (*standard-output*)
-                  (with-input-from-string (*standard-input* input)
-                    (main)))))
-    (if (string= (string-trim '(#\Space #\Newline) output)
-                 (string-trim '(#\Space #\Newline) expect))
-        (format t "Pass~%")
-        (format t "Failed~%expect: ~A~%but actual: ~A~%" expect output))))
-
-(defun test ()
-  (test-case "1 2" "3")
-  )
-
-#-swank (main)
+#+atcoder (main)
