@@ -51,6 +51,37 @@
             :ok
             :ng))))
 
+(deftest if-match-or-pattern
+  (ok (eq :ok
+          (match:if-match (or nil (list 1 2))
+              nil
+            :ok
+            :ng)))
+  (ok (eq :ok
+          (match:if-match (or nil (list 1 2))
+              '(1 2)
+            :ok
+            :ng)))
+  (ok (eq :ng
+          (match:if-match (or nil (list 1 2))
+              '(1 3)
+            :ok
+            :ng))))
+
+(deftest if-match-or-pattern-binding
+  (ok (= 10
+         (match:if-match (or (list x 0)
+                             (list 0 x))
+             '(10 0)
+           x
+           -1)))
+  (ok (= 20
+         (match:if-match (or (list x 0)
+                             (list 0 x))
+             '(0 20)
+           x
+           -1))))
+
 (deftest match-basic
   (ok (= 6
          (match:match '(1 2 3)
@@ -60,6 +91,34 @@
           (match:match '(1 2)
             ((list _ _ _) :triple)
             (otherwise :other)))))
+
+(deftest match-or-pattern
+  (ok (eq :empty-or-singleton
+          (match:match nil
+            ((or nil (list _)) :empty-or-singleton)
+            (otherwise :other))))
+  (ok (eq :empty-or-singleton
+          (match:match '(9)
+            ((or nil (list _)) :empty-or-singleton)
+            (otherwise :other))))
+  (ok (eq :other
+          (match:match '(1 2)
+            ((or nil (list _)) :empty-or-singleton)
+            (otherwise :other)))))
+
+(deftest match-or-pattern-binding
+  (ok (= 7
+         (match:match '(7 0)
+           ((or (list x 0)
+                (list 0 x))
+            x)
+           (otherwise -1))))
+  (ok (= 9
+         (match:match '(0 9)
+           ((or (list x 0)
+                (list 0 x))
+            x)
+           (otherwise -1)))))
 
 (defun classify-match (x)
   (match:match x

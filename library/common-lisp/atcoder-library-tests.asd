@@ -2,4 +2,5 @@
   :depends-on ("rove" "atcoder-library-core")
   :serial t
   :pathname "./"
-  :components ((:file "tests/library-test")))
+  :components ((:file "tests/library-test")
+               (:file "tests/ordered-map-test")))
