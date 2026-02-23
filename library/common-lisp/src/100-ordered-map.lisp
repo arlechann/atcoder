@@ -1,11 +1,7 @@
-(in-package :cl-user)
-
-;;;
 ;;; ordered-map
 ;;;
-(defpackage :ordered-map
-  (:nicknames :omap)
-  (:use :cl)
+(defpackage ordered-map
+  (:use :cl :utility)
   (:export :make-rbtree
            :rbtree-search
            :rbtree-each
@@ -18,46 +14,33 @@
            :rbtree-remove
            :rbtree-print
            ))
-(in-package :ordered-map)
+(in-package ordered-map)
 
 ;;; node
 
-(defun make-node (&key color left value right)
-  (list color left value right))
+(declaim (inline node-empty-p node-color node-left node-value node-right node-black-p node-red-p))
 
+(defun make-node (&key color left value right) (list color left value right))
 (defun make-empty-node () nil)
-
 (defun node-empty-p (node) (null node))
-
-(defun node-color (node)
-  (if (node-empty-p node)
-      'black
-      (first node)))
-
+(defun node-color (node) (if (node-empty-p node) 'black (first node)))
 (defun node-left (node) (second node))
-
 (defun node-value (node) (third node))
-
 (defun node-right (node) (fourth node))
 
 (defun (setf node-color) (color node)
   (if (node-empty-p node)
-      (if (eq color 'black)
-          'black
+      (progn
+        #-atcoder
+        (unless (eq color 'black)
           (error "Leaf is must be black."))
+        'black)
       (setf (first node) color)))
 
-(defun (setf node-value) (value node)
-  (setf (third node) value))
-
-(defun (setf node-left) (left node)
-  (setf (second node) left))
-
-(defun (setf node-right) (right node)
-  (setf (fourth node) right))
-
+(defun (setf node-value) (value node) (setf (third node) value))
+(defun (setf node-left) (left node) (setf (second node) left))
+(defun (setf node-right) (right node) (setf (fourth node) right))
 (defun node-black-p (node) (eq (node-color node) 'black))
-
 (defun node-red-p (node) (eq (node-color node) 'red))
 
 (defun node-each (node fn)
@@ -68,7 +51,7 @@
 
 (defun node-search (node search-key key key-eq-p key-less-p &key default)
   (if (node-empty-p node)
-      default
+      (values default nil)
       (let ((node-key (funcall key (node-value node))))
         (cond ((funcall key-eq-p search-key node-key)
                (values (node-value node) t))
@@ -131,22 +114,20 @@
                               key-less-p
                               :end end)))))
 
-(defun rotate-right (node)
-  (let ((lnode (node-left node)))
-    (setf (node-left node) (node-right lnode)
-          (node-right lnode) node
-          (node-color lnode) (node-color node)
-          (node-color node) 'red)
-  lnode))
-
-(defun rotate-left (node)
-  (let ((rnode (node-right node)))
-    (setf (node-right node) (node-left rnode)
-          (node-left rnode) node
-          (node-color rnode) (node-color node)
-          (node-color node) 'red)
-    rnode))
-
+(macrolet ((%defun-rotate (a b)
+             (let ((node-a (symb 'node- a))
+                   (node-b (symb 'node- b))
+                   (b-node (symb b '-node)))
+               `(defun ,(symb 'rotate- a) (node)
+                  (let ((,b-node (,node-b node)))
+                    (setf (,node-b node) (,node-a ,b-node)
+                          (,node-a ,b-node) node
+                          (node-color ,b-node) (node-color node)
+                          (node-color node) 'red)
+                    ,b-node)))))
+  (%defun-rotate right left)
+  (%defun-rotate left right))
+                  
 (defun split-4node (node)
   (setf (node-color node) 'red
         (node-color (node-left node)) 'black
@@ -165,6 +146,23 @@
         node
         (node-last rnode))))
 
+(declaim (ftype (function (t t t t t) (values t boolean))
+                node-insert-left
+                node-insert-right
+                node-remove-here
+                node-remove-left
+                node-remove-right))
+(declaim (ftype (function (t boolean) (values t boolean))
+                balance-insert-left
+                balance-insert-right
+                balance-remove-left
+                balance-remove-right))
+(declaim (ftype (function (t) t)
+                invalid-red-ll-p
+                invalid-red-lr-p
+                invalid-red-rl-p
+                invalid-red-rr-p))
+
 (defun node-insert (node value key key-eq-p key-less-p)
   (if (node-empty-p node)
       (values (make-node :color 'red :value value) t)
@@ -177,26 +175,39 @@
                (node-insert-left node value key key-eq-p key-less-p))
               (t (node-insert-right node value key key-eq-p key-less-p))))))
 
-(defun node-insert-left (node value key key-eq-p key-less-p)
-  (multiple-value-bind (lnode needs-balance)
-      (node-insert (node-left node) value key key-eq-p key-less-p)
-    (setf (node-left node) lnode)
-    (balance-insert-left node needs-balance)))
+(macrolet ((%defun-node-insert (a b)
+             (declare (ignorable b))
+             (let ((node-a (symb 'node- a))
+                   (a-node (symb a '-node)))
+               `(defun ,(symb 'node-insert- a) (node value key key-eq-p key-less-p)
+                  (multiple-value-bind (,a-node needs-balance)
+                      (node-insert (,node-a node) value key key-eq-p key-less-p)
+                    (setf (,node-a node) ,a-node)
+                    (,(symb 'balance-insert- a) node needs-balance))))))
+  (%defun-node-insert left right)
+  (%defun-node-insert right left))
 
-(defun balance-insert-left (node needs-balance)
-  (if (or (not needs-balance) (node-red-p node))
-      (values node needs-balance)
-      (cond ((and (node-red-p (node-right node))
-               (or (invalid-red-ll-p node)
-                   (invalid-red-lr-p node)))
-             (setf node (split-4node node))
-             (values node t))
-            ((invalid-red-ll-p node)
-             (values (rotate-right node) nil))
-            ((invalid-red-lr-p node)
-             (setf (node-left node) (rotate-left (node-left node)))
-             (values (rotate-right node) nil))
-            (t (values node nil)))))
+(macrolet ((%defun-balance-insert (a b aa ab)
+             (let ((node-a (symb 'node- a))
+                   (node-b (symb 'node- b))
+                   (rotate-a (symb 'rotate- a))
+                   (rotate-b (symb 'rotate- b)))
+               `(defun ,(symb 'balance-insert- a) (node needs-balance)
+                  (if (or (not needs-balance) (node-red-p node))
+                      (values node needs-balance)
+                      (cond ((and (node-red-p (,node-b node))
+                                  (or (,(symb 'invalid-red- aa '-p) node)
+                                      (,(symb 'invalid-red- ab '-p) node)))
+                             (setf node (split-4node node))
+                             (values node t))
+                            ((,(symb 'invalid-red- aa '-p) node)
+                             (values (,rotate-b node) nil))
+                            ((,(symb 'invalid-red- ab '-p) node)
+                             (setf (,node-a node) (,rotate-a (,node-a node)))
+                             (values (,rotate-b node) nil))
+                            (t (values node nil))))))))
+  (%defun-balance-insert left right ll lr)
+  (%defun-balance-insert right left rr rl))
 
 (defun invalid-red-ll-p (node)
   (let ((lnode (node-left node)))
@@ -207,27 +218,6 @@
   (let ((lnode (node-left node)))
     (and (node-red-p lnode)
          (node-red-p (node-right lnode)))))
-
-(defun node-insert-right (node value key key-eq-p key-less-p)
-  (multiple-value-bind (rnode needs-balance)
-      (node-insert (node-right node) value key key-eq-p key-less-p)
-    (setf (node-right node) rnode)
-    (balance-insert-right node needs-balance)))
-
-(defun balance-insert-right (node needs-balance)
-  (if (or (not needs-balance) (node-red-p node))
-      (values node needs-balance)
-      (cond ((and (node-red-p (node-left node))
-                  (or (invalid-red-rr-p node)
-                      (invalid-red-rl-p node)))
-             (setf node (split-4node node))
-             (values node t))
-            ((invalid-red-rr-p node)
-             (values (rotate-left node) nil))
-            ((invalid-red-rl-p node)
-             (setf (node-right node) (rotate-right (node-right node)))
-             (values (rotate-left node) nil))
-            (t (values node nil)))))
 
 (defun invalid-red-rl-p (node)
   (let ((rnode (node-right node)))
@@ -374,23 +364,20 @@
 ;;; rbtree
 
 (defun make-rbtree (&key root (key #'identity) (key-eq-p #'eql) (key-less-p #'<))
+  "空または ROOT 指定の赤黒木マップを作成して返す。"
   (list (or root (make-empty-node)) key key-eq-p key-less-p))
 
 (defun rbtree-root (rbtree) (first rbtree))
-
 (defun rbtree-key (rbtree) (second rbtree))
-
 (defun rbtree-key-eq-p (rbtree) (third rbtree))
-
 (defun rbtree-key-less-p (rbtree) (fourth rbtree))
-
-(defun (setf rbtree-root) (root rbtree)
-  (setf (first rbtree) root))
-
+(defun (setf rbtree-root) (root rbtree) (setf (first rbtree) root))
 (defun rbtree-each (rbtree fn)
+  "キー順（中順）に各要素へ FN を適用する。"
   (node-each (rbtree-root rbtree) fn))
 
 (defun rbtree-to-list (rbtree)
+  "木の要素をキー昇順のリストとして返す。"
   (let ((acc nil))
     (rbtree-each rbtree
                  (lambda (v)
@@ -398,18 +385,21 @@
     (nreverse acc)))
 
 (defun rbtree-first (rbtree)
+  "最小キーの要素を返す。空なら NIL。"
   (let ((node (node-first (rbtree-root rbtree))))
     (if (node-empty-p node)
         nil
         (node-value node))))
 
 (defun rbtree-last (rbtree)
+  "最大キーの要素を返す。空なら NIL。"
   (let ((node (node-last (rbtree-root rbtree))))
     (if (node-empty-p node)
         nil
         (node-value node))))
 
 (defun rbtree-search (rbtree search-key &key default)
+  "SEARCH-KEY に一致する要素を返す。未発見時は DEFAULT。"
   (node-search (rbtree-root rbtree)
                search-key
                (rbtree-key rbtree)
@@ -418,6 +408,7 @@
                :default default))
 
 (defun rbtree-lower-bound (rbtree search-key &key end)
+  "SEARCH-KEY 以上の最小要素を返す。存在しなければ END。"
   (node-lower-bound (rbtree-root rbtree)
                     search-key
                     (rbtree-key rbtree)
@@ -426,6 +417,7 @@
                     :end end))
 
 (defun rbtree-upper-bound (rbtree search-key &key end)
+  "SEARCH-KEY より大きい最小要素を返す。存在しなければ END。"
   (node-upper-bound (rbtree-root rbtree)
                     search-key
                     (rbtree-key rbtree)
@@ -434,6 +426,7 @@
                     :end end))
 
 (defun rbtree-insert (rbtree value)
+  "VALUE を挿入（同一キーは上書き）し、RBTree を返す。"
   (multiple-value-bind (root needs-balance)
       (node-insert (rbtree-root rbtree)
                    value
@@ -446,52 +439,19 @@
     rbtree))
 
 (defun rbtree-remove (rbtree remove-key)
+  "REMOVE-KEY の要素を削除し、RBTree を返す。"
   (let ((root (node-remove (rbtree-root rbtree)
                            remove-key
                            (rbtree-key rbtree)
                            (rbtree-key-eq-p rbtree)
                            (rbtree-key-less-p rbtree))))
+    (unless (node-empty-p root)
+      (setf (node-color root) 'black))
     (setf (rbtree-root rbtree) root)
     rbtree))
 
 (defun rbtree-print (rbtree &key (stream t) show-nil)
+  "木構造を整形して STREAM に出力する。"
   (node-print (rbtree-root rbtree) 0 :stream stream :show-nil show-nil))
 
-(defun test ()
-  (let ((rbtree (make-rbtree))
-        (randoms (loop repeat 10 collect (random 100))))
-    (dolist (x randoms)
-      (format t "~%----------~%~%")
-      (format t "insert ~S~%" x)
-      (setf rbtree (rbtree-insert rbtree x))
-      (terpri)
-      (rbtree-print rbtree))
-    (labels ((rec ()
-               (format *terminal-io* "> ")
-               (let ((op (intern (symbol-name (read)) :ordered-map))
-                     (x (read)))
-                 (cond ((eq op 'quit) 'quit)
-                       ((eq op 'print) (rbtree-print rbtree :stream *terminal-io*) (rec))
-                       ((eq op 'to-list)
-                        (format *terminal-io* "To list: ~S~%" (rbtree-to-list rbtree))
-                        (rec))
-                       ((eq op 'search)
-                        (format *terminal-io* "Search result: ~S~%" (rbtree-search rbtree x))
-                        (rec))
-                       ((eq op 'lower-bound)
-                        (format *terminal-io* "Lower bound: ~S~%" (rbtree-lower-bound rbtree x :end 'end))
-                        (rec))
-                       ((eq op 'upper-bound)
-                        (format *terminal-io* "Upper bound: ~S~%" (rbtree-upper-bound rbtree x :end 'end))
-                        (rec))
-                       ((eq op 'insert)
-                        (setf rbtree (rbtree-insert rbtree x))
-                        (rbtree-print rbtree :stream *terminal-io*)
-                        (rec))
-                       ((eq op 'remove)
-                        (setf rbtree (rbtree-remove rbtree x))
-                        (rbtree-print rbtree :stream *terminal-io*)
-                        (rec))
-                       (t (format t "Unrecognized operator: ~S~%" op)
-                          (rec))))))
-      (rec))))
+;;;
