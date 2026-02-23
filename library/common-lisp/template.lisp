@@ -941,18 +941,25 @@
                 window-map))
 (let ((t-fn (constantly t)))
   (defun window-map (result-type window-size fn sequence)
-    (let ((result (let ((index 0)
-                        (queue (list-queue:make-list-queue)))
-                    (map result-type
-                         (lambda (e)
-                           (list-queue:list-queue-enqueue queue e)
-                           (incf index)
-                           (when (>= index window-size)
-                             (prog1 (apply fn (list-queue:list-queue-raw queue))
-                               (list-queue:list-queue-dequeue queue))))
-                         sequence))))
-      (and result
-           (delete-if t-fn result :end (1- window-size))))))
+    (let ((len (length sequence)))
+      (declare (ignorable len))
+      #-atcoder
+      (when (> window-size len)
+        (error "WINDOW-MAP: window-size ~D exceeds sequence length ~D." window-size len))
+      (let ((result (let ((index 0)
+                          (queue (list-queue:make-list-queue)))
+                      (map result-type
+                           (lambda (e)
+                             (list-queue:list-queue-enqueue queue e)
+                             (incf index)
+                             (when (>= index window-size)
+                               (prog1 (apply fn (list-queue:list-queue-raw queue))
+                                 (list-queue:list-queue-dequeue queue))))
+                           sequence))))
+        (and result
+             (delete-if t-fn
+                        result
+                        :end (1- window-size)))))))
 
 (declaim (ftype (function ((integer 1 *)
                            (or (function (t &rest t) t) symbol)
@@ -961,18 +968,23 @@
                 window-nmap))
 (let ((t-fn (constantly t)))
   (defun window-nmap (window-size fn sequence)
-    (delete-if t-fn
-               (let ((index 0)
-                     (queue (list-queue:make-list-queue)))
-                 (utility.base::nmap
-                  (lambda (e)
-                    (list-queue:list-queue-enqueue queue e)
-                    (incf index)
-                    (when (>= index window-size)
-                      (prog1 (apply fn (list-queue:list-queue-raw queue))
-                        (list-queue:list-queue-dequeue queue))))
-                  sequence))
-               :end (1- window-size))))
+    (let ((len (length sequence)))
+      (declare (ignorable len))
+      #-atcoder
+      (when (> window-size len)
+        (error "WINDOW-NMAP: window-size ~D exceeds sequence length ~D." window-size len))
+      (delete-if t-fn
+                 (let ((index 0)
+                       (queue (list-queue:make-list-queue)))
+                   (utility.base::nmap
+                    (lambda (e)
+                      (list-queue:list-queue-enqueue queue e)
+                      (incf index)
+                      (when (>= index window-size)
+                        (prog1 (apply fn (list-queue:list-queue-raw queue))
+                          (list-queue:list-queue-dequeue queue))))
+                    sequence))
+                 :end (1- window-size)))))
 
 ;;;
 ;;; utility
@@ -1025,6 +1037,9 @@
   (defun match-guard-pattern-p (pat)
     (and (consp pat) (eq (car pat) 'guard) (consp (cdr pat)) (consp (cddr pat))))
 
+  (defun match-or-pattern-p (pat)
+    (and (consp pat) (eq (car pat) 'or) (consp (cdr pat))))
+
   (defun list-pattern->cons-pattern (items)
     (if (null items)
         nil
@@ -1034,6 +1049,13 @@
     (cond ((null items) nil)
           ((null (cdr items)) (car items))
           (t `(cons ,(car items) ,(list*-pattern->cons-pattern (cdr items))))))
+
+  (defun binding-vars (binds)
+    (remove-duplicates (mapcar #'car binds)))
+
+  (defun same-binding-vars-p (var-list-1 var-list-2)
+    (and (null (set-difference var-list-1 var-list-2))
+         (null (set-difference var-list-2 var-list-1))))
 
   (defun compile-pattern (pat target env)
     (cond
@@ -1075,6 +1097,33 @@
                  binds
                  env1)))
 
+      ((match-or-pattern-p pat)
+       (let ((compiled nil))
+         (dolist (subpat (cdr pat))
+           (multiple-value-bind (test binds subenv)
+               (compile-pattern subpat target env)
+             (declare (ignore subenv))
+             (push (list test binds) compiled)))
+         (setf compiled (nreverse compiled))
+         (let* ((tests (mapcar #'first compiled))
+                (binds-list (mapcar #'second compiled))
+                (base-vars (binding-vars (first binds-list))))
+           (dolist (binds (rest binds-list))
+             (unless (same-binding-vars-p base-vars (binding-vars binds))
+               (error "OR pattern branches must bind same variables: ~S" pat)))
+           (let ((merged-binds
+                   (mapcar (lambda (var)
+                             (list var
+                                   `(cond
+                                      ,@(mapcar (lambda (entry)
+                                                  (let ((test (first entry))
+                                                        (binds (second entry)))
+                                                    (list test (second (assoc var binds)))))
+                                                compiled)
+                                      (t nil))))
+                           base-vars)))
+             (values `(or ,@tests) merged-binds env)))))
+
       ((consp pat)
        (compile-pattern (list-pattern->cons-pattern pat) target env))
 
@@ -1101,6 +1150,7 @@ Patterns:
   _                      wildcard
   symbol                 variable binding
   atom / 'literal        literal equality
+  (or p1 ... pn)         OR-pattern (all branches must bind same vars)
   (cons p1 p2)           cons pattern
   (list p1 ... pn)       proper list pattern
   (list* p1 ... tail)    dotted list pattern
@@ -1122,6 +1172,7 @@ Patterns:
 Usage:
   (match expr
     ((list x y) (+ x y))
+    ((or nil (list _)) :singleton-or-nil)
     ((guard (cons x _) (> x 0)) x)
     (otherwise nil))"
   (let ((value (gensym "VALUE-")))
@@ -1516,21 +1567,23 @@ Usage:
   (if (node-empty-p node)
       (values default nil)
       (let ((node-key (funcall key (node-value node))))
-        (cond ((funcall key-eq-p search-key node-key)
-               (values (node-value node) t))
-              ((funcall key-less-p search-key node-key)
-               (node-search (node-left node)
-                            search-key
-                            key
-                            key-eq-p
-                            key-less-p
-                            :default default))
-              (t (node-search (node-right node)
-                              search-key
-                              key
-                              key-eq-p
-                              key-less-p
-                              :default default))))))
+        (match:match (list (funcall key-eq-p search-key node-key)
+                           (funcall key-less-p search-key node-key))
+          ((list t _) (values (node-value node) t))
+          ((list nil t)
+           (node-search (node-left node)
+                        search-key
+                        key
+                        key-eq-p
+                        key-less-p
+                        :default default))
+          (otherwise
+           (node-search (node-right node)
+                        search-key
+                        key
+                        key-eq-p
+                        key-less-p
+                        :default default))))))
 
 (defun node-lower-bound (node search-key key key-eq-p key-less-p &key end)
   (if (node-empty-p node)
@@ -1620,23 +1673,21 @@ Usage:
                 balance-insert-right
                 balance-remove-left
                 balance-remove-right))
-(declaim (ftype (function (t) t)
-                invalid-red-ll-p
-                invalid-red-lr-p
-                invalid-red-rl-p
-                invalid-red-rr-p))
 
 (defun node-insert (node value key key-eq-p key-less-p)
   (if (node-empty-p node)
       (values (make-node :color 'red :value value) t)
       (let ((new-key (funcall key value))
             (node-key (funcall key (node-value node))))
-        (cond ((funcall key-eq-p new-key node-key)
-               (setf (node-value node) value)
-               (values node nil))
-              ((funcall key-less-p new-key node-key)
-               (node-insert-left node value key key-eq-p key-less-p))
-              (t (node-insert-right node value key key-eq-p key-less-p))))))
+        (match:match (list (funcall key-eq-p new-key node-key)
+                           (funcall key-less-p new-key node-key))
+          ((list t _)
+           (setf (node-value node) value)
+           (values node nil))
+          ((list nil t)
+           (node-insert-left node value key key-eq-p key-less-p))
+          (otherwise
+           (node-insert-right node value key key-eq-p key-less-p))))))
 
 (macrolet ((%defun-node-insert (a b)
              (declare (ignorable b))
@@ -1650,81 +1701,78 @@ Usage:
   (%defun-node-insert left right)
   (%defun-node-insert right left))
 
-(macrolet ((%defun-balance-insert (a b aa ab)
-             (let ((node-a (symb 'node- a))
-                   (node-b (symb 'node- b))
-                   (rotate-a (symb 'rotate- a))
-                   (rotate-b (symb 'rotate- b)))
-               `(defun ,(symb 'balance-insert- a) (node needs-balance)
-                  (if (or (not needs-balance) (node-red-p node))
-                      (values node needs-balance)
-                      (cond ((and (node-red-p (,node-b node))
-                                  (or (,(symb 'invalid-red- aa '-p) node)
-                                      (,(symb 'invalid-red- ab '-p) node)))
-                             (setf node (split-4node node))
-                             (values node t))
-                            ((,(symb 'invalid-red- aa '-p) node)
-                             (values (,rotate-b node) nil))
-                            ((,(symb 'invalid-red- ab '-p) node)
-                             (setf (,node-a node) (,rotate-a (,node-a node)))
-                             (values (,rotate-b node) nil))
-                            (t (values node nil))))))))
-  (%defun-balance-insert left right ll lr)
-  (%defun-balance-insert right left rr rl))
+(defun balance-insert-left (node needs-balance)
+  (if (or (not needs-balance) (eq (node-color node) 'red))
+      (values node needs-balance)
+      (match:match node
+        ((list _ (list 'red (list 'red _ _ _) _ _) _ (list 'red _ _ _))
+         (setf node (split-4node node))
+         (values node t))
+        ((list _ (list 'red _ _ (list 'red _ _ _)) _ (list 'red _ _ _))
+         (setf node (split-4node node))
+         (values node t))
+        ((list _ (list 'red (list 'red _ _ _) _ _) _ _)
+         (values (rotate-right node) nil))
+        ((list _ (list 'red _ _ (list 'red _ _ _)) _ _)
+         (setf (node-left node) (rotate-left (node-left node)))
+         (values (rotate-right node) nil))
+        (otherwise
+         (values node nil)))))
 
-(defun invalid-red-ll-p (node)
-  (let ((lnode (node-left node)))
-    (and (node-red-p lnode)
-         (node-red-p (node-left lnode)))))
-
-(defun invalid-red-lr-p (node)
-  (let ((lnode (node-left node)))
-    (and (node-red-p lnode)
-         (node-red-p (node-right lnode)))))
-
-(defun invalid-red-rl-p (node)
-  (let ((rnode (node-right node)))
-    (and (node-red-p rnode)
-         (node-red-p (node-left rnode)))))
-
-(defun invalid-red-rr-p (node)
-  (let ((rnode (node-right node)))
-    (and (node-red-p rnode)
-         (node-red-p (node-right rnode)))))
+(defun balance-insert-right (node needs-balance)
+  (if (or (not needs-balance) (eq (node-color node) 'red))
+      (values node needs-balance)
+      (match:match node
+        ((list _ (list 'red _ _ _) _ (list 'red _ _ (list 'red _ _ _)))
+         (setf node (split-4node node))
+         (values node t))
+        ((list _ (list 'red _ _ _) _ (list 'red (list 'red _ _ _) _ _))
+         (setf node (split-4node node))
+         (values node t))
+        ((list _ _ _ (list 'red _ _ (list 'red _ _ _)))
+         (values (rotate-left node) nil))
+        ((list _ _ _ (list 'red (list 'red _ _ _) _ _))
+         (setf (node-right node) (rotate-right (node-right node)))
+         (values (rotate-left node) nil))
+        (otherwise
+         (values node nil)))))
 
 (defun node-remove (node remove-key key key-eq-p key-less-p)
   (if (node-empty-p node)
       (values node nil)
       (let ((node-key (funcall key (node-value node))))
-        (cond ((funcall key-eq-p remove-key node-key)
-               (node-remove-here node remove-key key key-eq-p key-less-p))
-              ((funcall key-less-p remove-key node-key)
-               (node-remove-left node remove-key key key-eq-p key-less-p))
-              (t (node-remove-right node remove-key key key-eq-p key-less-p))))))
+        (match:match (list (funcall key-eq-p remove-key node-key)
+                           (funcall key-less-p remove-key node-key))
+          ((list t _)
+           (node-remove-here node remove-key key key-eq-p key-less-p))
+          ((list nil t)
+           (node-remove-left node remove-key key key-eq-p key-less-p))
+          (otherwise
+           (node-remove-right node remove-key key key-eq-p key-less-p))))))
 
 (defun node-remove-here (node remove-key key key-eq-p key-less-p)
   (declare (ignore remove-key))
   (let ((lnode (node-left node))
         (rnode (node-right node)))
-    (cond ((and (node-empty-p lnode)
-                (node-empty-p rnode))
-           (values (make-empty-node) (node-black-p node)))
-          ((node-empty-p lnode)
-           (setf (node-color rnode) 'black)
-           (values rnode nil))
-          ((node-empty-p rnode)
-           (setf (node-color lnode) 'black)
-           (values lnode nil))
-          (t (let ((first-node (node-first rnode)))
-               (setf (node-value node) (node-value first-node))
-               (multiple-value-bind (new-rnode needs-balance)
-                   (node-remove rnode
-                                (funcall key (node-value first-node))
-                                key
-                                key-eq-p
-                                key-less-p)
-                 (setf (node-right node) new-rnode)
-                 (balance-remove-right node needs-balance)))))))
+    (match:match (list (node-empty-p lnode) (node-empty-p rnode))
+      ((list t t) (values (make-empty-node) (node-black-p node)))
+      ((list t nil)
+       (setf (node-color rnode) 'black)
+       (values rnode nil))
+      ((list nil t)
+       (setf (node-color lnode) 'black)
+       (values lnode nil))
+      (otherwise
+       (let ((first-node (node-first rnode)))
+         (setf (node-value node) (node-value first-node))
+         (multiple-value-bind (new-rnode needs-balance)
+             (node-remove rnode
+                          (funcall key (node-value first-node))
+                          key
+                          key-eq-p
+                          key-less-p)
+           (setf (node-right node) new-rnode)
+           (balance-remove-right node needs-balance)))))))
 
 (defun node-remove-left (node remove-key key key-eq-p key-less-p)
   (multiple-value-bind (new-left needs-balance)
@@ -1735,40 +1783,51 @@ Usage:
 (defun balance-remove-left (node needs-balance)
   (if (not needs-balance)
       (values node nil)
-      (let* ((lnode (node-left node))
-             (rnode (node-right node))
-             (rlnode (node-left rnode))
-             (rrnode (node-right rnode)))
-        (cond ((node-empty-p rnode) (values node needs-balance))
-              ((and (node-black-p node)
-                    (node-black-p lnode)
-                    (node-black-p rnode)
-                    (node-black-p rlnode)
-                    (node-black-p rrnode))
-               (setf (node-color rnode) 'red)
+      (match:match node
+        ((list _ _ _ nil)
+         (values node needs-balance))
+        ((list 'black left _ (list 'black rleft _ rright))
+         (if (and (match:if-match (or nil (list 'black _ _ _)) left t nil)
+                  (match:if-match (or nil (list 'black _ _ _)) rleft t nil)
+                  (match:if-match (or nil (list 'black _ _ _)) rright t nil))
+             (progn
+               (setf (node-color (node-right node)) 'red)
                (values node t))
-              ((and (node-black-p node)
-                    (node-black-p lnode)
-                    (node-red-p rnode))
-               (let ((new-node (rotate-left node)))
-                 (multiple-value-bind (new-left needs-balance)
-                     (balance-remove-left (node-left new-node) t)
-                   (setf (node-left new-node) new-left)
-                   (balance-remove-left new-node needs-balance))))
-              ((and (node-red-p node)
-                    (node-black-p rlnode)
-                    (node-black-p rrnode))
-               (rotatef (node-color node) (node-color rnode))
-               (values node nil))
-              ((and (node-black-p rnode)
-                    (node-red-p rlnode)
-                    (node-black-p rrnode))
-               (setf (node-right node) (rotate-right rnode))
-               (balance-remove-left node t))
-              (t (let ((new-node (rotate-left node)))
+             (if (and (match:if-match (list 'red _ _ _) rleft t nil)
+                      (match:if-match (or nil (list 'black _ _ _)) rright t nil))
+                 (progn
+                   (setf (node-right node) (rotate-right (node-right node)))
+                   (balance-remove-left node t))
+                 (let ((new-node (rotate-left node)))
                    (setf (node-color (node-left new-node)) 'black
                          (node-color (node-right new-node)) 'black)
-                   (values new-node nil)))))))
+                   (values new-node nil)))))
+        ((list 'black left _ (list 'red _ _ _))
+         (if (match:if-match (or nil (list 'black _ _ _)) left t nil)
+             (let ((new-node (rotate-left node)))
+               (multiple-value-bind (new-left needs-balance)
+                   (balance-remove-left (node-left new-node) t)
+                 (setf (node-left new-node) new-left)
+                 (balance-remove-left new-node needs-balance)))
+             (let ((new-node (rotate-left node)))
+               (setf (node-color (node-left new-node)) 'black
+                     (node-color (node-right new-node)) 'black)
+               (values new-node nil))))
+        ((list 'red _ _ (list _ rleft _ rright))
+         (if (and (match:if-match (or nil (list 'black _ _ _)) rleft t nil)
+                  (match:if-match (or nil (list 'black _ _ _)) rright t nil))
+             (progn
+               (rotatef (node-color node) (node-color (node-right node)))
+               (values node nil))
+             (let ((new-node (rotate-left node)))
+               (setf (node-color (node-left new-node)) 'black
+                     (node-color (node-right new-node)) 'black)
+               (values new-node nil))))
+        (otherwise
+         (let ((new-node (rotate-left node)))
+           (setf (node-color (node-left new-node)) 'black
+                 (node-color (node-right new-node)) 'black)
+           (values new-node nil))))))
 
 (defun node-remove-right (node remove-key key key-eq-p key-less-p)
   (multiple-value-bind (new-right needs-balance)
@@ -1779,50 +1838,62 @@ Usage:
 (defun balance-remove-right (node needs-balance)
   (if (not needs-balance)
       (values node nil)
-      (let* ((rnode (node-right node))
-             (lnode (node-left node))
-             (lrnode (node-right lnode))
-             (llnode (node-left lnode)))
-        (cond ((node-empty-p lnode) (values node needs-balance))
-              ((and (node-black-p node)
-                    (node-black-p rnode)
-                    (node-black-p lnode)
-                    (node-black-p lrnode)
-                    (node-black-p llnode))
-               (setf (node-color lnode) 'red)
+      (match:match node
+        ((list _ nil _ _)
+         (values node needs-balance))
+        ((list 'black (list 'black lleft _ lright) _ right)
+         (if (and (match:if-match (or nil (list 'black _ _ _)) right t nil)
+                  (match:if-match (or nil (list 'black _ _ _)) lleft t nil)
+                  (match:if-match (or nil (list 'black _ _ _)) lright t nil))
+             (progn
+               (setf (node-color (node-left node)) 'red)
                (values node t))
-              ((and (node-black-p node)
-                    (node-black-p rnode)
-                    (node-red-p lnode))
-               (let ((new-node (rotate-right node)))
-                 (multiple-value-bind (new-right needs-balance)
-                     (balance-remove-right (node-right new-node) t)
-                   (setf (node-right new-node) new-right)
-                   (balance-remove-right new-node needs-balance))))
-              ((and (node-red-p node)
-                    (node-black-p lrnode)
-                    (node-black-p llnode))
-               (rotatef (node-color node) (node-color lnode))
-               (values node nil))
-              ((and (node-black-p lnode)
-                    (node-red-p lrnode)
-                    (node-black-p llnode))
-               (setf (node-left node) (rotate-left lnode))
-               (balance-remove-right node t))
-              (t (let ((new-node (rotate-right node)))
+             (if (and (match:if-match (list 'red _ _ _) lright t nil)
+                      (match:if-match (or nil (list 'black _ _ _)) lleft t nil))
+                 (progn
+                   (setf (node-left node) (rotate-left (node-left node)))
+                   (balance-remove-right node t))
+                 (let ((new-node (rotate-right node)))
                    (setf (node-color (node-left new-node)) 'black
                          (node-color (node-right new-node)) 'black)
-                   (values new-node nil)))))))
+                   (values new-node nil)))))
+        ((list 'black (list 'red _ _ _) _ right)
+         (if (match:if-match (or nil (list 'black _ _ _)) right t nil)
+             (let ((new-node (rotate-right node)))
+               (multiple-value-bind (new-right needs-balance)
+                   (balance-remove-right (node-right new-node) t)
+                 (setf (node-right new-node) new-right)
+                 (balance-remove-right new-node needs-balance)))
+             (let ((new-node (rotate-right node)))
+               (setf (node-color (node-left new-node)) 'black
+                     (node-color (node-right new-node)) 'black)
+               (values new-node nil))))
+        ((list 'red (list _ lleft _ lright) _ _)
+         (if (and (match:if-match (or nil (list 'black _ _ _)) lleft t nil)
+                  (match:if-match (or nil (list 'black _ _ _)) lright t nil))
+             (progn
+               (rotatef (node-color node) (node-color (node-left node)))
+               (values node nil))
+             (let ((new-node (rotate-right node)))
+               (setf (node-color (node-left new-node)) 'black
+                     (node-color (node-right new-node)) 'black)
+               (values new-node nil))))
+        (otherwise
+         (let ((new-node (rotate-right node)))
+           (setf (node-color (node-left new-node)) 'black
+                 (node-color (node-right new-node)) 'black)
+           (values new-node nil))))))
 
 (defun node-print (node depth &key (stream t) show-nil)
-  (cond ((node-empty-p node)
-         (when show-nil
-             (loop repeat depth do (format stream "    "))
-             (format stream "NIL~%")))
-        (t (node-print (node-right node) (1+ depth) :stream stream :show-nil show-nil)
-           (loop repeat depth do (format stream "    "))
-           (format stream "(~A,~S)~%" (symbol-name (node-color node)) (node-value node))
-           (node-print (node-left node) (1+ depth) :stream stream :show-nil show-nil))))
+  (if (node-empty-p node)
+      (when show-nil
+        (loop repeat depth do (format stream "    "))
+        (format stream "NIL~%"))
+      (progn
+        (node-print (node-right node) (1+ depth) :stream stream :show-nil show-nil)
+        (loop repeat depth do (format stream "    "))
+        (format stream "(~A,~S)~%" (symbol-name (node-color node)) (node-value node))
+        (node-print (node-left node) (1+ depth) :stream stream :show-nil show-nil))))
 
 ;;; rbtree
 
@@ -2464,7 +2535,7 @@ Usage:
           ((and (not u1) u2) nil)
           (t (> (vector-cross v1 v2) 0)))))
 
-(defun colliner-p (v1 v2)
+(defun collinear-p (v1 v2)
   (zerop (vector2-cross v1 v2)))
 
 ;;; matrix

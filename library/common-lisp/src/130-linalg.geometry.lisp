@@ -50,7 +50,7 @@
           ((and (not u1) u2) nil)
           (t (> (vector-cross v1 v2) 0)))))
 
-(defun colliner-p (v1 v2)
+(defun collinear-p (v1 v2)
   (zerop (vector2-cross v1 v2)))
 
 ;;; matrix

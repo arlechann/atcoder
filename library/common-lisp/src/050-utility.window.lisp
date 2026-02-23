@@ -17,18 +17,25 @@
                 window-map))
 (let ((t-fn (constantly t)))
   (defun window-map (result-type window-size fn sequence)
-    (let ((result (let ((index 0)
-                        (queue (list-queue:make-list-queue)))
-                    (map result-type
-                         (lambda (e)
-                           (list-queue:list-queue-enqueue queue e)
-                           (incf index)
-                           (when (>= index window-size)
-                             (prog1 (apply fn (list-queue:list-queue-raw queue))
-                               (list-queue:list-queue-dequeue queue))))
-                         sequence))))
-      (and result
-           (delete-if t-fn result :end (1- window-size))))))
+    (let ((len (length sequence)))
+      (declare (ignorable len))
+      #-atcoder
+      (when (> window-size len)
+        (error "WINDOW-MAP: window-size ~D exceeds sequence length ~D." window-size len))
+      (let ((result (let ((index 0)
+                          (queue (list-queue:make-list-queue)))
+                      (map result-type
+                           (lambda (e)
+                             (list-queue:list-queue-enqueue queue e)
+                             (incf index)
+                             (when (>= index window-size)
+                               (prog1 (apply fn (list-queue:list-queue-raw queue))
+                                 (list-queue:list-queue-dequeue queue))))
+                           sequence))))
+        (and result
+             (delete-if t-fn
+                        result
+                        :end (1- window-size)))))))
 
 (declaim (ftype (function ((integer 1 *)
                            (or (function (t &rest t) t) symbol)
@@ -37,17 +44,22 @@
                 window-nmap))
 (let ((t-fn (constantly t)))
   (defun window-nmap (window-size fn sequence)
-    (delete-if t-fn
-               (let ((index 0)
-                     (queue (list-queue:make-list-queue)))
-                 (utility.base::nmap
-                  (lambda (e)
-                    (list-queue:list-queue-enqueue queue e)
-                    (incf index)
-                    (when (>= index window-size)
-                      (prog1 (apply fn (list-queue:list-queue-raw queue))
-                        (list-queue:list-queue-dequeue queue))))
-                  sequence))
-               :end (1- window-size))))
+    (let ((len (length sequence)))
+      (declare (ignorable len))
+      #-atcoder
+      (when (> window-size len)
+        (error "WINDOW-NMAP: window-size ~D exceeds sequence length ~D." window-size len))
+      (delete-if t-fn
+                 (let ((index 0)
+                       (queue (list-queue:make-list-queue)))
+                   (utility.base::nmap
+                    (lambda (e)
+                      (list-queue:list-queue-enqueue queue e)
+                      (incf index)
+                      (when (>= index window-size)
+                        (prog1 (apply fn (list-queue:list-queue-raw queue))
+                          (list-queue:list-queue-dequeue queue))))
+                    sequence))
+                 :end (1- window-size)))))
 
 ;;;
