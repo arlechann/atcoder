@@ -16,10 +16,11 @@
 (require :asdf)
 
 ;;;
-;;; utility.v0
+;;; utility.syntax
 ;;;
-(defpackage utility.v0
+(defpackage utility.syntax
   (:use :cl)
+  (:import-from :uiop :if-let)
   (:export :it
            :self
            :eval-always
@@ -42,6 +43,12 @@
            :do-array*
            :do-seq
            :do-seq*
+           :do-bit
+           :do-4neighbors
+           :do-8neighbors
+           :let-dyn
+           :flet-accessor
+           :if-let
            :dbind
            :mvcall
            :mvbind
@@ -49,7 +56,7 @@
            :mvprog1
            :mvsetq
            ))
-(in-package :utility.v0)
+(in-package :utility.syntax)
 
 (defmacro eval-always (&body body)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
@@ -58,13 +65,17 @@
 (defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
 
 (defmacro defalias (alias original)
-  `(progn (setf (symbol-function ,alias) ,original) ,alias))
+  (unless (symbolp alias)
+    (error "DEFALIAS: ALIAS must be a symbol literal, got ~S" alias))
+  `(progn
+     (setf (symbol-function ',alias) ,original)
+     ',alias))
 
 (defmacro defabbrev (short long) `(defmacro ,short (&rest args) `(,',long ,@args)))
 
 (defun-always symb (&rest args)
   (values (intern (with-output-to-string (s)
-                    (mapcar (lambda (x) (princ x s)) args)))
+                    (mapc (lambda (x) (princ x s)) args)))
           *package*))
 
 (defun-always def-dispatch-fn (char fn)
@@ -193,48 +204,6 @@
 (defmacro do-seq ((var sequence &optional result) &body body)
   `(do-seq* ((,var) (,sequence) ,result) ,@body))
 
-(defabbrev dbind destructuring-bind)
-(defabbrev mvcall multiple-value-call)
-(defabbrev mvbind multiple-value-bind)
-(defabbrev mvlist multiple-value-list)
-(defabbrev mvprog1 multiple-value-prog1)
-(defabbrev mvsetq multiple-value-setq)
-
-;;;
-;;; utility.v1
-;;;
-(defpackage utility.v1
-  (:use :cl :utility.v0)
-  (:import-from :uiop :if-let)
-  (:export ;; control
-           :do-bit
-           :do-4neighbors
-           :do-8neighbors
-           :let-dyn
-           :flet-accessor
-           :if-let
-           ;; number
-           :2*
-           :/2
-           :square
-           :cube
-           :cuber
-           :pow
-           :diff
-           :triangular-number
-           :next-pow2
-           :repunit
-           :maxp
-           :minp
-           :maxf
-           :minf
-           :logipop
-           :logmsb
-           :range-intersect-p
-           :dp-combination
-           ))
-(in-package :utility.v1)
-
 (defmacro do-bit ((index bitpopp integer &optional result) &body body)
   (let ((int (gensym)))
     `(do* ((,int ,integer (ash ,int -1))
@@ -270,9 +239,49 @@
                               (accessor (caddr definition)))
                           (list (list name params accessor)
                                 (list (list 'setf name) (cons value params)
-                                      (list 'setf accessor value)))))
+                                (list 'setf accessor value)))))
                     definitions)
        ,@body)))
+
+(defabbrev dbind destructuring-bind)
+(defabbrev mvcall multiple-value-call)
+(defabbrev mvbind multiple-value-bind)
+(defabbrev mvlist multiple-value-list)
+(defabbrev mvprog1 multiple-value-prog1)
+(defabbrev mvsetq multiple-value-setq)
+
+;;;
+;;; utility.number
+;;;
+(defpackage utility.number
+  (:use :cl :utility.syntax)
+  (:export ;; number
+           :2*
+           :/2
+           :square
+           :cube
+           :cuber
+           :pow
+           :diff
+           :triangular-number
+           :next-pow2
+           :repunit
+           :maxp
+           :minp
+           :maxf
+           :minf
+           :logipop
+           :logmsb
+           :approx=
+           :approx-zero-p
+           :approx<=
+           :approx>=
+           :range-intersect-p
+           ))
+(in-package :utility.number)
+
+(declaim (inline onep 2* /2 square cube cuber diff triangular-number repunit maxp minp logmsb
+                 approx= approx-zero-p approx<= approx>=))
 
 (declaim (ftype (function (number) t) onep))
 (defun onep (x) (= x 1))
@@ -344,6 +353,24 @@
           ((> k n) (1- i))
           (t (rec (1+ i) (ash k 1))))))
 
+(declaim (ftype (function (real real &key (:eps real)) boolean) approx=))
+(defun approx= (x y &key (eps 1d-12))
+  (<= (abs (- x y)) eps))
+
+(declaim (ftype (function (real &key (:eps real)) boolean) approx-zero-p))
+(defun approx-zero-p (x &key (eps 1d-12))
+  (<= (abs x) eps))
+
+(declaim (ftype (function (real real &key (:eps real)) boolean) approx<=))
+(defun approx<= (x y &key (eps 1d-12))
+  (or (< x y)
+      (approx= x y :eps eps)))
+
+(declaim (ftype (function (real real &key (:eps real)) boolean) approx>=))
+(defun approx>= (x y &key (eps 1d-12))
+  (or (> x y)
+      (approx= x y :eps eps)))
+
 (declaim (ftype (function (real real real real &key (:touchp t)) boolean)))
 (defun range-intersect-p (a1 a2 b1 b2 &key touchp)
   (let ((comp (if touchp #'< #'<=)))
@@ -375,10 +402,10 @@
                             (dp-combination (1- n) k)))))))))
 
 ;;;
-;;; utility.v2
+;;; utility.base
 ;;;
-(defpackage utility.v2
-  (:use :cl :utility.v0 :utility.v1)
+(defpackage utility.base
+  (:use :cl :utility.syntax :utility.number)
   (:import-from :uiop
                 :split-string
                 :emptyp
@@ -386,11 +413,14 @@
                 :string-suffix-p
                 :strcat
                 :println)
-  (:export ;; function
+  (:export ;; function / memoize
            :do-nothing
            :compose
            :memoize-lambda
            :array-memoize-lambda
+           ;; lazy
+           :delay
+           :force
            ;; sequence
            :sum
            :sortf
@@ -398,8 +428,6 @@
            :map-into-with-index
            :nmap
            :nmap-with-index
-           ;:window-map
-           ;:window-nmap
            :run-length-encode
            :next-permutation
            :do-permutations
@@ -415,6 +443,9 @@
            :maplist-with-index
            :mapcon-with-index
            :length-n-p
+           :length=
+           :length<=
+           :length<
            :singlep
            :last1
            :mklist
@@ -429,16 +460,12 @@
            :chunks
            :permutations
            :flatten
-           ;; vector
-           :dvector
-           :subvec/shared
-           ;; string
+           ;; string / char
            :split-string
            :string-prefix-p
            :string-suffix-p
            :strcat
            :count-chars
-           ;; char
            :count-alphabet
            :lower-to-index
            :upper-to-index
@@ -451,11 +478,8 @@
            :print-boolean
            :print-double
            :print-sequence
-           ;; lazy
-           :delay
-           :force
            ))
-(in-package utility.v2)
+(in-package utility.base)
 
 ;;; function
 
@@ -464,25 +488,31 @@
 
 (defmacro memoize-lambda (args &body body)
   (let ((memo (gensym))
-        (original-args (gensym)))
+        (original-args (gensym))
+        (none-value (gensym))
+        (memo-value (gensym)))
     `(let ((,memo (make-hash-table :test #'equal)))
        (lambda (&rest ,original-args)
-         (multiple-value-bind (memo-value found-p) (gethash ,original-args ,memo nil)
-           (if found-p
-               memo-value
+         (let ((,memo-value (gethash ,original-args ,memo ',none-value)))
+           (if (not (eq ,memo-value ',none-value))
+               ,memo-value
                (setf (gethash ,original-args ,memo)
                      (destructuring-bind ,args ,original-args
                        ,@body))))))))
 
 (defmacro array-memoize-lambda (arg-and-maxs &body body)
   (let ((memo (gensym))
+        (none-value (gensym))
+        (memo-value (gensym))
         (args (mapcar #'car arg-and-maxs))
         (maxs (mapcar #'cadr arg-and-maxs)))
-    `(let ((,memo (make-array (list ,@maxs) :initial-element nil)))
+    `(let ((,memo (make-array (list ,@maxs) :initial-element ',none-value)))
        (lambda ,args
-         (or (aref ,memo ,@args)
-             (setf (aref ,memo ,@args)
-                   (progn ,@body)))))))
+         (let ((,memo-value (aref ,memo ,@args)))
+           (if (eq ,memo-value ',none-value)
+               (setf (aref ,memo ,@args)
+                     (progn ,@body))
+               ,memo-value))))))
 
 ;;; sequence
 
@@ -588,6 +618,8 @@
 
 ;;; list
 
+(declaim (inline ensure-car ensure-list xcons singlep last1 mklist))
+
 (defun-always ensure-car (x) (if (consp x) (car x) x))
 (defun-always ensure-list (x) (if (listp x) x (list x)))
 
@@ -603,7 +635,8 @@
                    (args (gensym)))
                `(progn
                   (declaim (ftype (function ((or (function (unsigned-byte t &rest t) t) symbol)
-                                             list &rest list))
+                                             list &rest list)
+                                            list)
                                   ,name))
                   (defun ,name (,fn ,lst &rest ,more-lst)
                     (let ((,index 0))
@@ -623,6 +656,23 @@
   (nlet rec ((lst lst) (n n))
     (cond ((zerop n) (null lst))
           ((null lst) nil)
+          (t (rec (cdr lst) (1- n))))))
+
+(declaim (ftype (function (list unsigned-byte) boolean) length=))
+(defun length= (lst n) (length-n-p lst n))
+
+(declaim (ftype (function (list unsigned-byte) boolean) length<))
+(defun length< (lst n)
+  (nlet rec ((lst lst) (n n))
+    (cond ((zerop n) nil)
+          ((null lst) t)
+          (t (rec (cdr lst) (1- n))))))
+
+(declaim (ftype (function (list unsigned-byte) boolean) length<=))
+(defun length<= (lst n)
+  (nlet rec ((lst lst) (n n))
+    (cond ((zerop n) (null lst))
+          ((null lst) t)
           (t (rec (cdr lst) (1- n))))))
 
 (declaim (ftype (function (list) boolean) singlep))
@@ -735,15 +785,10 @@
               :displaced-to vector
               :displaced-index-offset start))
 
-;;; string
-
-(defun count-chars (string)
-  (loop with count = (make-array (count-alphabet) :initial-element 0)
-        for c across string
-        do (incf (aref count (char-to-index c)))
-        finally (return count)))
-
 ;;; char
+
+(declaim (inline count-alphabet lower-to-index upper-to-index char-to-index index-to-lower index-to-upper char-digit))
+
 
 (defun count-alphabet () #.(1+ (- (char-code #\Z) (char-code #\A))))
 (defun lower-to-index (char) (- (char-code char) #.(char-code #\a)))
@@ -752,6 +797,14 @@
 (defun index-to-lower (index) (code-char (+ index #.(char-code #\a))))
 (defun index-to-upper (index) (code-char (+ index #.(char-code #\A))))
 (defun char-digit (char) (- (char-code char) #.(char-code #\0)))
+
+;;; string
+
+(defun count-chars (string)
+  (loop with count = (make-array (count-alphabet) :initial-element 0)
+        for c across string
+        do (incf (aref count (char-to-index c)))
+        finally (return count)))
 
 ;;; io
 
@@ -797,10 +850,10 @@
 ;;; list-queue
 ;;;
 (defpackage list-queue
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility.syntax :utility.number :utility.base)
   (:export :make-list-queue
            :list-queue-empty-p
-           :list-queue-peak
+           :list-queue-peek
            :list-queue-raw
            :list-queue-enqueue
            :list-queue-dequeue
@@ -809,7 +862,12 @@
 
 (defun make-list-queue () (cons nil nil))
 (defun list-queue-empty-p (queue) (null (car queue)))
-(defun list-queue-peak (queue) (caar queue))
+
+(defun list-queue-peek (queue)
+  (when (list-queue-empty-p queue)
+    (error "LIST-QUEUE is empty. Cannot peek any element."))
+  (caar queue))
+
 (defun list-queue-raw (queue) (car queue))
 
 (defun list-queue-enqueue (queue value)
@@ -822,19 +880,21 @@
     queue))
 
 (defun list-queue-dequeue (queue)
+  (when (list-queue-empty-p queue)
+    (error "LIST-QUEUE is empty. Cannot dequeue any element."))
   (prog1 (caar queue)
     (or (setf (car queue) (cdar queue))
         (setf (cdr queue) nil))))
 
 ;;;
-;;; utility.v3
+;;; utility.window
 ;;;
-(defpackage utility.v3
-  (:use :cl :utility.v2)
+(defpackage utility.window
+  (:use :cl :utility.base)
   (:export ;; sequence
            :window-map
            :window-nmap))
-(in-package :utility.v3)
+(in-package :utility.window)
 
 ;;; sequence
 
@@ -869,20 +929,39 @@
     (delete-if t-fn
                (let ((index 0)
                      (queue (list-queue:make-list-queue)))
-                 (nmap (lambda (e)
-                         (list-queue:list-queue-enqueue queue e)
-                         (incf index)
-                         (when (>= index window-size)
-                           (prog1 (apply fn (list-queue:list-queue-raw queue))
-                             (list-queue:list-queue-dequeue queue))))
-                       sequence))
+                 (utility.base::nmap
+                  (lambda (e)
+                    (list-queue:list-queue-enqueue queue e)
+                    (incf index)
+                    (when (>= index window-size)
+                      (prog1 (apply fn (list-queue:list-queue-raw queue))
+                        (list-queue:list-queue-dequeue queue))))
+                  sequence))
                :end (1- window-size))))
+
+;;;
+;;; utility
+;;;
+(defpackage utility
+  (:use :cl
+        :utility.syntax
+        :utility.number
+        :utility.base
+        :utility.window))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (dolist (src '(:utility.syntax
+                 :utility.number
+                 :utility.base
+                 :utility.window))
+    (do-external-symbols (sym src)
+      (export sym :utility))))
 
 ;;;
 ;;; deque
 ;;;
 (defpackage deque
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility)
   (:export :make-deque
            :deque-size
            :deque-empty-p
@@ -890,8 +969,8 @@
            :deque-push-back
            :deque-pop-front
            :deque-pop-back
-           :deque-peak-front
-           :deque-peak-back
+           :deque-peek-front
+           :deque-peek-back
            :deque-ref
            ))
 (in-package deque)
@@ -911,6 +990,12 @@
 
 (defun deque-empty-p (deque) (zerop (deque-size deque)))
 (defun deque-full-p (deque) (= (deque-size deque) (deque-capacity deque)))
+
+(defun deque-index-in-range-p (deque index)
+  (and (integerp index)
+       (<= 0 index)
+       (< index (deque-size deque))))
+
 (defun deque-buffer-ref (deque index) (aref (deque-buffer deque) index))
 (defun (setf deque-buffer-ref) (x deque index) (setf (aref (deque-buffer deque) index) x))
 (defun round-index (capacity index) (logand (1- capacity) index))
@@ -993,16 +1078,28 @@
   (decf (deque-size deque))
   deque)
 
-(defun deque-peak-front (deque) (deque-front deque))
-(defun deque-peak-back (deque) (deque-back deque))
+(defun deque-peek-front (deque)
+  (when (deque-empty-p deque)
+    (error "DEQUE is empty. Cannot peek front."))
+  (deque-front deque))
+
+(defun deque-peek-back (deque)
+  (when (deque-empty-p deque)
+    (error "DEQUE is empty. Cannot peek back."))
+  (deque-back deque))
+
 
 (defun deque-ref (deque index)
+  (unless (deque-index-in-range-p deque index)
+    (error "DEQUE-REF index out of range: ~S (size=~S)." index (deque-size deque)))
   (deque-buffer-ref deque
                     (round-index (deque-capacity deque)
                                  (+ (deque-front-index deque)
                                     index))))
 
 (defun (setf deque-ref) (x deque index)
+  (unless (deque-index-in-range-p deque index)
+    (error "(SETF DEQUE-REF) index out of range: ~S (size=~S)." index (deque-size deque)))
   (setf (deque-buffer-ref deque
                           (round-index (deque-capacity deque)
                                        (+ (deque-front-index deque)
@@ -1013,10 +1110,11 @@
 ;;; vector-bintree
 ;;;
 (defpackage vector-bintree
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility)
   (:export :make-vector-bintree
            :make-extensible-vector-bintree
            :bintree-size
+           :bintree-capacity
            :bintree-ref
            :bintree-push
            :bintree-pop
@@ -1033,17 +1131,39 @@
   (apply #'make-array size args))
 
 (defun make-extensible-vector-bintree (size &rest args &key element-type initial-element initial-contents)
-  (declare (ignore element-type initial-element initial-contents))
-  (apply #'make-array size :adjustable t :fill-pointer 0 args))
+  (declare (ignore element-type initial-element))
+  (let ((default-fill-pointer (if initial-contents
+                                  (length initial-contents)
+                                  0)))
+    (apply #'make-array
+           size
+           :adjustable t
+           :fill-pointer default-fill-pointer
+           args)))
 
 (defun bintree-size (bt)
   (if (array-has-fill-pointer-p bt) (fill-pointer bt) (length bt)))
 
+(defun bintree-capacity (bt)
+  (array-total-size bt))
+
 (defun bintree-ref (bt index) (aref bt index))
 (defun (setf bintree-ref) (value bt index) (setf (aref bt index) value))
 
-(defun bintree-push (value bintree) (vector-push-extend value bintree))
-(defun bintree-pop (bintree) (vector-pop bintree))
+(defun bintree-push (value bintree)
+  (unless (array-has-fill-pointer-p bintree)
+    (error "BINTREE-PUSH requires an array with fill-pointer."))
+  (vector-push-extend value bintree))
+
+(defun bintree-pop (bintree)
+  (unless (array-has-fill-pointer-p bintree)
+    (error "BINTREE-POP requires an array with fill-pointer."))
+  (vector-pop bintree))
+
+(defun bintree-root-index-p (index) (zerop index))
+(defun bintree-left-index (index) (1+ (* index 2)))
+(defun bintree-right-index (index) (+ 2 (* index 2)))
+(defun bintree-parent-index (index) (values (floor (1- index) 2)))
 
 (defun %bintree-print (bt index level)
   (let ((size (bintree-size bt))
@@ -1058,16 +1178,12 @@
     (%bintree-print bt left-index (1+ level))))
 
 (defun bintree-print (bt) (%bintree-print bt 0 0))
-(defun bintree-root-index-p (index) (zerop index))
-(defun bintree-left-index (index) (1+ (* index 2)))
-(defun bintree-right-index (index) (+ 2 (* index 2)))
-(defun bintree-parent-index (index) (values (floor (1- index) 2)))
 
 ;;;
 ;;; binary-heap
 ;;;
 (defpackage binary-heap
-  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector-bintree)
+  (:use :cl :utility :vector-bintree)
   (:export :make-binary-heap
            :binary-heap-size
            :binary-heap-empty-p
@@ -1081,6 +1197,25 @@
 
 (defstruct (binary-heap (:constructor %make-binary-heap (op bintree)))
   op bintree)
+
+(defun downheap (bintree index op)
+  (labels ((downheap-swap (index child-index)
+             (unless (funcall op (bintree-ref bintree index) (bintree-ref bintree child-index))
+               (rotatef (bintree-ref bintree index) (bintree-ref bintree child-index))
+               (downheap-rec child-index)))
+           (downheap-rec (index)
+             (let ((size (bintree-size bintree))
+                   (left-index (bintree-left-index index))
+                   (right-index (bintree-right-index index)))
+               (when (>= left-index size)
+                 (return-from downheap-rec))
+               (when (>= right-index size)
+                 (downheap-swap index left-index)
+                 (return-from downheap-rec))
+               (if (funcall op (bintree-ref bintree left-index) (bintree-ref bintree right-index))
+                   (downheap-swap index left-index)
+                   (downheap-swap index right-index)))))
+    (downheap-rec index)))
 
 (defun make-binary-heap (op &rest args &key initial-contents)
   "Call with #'<, makes ascending order."
@@ -1103,24 +1238,6 @@
     (unless (funcall op (bintree-ref bintree parent-index) (bintree-ref bintree index))
       (rotatef (bintree-ref bintree parent-index) (bintree-ref bintree index))
       (upheap bintree parent-index op))))
-
-(defun downheap (bintree index op)
-  (let ((size (bintree-size bintree))
-        (left-index (bintree-left-index index))
-        (right-index (bintree-right-index index)))
-    (when (>= left-index size)
-      (return-from downheap))
-    (when (>= right-index size)
-      (downheap-swap bintree index left-index op)
-      (return-from downheap))
-    (if (funcall op (bintree-ref bintree left-index) (bintree-ref bintree right-index))
-        (downheap-swap bintree index left-index op)
-        (downheap-swap bintree index right-index op))))
-
-(defun downheap-swap (bintree index child-index op)
-  (unless (funcall op (bintree-ref bintree index) (bintree-ref bintree child-index))
-    (rotatef (bintree-ref bintree index) (bintree-ref bintree child-index))
-    (downheap bintree child-index op)))
 
 (defun binary-heap-push (obj heap)
   (bintree-push obj (binary-heap-bintree heap))
@@ -1153,7 +1270,7 @@
 ;;; ordered-map
 ;;;
 (defpackage ordered-map
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility)
   (:export :make-rbtree
            :rbtree-search
            :rbtree-each
@@ -1169,6 +1286,8 @@
 (in-package ordered-map)
 
 ;;; node
+
+(declaim (inline node-empty-p node-color node-left node-value node-right node-black-p node-red-p))
 
 (defun make-node (&key color left value right) (list color left value right))
 (defun make-empty-node () nil)
@@ -1199,7 +1318,7 @@
 
 (defun node-search (node search-key key key-eq-p key-less-p &key default)
   (if (node-empty-p node)
-      default
+      (values default nil)
       (let ((node-key (funcall key (node-value node))))
         (cond ((funcall key-eq-p search-key node-key)
                (values (node-value node) t))
@@ -1293,6 +1412,23 @@
     (if (node-empty-p rnode)
         node
         (node-last rnode))))
+
+(declaim (ftype (function (t t t t t) (values t boolean))
+                node-insert-left
+                node-insert-right
+                node-remove-here
+                node-remove-left
+                node-remove-right))
+(declaim (ftype (function (t boolean) (values t boolean))
+                balance-insert-left
+                balance-insert-right
+                balance-remove-left
+                balance-remove-right))
+(declaim (ftype (function (t) t)
+                invalid-red-ll-p
+                invalid-red-lr-p
+                invalid-red-rl-p
+                invalid-red-rr-p))
 
 (defun node-insert (node value key key-eq-p key-less-p)
   (if (node-empty-p node)
@@ -1565,6 +1701,8 @@
                            (rbtree-key rbtree)
                            (rbtree-key-eq-p rbtree)
                            (rbtree-key-less-p rbtree))))
+    (unless (node-empty-p root)
+      (setf (node-color root) 'black))
     (setf (rbtree-root rbtree) root)
     rbtree))
 
@@ -1572,10 +1710,10 @@
   (node-print (rbtree-root rbtree) 0 :stream stream :show-nil show-nil))
 
 ;;;
-;;; vector
+;;; linalg.vector
 ;;;
-(defpackage vector
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+(defpackage linalg.vector
+  (:use :cl :utility)
   (:export :make-vector
            :vector
            :copy-vector
@@ -1585,11 +1723,15 @@
            :vector-z
            :vector-w
            :vector-dimension
+           :vector-dimension=
            :make-zero-vector
            :vector+
            :vector-
            :vector*
            :vector/
+           :vector-add!
+           :vector-sub!
+           :vector-scale!
            :vector-dot
            :vector-cross
            :vector-squared-length
@@ -1597,8 +1739,9 @@
            :vector-normalize
            :vector-atan
            :vector-angle
+           :zero-vector-p
            ))
-(in-package vector)
+(in-package linalg.vector)
 
 (defun make-vector (dimension &rest args &key element-type initial-element initial-contents)
   (declare (ignore element-type initial-element initial-contents))
@@ -1623,23 +1766,34 @@
   (%def-setf-vector-ref w 3))
 
 (defun vector-dimension (vector) (array-dimension vector 0))
+(defun vector-dimension= (&rest vectors)
+  (or (null vectors)
+      (null (cdr vectors))
+      (let ((dimension (vector-dimension (car vectors))))
+        (every (lambda (vector)
+                 (= dimension (vector-dimension vector)))
+               (cdr vectors)))))
 (defun make-zero-vector (dimension) (make-vector dimension :initial-element 0))
+
+(defun assert-same-dimension (v1 v2 op-name)
+  (let ((d1 (vector-dimension v1))
+        (d2 (vector-dimension v2)))
+    (unless (= d1 d2)
+      (error "~A: dimension mismatch (~S vs ~S)." op-name d1 d2))
+    d1))
+
+(defun zero-vector-p (vector &key (eps 1d-12))
+  (dotimes (i (vector-dimension vector) t)
+    (unless (approx= (vector-ref vector i) 0 :eps eps)
+      (return-from zero-vector-p nil))))
 
 (defun vector+ (vector &rest more-vectors)
   (let ((dimension (vector-dimension vector))
         (ret (copy-vector vector)))
     (dolist (vec more-vectors ret)
+      (assert-same-dimension vector vec "VECTOR+")
       (dotimes (i dimension)
         (incf (vector-ref ret i) (vector-ref vec i))))))
-
-(defun vector- (vector &rest more-vectors)
-  (if (null more-vectors)
-      (vector* vector -1)
-      (let ((dimension (vector-dimension vector))
-            (ret (copy-vector vector)))
-        (dolist (vec more-vectors ret)
-          (dotimes (i dimension)
-            (decf (vector-ref ret i) (vector-ref vec i)))))))
 
 (defun vector* (vector &rest numbers)
   (let ((dimension (vector-dimension vector))
@@ -1649,6 +1803,16 @@
         (setf (vector-ref ret i)
               (* (vector-ref ret i) n))))))
 
+(defun vector- (vector &rest more-vectors)
+  (if (null more-vectors)
+      (vector* vector -1)
+      (let ((dimension (vector-dimension vector))
+            (ret (copy-vector vector)))
+        (dolist (vec more-vectors ret)
+          (assert-same-dimension vector vec "VECTOR-")
+          (dotimes (i dimension)
+            (decf (vector-ref ret i) (vector-ref vec i)))))))
+
 (defun vector/ (vector &rest numbers)
   (let ((dimension (vector-dimension vector))
         (ret (copy-vector vector)))
@@ -1657,14 +1821,35 @@
         (setf (vector-ref ret i)
               (/ (vector-ref ret i) n))))))
 
+(defun vector-add! (vector &rest more-vectors)
+  (let ((dimension (vector-dimension vector)))
+    (dolist (vec more-vectors vector)
+      (assert-same-dimension vector vec "VECTOR-ADD!")
+      (dotimes (i dimension)
+        (incf (vector-ref vector i) (vector-ref vec i))))))
+
+(defun vector-sub! (vector &rest more-vectors)
+  (let ((dimension (vector-dimension vector)))
+    (dolist (vec more-vectors vector)
+      (assert-same-dimension vector vec "VECTOR-SUB!")
+      (dotimes (i dimension)
+        (decf (vector-ref vector i) (vector-ref vec i))))))
+
+(defun vector-scale! (vector &rest numbers)
+  (let ((dimension (vector-dimension vector)))
+    (dolist (n numbers vector)
+      (dotimes (i dimension)
+        (setf (vector-ref vector i)
+              (* (vector-ref vector i) n))))))
+
 (defun vector-dot (v1 v2)
-  (let ((dimension (vector-dimension v1))
+  (let ((dimension (assert-same-dimension v1 v2 "VECTOR-DOT"))
         (ret 0))
     (dotimes (i dimension ret)
       (incf ret (* (vector-ref v1 i) (vector-ref v2 i))))))
 
 (defun vector-cross (v1 v2)
-  (let ((dimension (vector-dimension v1)))
+  (let ((dimension (assert-same-dimension v1 v2 "VECTOR-CROSS")))
     (cond ((= dimension 2)
            (- (* (vector-x v1) (vector-y v2))
               (* (vector-y v1) (vector-x v2))))
@@ -1679,37 +1864,63 @@
 
 (defun vector-squared-length (vector) (vector-dot vector vector))
 (defun vector-length (vector) (sqrt (vector-squared-length vector)))
-(defun vector-normalize (vector) (vector/ vector (vector-length vector)))
+(defun vector-normalize (vector)
+  (let ((length (vector-length vector)))
+    (when (zerop length)
+      (error "VECTOR-NORMALIZE: zero vector cannot be normalized."))
+    (vector/ vector length)))
 (defun vector-atan (vector) (atan (vector-y vector) (vector-x vector)))
 
 (defun vector-angle (v1 v2)
-  (acos (/ (vector-dot v1 v2)
-           (* (vector-length v1) (vector-length v2)))))
+  (let ((denominator (* (vector-length v1) (vector-length v2))))
+    (when (zerop denominator)
+      (error "VECTOR-ANGLE: zero vector is not allowed."))
+    (let ((cosine (/ (vector-dot v1 v2) denominator)))
+      (acos (max -1 (min 1 cosine))))))
 
 ;;;
-;;; matrix
+;;; linalg.matrix
 ;;;
-(defpackage matrix
-  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector)
+(defpackage linalg.matrix
+  (:use :cl :utility :linalg.vector)
   (:export :make-matrix
            :matrix
            :matrixp
+           :matrix-shape
+           :matrix-shape=
            :matrix-ref
            :matrix-row-major-ref
            :matrix-element-type
            :matrix-row
            :matrix-column
            :matrix-element-count
+           :matrix-row-vector
+           :matrix-column-vector
            :make-row-vector
+           :vector->row-matrix
+           :vector->column-matrix
            :make-zero-matrix
            :make-identity-matrix
            :matrix+
            :matrix-
+           :matrix-add!
+           :matrix-sub!
            :matrix-scalar-multiply
+           :matrix-scale!
+           :matrix-transpose
            :matrix-product
+           :matrix-vector-product
+           :vector-matrix-product
+           :outer-product
            :linear-map
+           :matrix-trace
+           :matrix-diagonal
+           :matrix-frobenius-norm
+           :identity-matrix-p
+           :matrix-power
+           :zero-matrix-p
            ))
-(in-package matrix)
+(in-package linalg.matrix)
 
 (defun make-matrix (row column &rest args &key element-type initial-element initial-contents)
   (declare (ignore element-type initial-element initial-contents))
@@ -1721,6 +1932,30 @@
     (make-matrix row col :initial-contents rows)))
 
 (defun matrixp (matrix) (= (array-rank matrix) 2))
+(defun matrix-element-type (matrix) (array-element-type matrix))
+(defun matrix-row (matrix) (array-dimension matrix 0))
+(defun matrix-column (matrix) (array-dimension matrix 1))
+(defun matrix-element-count (matrix) (array-total-size matrix))
+
+(defun matrix-shape (matrix) (list (matrix-row matrix) (matrix-column matrix)))
+(defun matrix-shape= (&rest matrices)
+  (or (null matrices)
+      (null (cdr matrices))
+      (let ((row (matrix-row (car matrices)))
+            (column (matrix-column (car matrices))))
+        (every (lambda (matrix)
+                 (and (= row (matrix-row matrix))
+                      (= column (matrix-column matrix))))
+               (cdr matrices)))))
+
+(defun assert-same-shape (m1 m2 op-name)
+  (unless (and (= (matrix-row m1) (matrix-row m2))
+               (= (matrix-column m1) (matrix-column m2)))
+    (error "~A: shape mismatch (~Sx~S) vs (~Sx~S)."
+           op-name
+           (matrix-row m1) (matrix-column m1)
+           (matrix-row m2) (matrix-column m2))))
+
 (defun matrix-ref (matrix y x) (aref matrix y x))
 (defun matrix-row-major-ref (matrix index) (row-major-aref matrix index))
 (defun (setf matrix-ref) (value matrix y x) (setf (aref matrix y x) value))
@@ -1728,16 +1963,32 @@
 (defun (setf matrix-row-major-ref) (value matrix index)
   (setf (row-major-aref matrix index) value))
 
-(defun matrix-element-type (matrix) (array-element-type matrix))
-(defun matrix-row (matrix) (array-dimension matrix 0))
-(defun matrix-column (matrix) (array-dimension matrix 1))
-(defun matrix-element-count (matrix) (array-total-size matrix))
-
 (defun make-row-vector (matrix row)
   (make-array (matrix-column matrix)
               :element-type (matrix-element-type matrix)
               :displaced-to matrix
               :displaced-index-offset (array-row-major-index matrix row 0)))
+
+(defun matrix-row-vector (matrix row)
+  (make-row-vector matrix row))
+
+(defun matrix-column-vector (matrix column)
+  (let ((row (matrix-row matrix))
+        (ret (make-vector (matrix-row matrix))))
+    (dotimes (i row ret)
+      (setf (vector-ref ret i) (matrix-ref matrix i column)))))
+
+(defun vector->row-matrix (vector)
+  (make-matrix 1
+               (vector-dimension vector)
+               :initial-contents (list (coerce vector 'list))))
+
+(defun vector->column-matrix (vector)
+  (make-matrix (vector-dimension vector)
+               1
+               :initial-contents
+               (loop for i below (vector-dimension vector)
+                     collect (list (vector-ref vector i)))))
 
 (defun make-zero-matrix (row column) (make-matrix row column :initial-element 0))
 
@@ -1748,6 +1999,7 @@
           finally (return m))))
 
 (defun matrix-binary+ (m1 m2)
+  (assert-same-shape m1 m2 "MATRIX+")
   (let* ((row (matrix-row m1))
          (col (matrix-column m1))
          (m (make-zero-matrix row col)))
@@ -1762,6 +2014,7 @@
           :initial-value matrix))
 
 (defun matrix-binary- (m1 m2)
+  (assert-same-shape m1 m2 "MATRIX-")
   (let* ((row (matrix-row m1))
          (col (matrix-column m1))
          (m (make-zero-matrix row col)))
@@ -1792,7 +2045,47 @@
           scalars
           :initial-value matrix))
 
+(defun matrix-add! (matrix &rest more-matrices)
+  (let* ((row (matrix-row matrix))
+         (col (matrix-column matrix))
+         (size (* row col)))
+    (dolist (m more-matrices matrix)
+      (assert-same-shape matrix m "MATRIX-ADD!")
+      (dotimes (i size)
+        (incf (matrix-row-major-ref matrix i)
+              (matrix-row-major-ref m i))))))
+
+(defun matrix-sub! (matrix &rest more-matrices)
+  (let* ((row (matrix-row matrix))
+         (col (matrix-column matrix))
+         (size (* row col)))
+    (dolist (m more-matrices matrix)
+      (assert-same-shape matrix m "MATRIX-SUB!")
+      (dotimes (i size)
+        (decf (matrix-row-major-ref matrix i)
+              (matrix-row-major-ref m i))))))
+
+(defun matrix-scale! (matrix &rest scalars)
+  (let* ((row (matrix-row matrix))
+         (col (matrix-column matrix))
+         (size (* row col)))
+    (dolist (scalar scalars matrix)
+      (dotimes (i size)
+        (setf (matrix-row-major-ref matrix i)
+              (* (matrix-row-major-ref matrix i) scalar))))))
+
+(defun matrix-transpose (matrix)
+  (let* ((row (matrix-row matrix))
+         (col (matrix-column matrix))
+         (ret (make-matrix col row)))
+    (dotimes (i row ret)
+      (dotimes (j col)
+        (setf (matrix-ref ret j i) (matrix-ref matrix i j))))))
+
 (defun matrix-binary-product (m1 m2)
+  (unless (= (matrix-column m1) (matrix-row m2))
+    (error "MATRIX-PRODUCT: dimension mismatch (~Sx~S) * (~Sx~S)."
+           (matrix-row m1) (matrix-column m1) (matrix-row m2) (matrix-column m2)))
   (let* ((row (matrix-row m1))
          (col (matrix-column m2))
          (m (make-zero-matrix row col)))
@@ -1809,28 +2102,150 @@
           :initial-value matrix))
 
 (defun linear-map (matrix vector)
+  (unless (= (matrix-column matrix) (vector-dimension vector))
+    (error "LINEAR-MAP: dimension mismatch matrix-column=~S vector-dimension=~S."
+           (matrix-column matrix) (vector-dimension vector)))
   (let* ((row (matrix-row matrix))
          (v (make-zero-vector row)))
     (dotimes (i row v)
       (setf (vector-ref v i)
             (vector-dot vector (make-row-vector matrix i))))))
 
+(defun matrix-vector-product (matrix vector)
+  (linear-map matrix vector))
+
+(defun vector-matrix-product (vector matrix)
+  (unless (= (vector-dimension vector) (matrix-row matrix))
+    (error "VECTOR-MATRIX-PRODUCT: dimension mismatch vector=~S matrix-row=~S."
+           (vector-dimension vector) (matrix-row matrix)))
+  (let* ((col (matrix-column matrix))
+         (ret (make-zero-vector col)))
+    (dotimes (j col ret)
+      (let ((acc 0))
+        (dotimes (i (matrix-row matrix))
+          (incf acc (* (vector-ref vector i)
+                       (matrix-ref matrix i j))))
+        (setf (vector-ref ret j) acc)))))
+
+(defun outer-product (v1 v2)
+  (let* ((row (vector-dimension v1))
+         (col (vector-dimension v2))
+         (ret (make-zero-matrix row col)))
+    (dotimes (i row ret)
+      (dotimes (j col)
+        (setf (matrix-ref ret i j)
+              (* (vector-ref v1 i) (vector-ref v2 j)))))))
+
+(defun matrix-trace (matrix)
+  (unless (= (matrix-row matrix) (matrix-column matrix))
+    (error "MATRIX-TRACE: matrix must be square, got (~Sx~S)."
+           (matrix-row matrix) (matrix-column matrix)))
+  (let ((acc 0))
+    (dotimes (i (matrix-row matrix) acc)
+      (incf acc (matrix-ref matrix i i)))))
+
+(defun matrix-diagonal (matrix)
+  (let* ((n (min (matrix-row matrix) (matrix-column matrix)))
+         (ret (make-vector n)))
+    (dotimes (i n ret)
+      (setf (vector-ref ret i) (matrix-ref matrix i i)))))
+
+(defun (setf matrix-diagonal) (value matrix)
+  (let ((n (min (matrix-row matrix) (matrix-column matrix))))
+    (unless (= (vector-dimension value) n)
+      (error "(SETF MATRIX-DIAGONAL): dimension mismatch vector=~S diagonal-size=~S."
+             (vector-dimension value) n))
+    (dotimes (i n value)
+      (setf (matrix-ref matrix i i) (vector-ref value i)))))
+
+(defun matrix-frobenius-norm (matrix)
+  (sqrt
+   (let ((acc 0))
+     (dotimes (i (matrix-element-count matrix) acc)
+       (incf acc (square (matrix-row-major-ref matrix i)))))))
+
+(defun identity-matrix-p (matrix &key (eps 1d-12))
+  (let ((row (matrix-row matrix))
+        (col (matrix-column matrix)))
+    (and (= row col)
+         (dotimes (i row t)
+           (dotimes (j col)
+             (unless (approx= (matrix-ref matrix i j)
+                              (if (= i j) 1 0)
+                              :eps eps)
+               (return-from identity-matrix-p nil)))))))
+
+(defun zero-matrix-p (matrix &key (eps 1d-12))
+  (dotimes (i (matrix-element-count matrix) t)
+    (unless (approx= (matrix-row-major-ref matrix i) 0 :eps eps)
+      (return-from zero-matrix-p nil))))
+
+(defun matrix-power (matrix exponent)
+  (unless (and (integerp exponent) (<= 0 exponent))
+    (error "MATRIX-POWER: exponent must be a non-negative integer, got ~S." exponent))
+  (unless (= (matrix-row matrix) (matrix-column matrix))
+    (error "MATRIX-POWER: matrix must be square, got (~Sx~S)."
+           (matrix-row matrix) (matrix-column matrix)))
+  (pow matrix
+       exponent
+       :op #'matrix-binary-product
+       :identity (make-identity-matrix (matrix-row matrix))))
+
 ;;;
-;;; geometry
+;;; linalg.geometry
 ;;;
-(defpackage geometry
-  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector :matrix)
+(defpackage linalg.geometry
+  (:use :cl :utility :linalg.vector :linalg.matrix)
   (:export :radian-to-degree
            :degree-to-radian
+           :vector2-squared-distance
+           :vector2-distance
+           :manhattan-distance
+           :vector2-upper-half-p
+           :vector2-argument<
+           :vector2-cross
+           :collinear-p
            :vector2-rotate90
            :vector2-rotate
            ))
-(in-package geometry)
+(in-package linalg.geometry)
 
 ;;; angle
 
 (defun radian-to-degree (radian) (/ (* radian 180) PI))
 (defun degree-to-radian (degree) (/ (* degree PI) 180))
+
+(defun vector2-squared-distance (v1 v2)
+  (let ((dx (- (vector-x v1) (vector-x v2)))
+        (dy (- (vector-y v1) (vector-y v2))))
+    (+ (square dx) (square dy))))
+
+(defun vector2-distance (v1 v2)
+  (sqrt (vector2-squared-distance v1 v2)))
+
+(defun manhattan-distance (v1 v2)
+  (+ (diff (vector-x v1) (vector-x v2))
+     (diff (vector-y v1) (vector-y v2))))
+
+(defun vector2-upper-half-p (vector)
+  (let ((x (vector-x vector))
+        (y (vector-y vector)))
+    (or (> y 0)
+        (and (zerop y)
+             (>= x 0)))))
+
+(defun vector2-cross (v1 v2)
+  (vector-cross v1 v2))
+
+(defun vector2-argument< (v1 v2)
+  (let ((u1 (vector2-upper-half-p v1))
+        (u2 (vector2-upper-half-p v2)))
+    (cond ((and u1 (not u2)) t)
+          ((and (not u1) u2) nil)
+          (t (> (vector-cross v1 v2) 0)))))
+
+(defun colliner-p (v1 v2)
+  (zerop (vector2-cross v1 v2)))
 
 ;;; matrix
 
@@ -1856,7 +2271,7 @@
 ;;; union-find
 ;;;
 (defpackage union-find
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility)
   (:export :make-union-find
            :union-find-size
            :union-find-merge
@@ -1880,7 +2295,6 @@
 (defun union-find-size (uf) (length (first uf)))
 (defun union-find-parent (uf n) (aref (first uf) n))
 (defun union-find-rank (uf n) (aref (second uf) n))
-(defun union-find-group-size (uf n) (aref (third uf) (union-find-root uf n)))
 (defun (setf union-find-parent) (parent uf n) (setf (aref (first uf) n) parent))
 (defun (setf union-find-rank) (rank uf n)(setf (aref (second uf) n) rank))
 (defun (setf union-find-group-size) (group-size uf n) (setf (aref (third uf) n) group-size))
@@ -1890,6 +2304,8 @@
     (if (= parent n)
         n
         (setf (union-find-parent uf n) (union-find-root uf parent)))))
+
+(defun union-find-group-size (uf n) (aref (third uf) (union-find-root uf n)))
 
 (defun union-find-merge (uf a b)
   (let ((ar (union-find-root uf a))
@@ -1924,7 +2340,7 @@
 ;;; segment-tree
 ;;;
 (defpackage segment-tree
-  (:use :cl :utility.v0 :utility.v1 :utility.v2 :vector-bintree)
+  (:use :cl :utility :vector-bintree)
   (:export :make-segment-tree
            :segment-tree-ref
            :segment-tree-fold
@@ -1935,8 +2351,22 @@
             (:constructor %make-st (&key size op id bintree bintree-size)))
   size op id bintree bintree-size)
 
+(defun segment-tree-index-in-range-p (st index)
+  (and (integerp index)
+       (<= 0 index)
+       (< index (segment-tree-size st))))
+
+(defun segment-tree-fold-range-valid-p (st left right)
+  (and (integerp left)
+       (integerp right)
+       (<= 0 left)
+       (<= left right)
+       (<= right (segment-tree-size st))))
+
 (defun make-segment-tree (size op id &key initial-contents)
   "O(n)"
+  (unless (and (integerp size) (> size 0))
+    (error "MAKE-SEGMENT-TREE: size must be a positive integer, got ~S." size))
   (let* ((size (next-pow2 size))
          (bintree-size (1- (* size 2)))
          (bintree (make-vector-bintree bintree-size :initial-element id)))
@@ -1957,6 +2387,8 @@
 
 (defun segment-tree-ref (st index)
   "O(1)"
+  (unless (segment-tree-index-in-range-p st index)
+    (error "SEGMENT-TREE-REF: index out of range: ~S (size=~S)." index (segment-tree-size st)))
   (bintree-ref (segment-tree-bintree st) (%st-index-to-bintree-index st index)))
 
 (defun %st-fold (st fold-left fold-right index node-left node-right)
@@ -1980,6 +2412,9 @@
 
 (defun segment-tree-fold (st left right)
   "[left, right), O(log(n))"
+  (unless (segment-tree-fold-range-valid-p st left right)
+    (error "SEGMENT-TREE-FOLD: invalid range [~S, ~S) for size ~S."
+           left right (segment-tree-size st)))
   (%st-fold st left right 0 0 (segment-tree-size st)))
 
 (defun %st-set (st index value)
@@ -1996,6 +2431,9 @@
 
 (defun (setf segment-tree-ref) (value st index)
   "O(log(n))"
+  (unless (segment-tree-index-in-range-p st index)
+    (error "(SETF SEGMENT-TREE-REF): index out of range: ~S (size=~S)."
+           index (segment-tree-size st)))
   (%st-set st (%st-index-to-bintree-index st index) value)
   value)
 
@@ -2005,7 +2443,7 @@
 ;;; trie
 ;;;
 (defpackage trie
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility)
   (:export :make-trie
            :trie-size
            :trie-find
@@ -2045,9 +2483,10 @@
 (defun trie-node-insert (node str index &optional value)
   (incf (trie-node-prefix-count node))
   (when (= index (length str))
-    (incf (trie-node-end-count node))
-    (setf (trie-node-value node) value)
-    (return-from trie-node-insert (values str value)))
+    (let ((new-key-p (zerop (trie-node-end-count node))))
+      (incf (trie-node-end-count node))
+      (setf (trie-node-value node) value)
+      (return-from trie-node-insert (values str value new-key-p))))
   (let* ((char (aref str index))
          (next (trie-node-next node char)))
     (trie-node-insert (if (null next)
@@ -2076,8 +2515,12 @@
 
 (defun trie-insert (trie str &optional value)
   "O(|s|)"
-  (incf (trie-size trie))
-  (trie-node-insert (trie-root trie) str 0 value))
+  (multiple-value-bind (inserted-key inserted-value new-key-p)
+      (trie-node-insert (trie-root trie) str 0 value)
+    (declare (ignore inserted-key inserted-value))
+    (when new-key-p
+      (incf (trie-size trie)))
+    value))
 
 (defun trie-traverse (trie str fn)
   "(function (trie string (function (trie-node string fixnum) t)) t)
@@ -2088,22 +2531,29 @@ O(|s|)"
 ;;; graph
 ;;;
 (defpackage graph
-  (:use :cl :utility.v0 :utility.v1 :utility.v2 :deque :binary-heap)
+  (:use :cl :utility :deque :binary-heap)
   (:export :<graph>
+           :<single-edge-graph>
+           :<multigraph>
            :<edge>
            :graph-size
            :graph-node-ref
+           :graph-edge-ref
+           :graph-multi-edges-ref
            :graph-neighbors
            :call-with-graph-neighbors
            :graph-add-edge
-           :graph-delete-edge
+           :graph-delete-edges
            :do-graph-neighbors
            :edge-from
            :edge-to
            :edge-cost
            :make-edge
            :<adlist-graph>
-           :make-adlist-graph
+           :<adlist-multigraph>
+           :<adlist-single-edge-graph>
+           :make-adlist-single-edge-graph
+           :make-adlist-multigraph
            :graph-adlist
            :<matrix-graph>
            :make-matrix-graph
@@ -2113,24 +2563,41 @@ O(|s|)"
            :grid-height
            :grid-width
            :graph-grid
+           :*graph-cost-infinity*
+           :bfs
            :dijkstra
            :floyd-warshall
            :find-leaf))
 (in-package graph)
 
-(defconstant +graph-cost-infinity+ (ash most-positive-fixnum -1))
+(defparameter *graph-cost-infinity* (ash most-positive-fixnum -1))
 
 (defgeneric graph-size (graph))
 (defgeneric graph-node-ref (graph node))
 (defgeneric (setf graph-node-ref) (value graph node))
-(defgeneric graph-edge-ref (graph from to))
+(defgeneric graph-edge-ref (graph from to)
+  (:documentation
+   "Returns one edge from FROM to TO.
+For multigraph, an arbitrary edge is returned (current implementations usually return the latest one)."))
 (defgeneric (setf graph-edge-ref) (edge graph from to))
+(defgeneric graph-multi-edges-ref (graph from to)
+  (:documentation
+   "Returns all edges from FROM to TO as a list.
+For single-edge graphs, the list length is at most 1."))
+(defgeneric (setf graph-multi-edges-ref) (edges graph from to)
+  (:documentation
+   "Replaces the whole edge collection from FROM to TO with EDGES.
+For single-edge graphs, EDGES must be empty or singleton."))
 (defgeneric graph-neighbors (graph node)
   (:documentation "Returns <edge> list."))
 (defgeneric call-with-graph-neighbors (graph node fn)
   (:documentation "Calls fn by <edge>."))
 (defgeneric graph-add-edge (graph from to &key cost))
-(defgeneric graph-delete-edge (graph from to))
+(defgeneric graph-delete-edges (graph from to))
+(defgeneric graph-low-level-edge-ref (graph from to))
+(defgeneric (setf graph-low-level-edge-ref) (edge graph from to))
+(defgeneric graph-low-level-multi-edges-ref (graph from to))
+(defgeneric (setf graph-low-level-multi-edges-ref) (edges graph from to))
 
 (defgeneric edge-from (edge))
 (defgeneric edge-to (edge))
@@ -2149,13 +2616,94 @@ O(|s|)"
 
 (defun make-edge (from to &key (cost 1)) (make-instance '<edge> :from from :to to :cost cost))
 
+(defun graph-node-index-valid-p (graph node)
+  (and (integerp node)
+       (<= 0 node)
+       (< node (graph-size graph))))
+
+(defun assert-graph-node-index (graph node who)
+  (unless (graph-node-index-valid-p graph node)
+    (error "~A: node index out of range: ~S (size=~S)." who node (graph-size graph))))
+
+(defun assert-graph-edge-index (graph from to who)
+  (assert-graph-node-index graph from who)
+  (assert-graph-node-index graph to who))
+
+(defclass <single-edge-graph> (<graph>) ())
+
+(defmethod graph-edge-ref ((graph <single-edge-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-EDGE-REF")
+  (ensure-car (graph-low-level-edge-ref graph from to)))
+
+(defmethod (setf graph-edge-ref) (edge (graph <single-edge-graph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-EDGE-REF)")
+  (setf (graph-low-level-edge-ref graph from to) edge)
+  edge)
+
+(defmethod graph-multi-edges-ref ((graph <single-edge-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-MULTI-EDGES-REF")
+  (let ((edge (graph-low-level-edge-ref graph from to)))
+    (ensure-list edge)))
+
+(defmethod (setf graph-multi-edges-ref) (edges (graph <single-edge-graph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-MULTI-EDGES-REF)")
+  (when (> (length edges) 1)
+    (error "(SETF GRAPH-MULTI-EDGES-REF): single-edge-graph accepts at most one edge."))
+  (setf (graph-low-level-edge-ref graph from to) (car edges))
+  edges)
+
+(defmethod graph-add-edge ((graph <single-edge-graph>) from to &key (cost 1))
+  (assert-graph-edge-index graph from to "GRAPH-ADD-EDGE")
+  (let ((current-edge (graph-edge-ref graph from to)))
+    (when (or (null current-edge)
+              (< cost (edge-cost current-edge)))
+      (setf (graph-edge-ref graph from to) (make-edge from to :cost cost)))))
+
+(defclass <multigraph> (<graph>) ())
+
+(defmethod graph-edge-ref ((graph <multigraph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-EDGE-REF")
+  (car (graph-low-level-multi-edges-ref graph from to)))
+
+(defmethod (setf graph-edge-ref) (edge (graph <multigraph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-EDGE-REF)")
+  (setf (graph-low-level-multi-edges-ref graph from to)
+        (ensure-list edge))
+  edge)
+
+(defmethod graph-multi-edges-ref ((graph <multigraph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-MULTI-EDGES-REF")
+  (graph-low-level-multi-edges-ref graph from to))
+
+(defmethod (setf graph-multi-edges-ref) (edges (graph <multigraph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-MULTI-EDGES-REF)")
+  (setf (graph-low-level-multi-edges-ref graph from to) edges)
+  edges)
+
+(defmethod graph-add-edge ((graph <multigraph>) from to &key (cost 1))
+  (assert-graph-edge-index graph from to "GRAPH-ADD-EDGE")
+  (push (make-edge from to :cost cost)
+        (graph-multi-edges-ref graph from to)))
+
 (defclass <adlist-graph> (<graph>)
   ((size :initarg :size :accessor graph-size)
    (adlist :initarg :adlist :accessor graph-adlist)
    (nodes :initarg :nodes :accessor graph-nodes)))
 
-(defun make-adlist-graph (size)
-  (make-instance '<adlist-graph>
+(defclass <adlist-multigraph> (<adlist-graph> <multigraph>) ())
+
+(defclass <adlist-single-edge-graph> (<adlist-graph> <single-edge-graph>) ())
+
+(defun make-adlist-single-edge-graph (size)
+  "Adjacency-list graph. Multiple edges between the same (from,to) are prohibited."
+  (make-instance '<adlist-single-edge-graph>
+                 :size size
+                 :adlist (make-array size :initial-element nil)
+                 :nodes (make-array size :initial-element nil)))
+
+(defun make-adlist-multigraph (size)
+  "Adjacency-list graph. Multiple edges between the same (from,to) are allowed."
+  (make-instance '<adlist-multigraph>
                  :size size
                  :adlist (make-array size :initial-element nil)
                  :nodes (make-array size :initial-element nil)))
@@ -2163,38 +2711,61 @@ O(|s|)"
 (defmethod graph-node-ref ((graph <adlist-graph>) node) (aref (graph-nodes graph) node))
 
 (defmethod (setf graph-node-ref) (value (graph <adlist-graph>) node)
+  (assert-graph-node-index graph node "GRAPH-NODE-REF")
   (setf (aref (graph-nodes graph) node) value))
 
-(defmethod graph-edge-ref ((graph <adlist-graph>) from to)
-  (dolist (edge (aref (graph-adlist graph) from))
-    (when (= (edge-to edge) to)
-      (return-from graph-edge-ref edge))))
+(defmethod graph-low-level-edge-ref ((graph <adlist-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-LOW-LEVEL-EDGE-REF")
+  (find-if #'(lambda (edge) (= (edge-to edge) to))
+           (aref (graph-adlist graph) from)))
 
-(defmethod (setf graph-edge-ref) (edge (graph <adlist-graph>) from to)
-  (graph-delete-edge graph from to)
-  (graph-add-edge graph (edge-from edge) (edge-to edge) :cost (edge-cost edge)))
+(defmethod (setf graph-low-level-edge-ref) (edge (graph <adlist-graph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-LOW-LEVEL-EDGE-REF)")
+  (setf (graph-low-level-multi-edges-ref graph from to)
+        (ensure-list edge))
+  edge)
 
-(defmethod graph-neighbors ((graph <adlist-graph>) node) (aref (graph-adlist graph) node))
+(defmethod graph-low-level-multi-edges-ref ((graph <adlist-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-LOW-LEVEL-MULTI-EDGES-REF")
+  (remove-if #'(lambda (edge) (/= (edge-to edge) to))
+             (aref (graph-adlist graph) from)))
+
+(defmethod (setf graph-low-level-multi-edges-ref) (edges (graph <adlist-graph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF)")
+  (unless (every (lambda (edge)
+                   (and (= from (edge-from edge))
+                        (= to (edge-to edge))))
+                 edges)
+    (error "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF): all edges must satisfy FROM=~S, TO=~S."
+           from to))
+  (graph-delete-edges graph from to)
+  (dolist (edge (nreverse edges))
+    (push edge (aref (graph-adlist graph) from)))
+  edges)
+
+(defmethod graph-neighbors ((graph <adlist-graph>) node)
+  (assert-graph-node-index graph node "GRAPH-NEIGHBORS")
+  (aref (graph-adlist graph) node))
 
 (defmethod call-with-graph-neighbors ((graph <adlist-graph>) node fn)
+  (assert-graph-node-index graph node "CALL-WITH-GRAPH-NEIGHBORS")
   (dolist (edge (graph-neighbors graph node))
     (funcall fn edge)))
 
-(defmethod graph-add-edge ((graph <adlist-graph>) from to &key (cost 1))
-  (push (make-edge from to :cost cost) (aref (graph-adlist graph) from)))
-
-(defmethod graph-delete-edge ((graph <adlist-graph>) from to)
+(defmethod graph-delete-edges ((graph <adlist-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-DELETE-EDGES")
   (setf (aref (graph-adlist graph) from)
         (delete-if (lambda (edge) (and (= (edge-from edge) from)
                                        (= (edge-to edge) to)))
                    (aref (graph-adlist graph) from))))
 
-(defclass <matrix-graph> (<graph>)
+(defclass <matrix-graph> (<single-edge-graph>)
   ((size :initarg :size :accessor graph-size)
    (matrix :initarg :matrix :accessor graph-matrix)
    (nodes :initarg :nodes :accessor graph-nodes)))
 
 (defun make-matrix-graph (size)
+  "Adjacency-matrix graph. Only one edge is stored per (from,to)."
   (make-instance '<matrix-graph>
                  :size size
                  :matrix (let ((matrix (make-array (list size size) :initial-element nil)))
@@ -2205,40 +2776,59 @@ O(|s|)"
 (defmethod graph-node-ref ((graph <matrix-graph>) node) (aref (graph-nodes graph) node))
 
 (defmethod (setf graph-node-ref) (value (graph <matrix-graph>) node)
+  (assert-graph-node-index graph node "GRAPH-NODE-REF")
   (setf (aref (graph-nodes graph) node) value))
 
-(defmethod graph-edge-ref ((graph <matrix-graph>) from to) (aref (graph-matrix graph) from to))
+(defmethod graph-low-level-edge-ref ((graph <matrix-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-LOW-LEVEL-EDGE-REF")
+  (aref (graph-matrix graph) from to))
 
-(defmethod (setf graph-edge-ref) (edge (graph <matrix-graph>) from to)
+(defmethod (setf graph-low-level-edge-ref) (edge (graph <matrix-graph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-LOW-LEVEL-EDGE-REF)")
   (setf (aref (graph-matrix graph) from to) edge))
 
+(defmethod graph-low-level-multi-edges-ref ((graph <matrix-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-LOW-LEVEL-MULTI-EDGES-REF")
+  (ensure-list (graph-low-level-edge-ref graph from to)))
+
+(defmethod (setf graph-low-level-multi-edges-ref) (edges (graph <matrix-graph>) from to)
+  (assert-graph-edge-index graph from to "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF)")
+  (unless (length<= edges 1)
+    (error "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF): matrix-single-edge-graph accepts at most one edge."))
+  (unless (every (lambda (edge)
+                   (and (= from (edge-from edge))
+                        (= to (edge-to edge))))
+                 edges)
+    (error "(SETF GRAPH-LOW-LEVEL-MULTI-EDGES-REF): all edges must satisfy FROM=~S, TO=~S."
+           from to))
+  (setf (aref (graph-matrix graph) from to) (car edges))
+  edges)
+
 (defmethod graph-neighbors ((graph <matrix-graph>) node)
+  (assert-graph-node-index graph node "GRAPH-NEIGHBORS")
   (let ((neighbors nil))
     (do-graph-neighbors (edge graph node (nreverse neighbors))
       (push edge neighbors))))
 
 (defmethod call-with-graph-neighbors ((graph <matrix-graph>) node fn)
+  (assert-graph-node-index graph node "CALL-WITH-GRAPH-NEIGHBORS")
   (let ((matrix (graph-matrix graph)))
     (dotimes (to-node (graph-size graph))
       (when-let ((edge (aref matrix node to-node)))
-        (funcall fn edge)))))
+        (funcall fn edge)))
+    (values)))
 
-(defmethod graph-add-edge ((graph <matrix-graph>) from to &key (cost 1))
-  (let ((edge (aref (graph-matrix graph) from to)))
-    (when (or (null edge)
-              (< cost (edge-cost edge)))
-      (setf (aref (graph-matrix graph) from to) (make-edge from to :cost cost)))))
-
-(defmethod graph-delete-edge ((graph <matrix-graph>) from to)
+(defmethod graph-delete-edges ((graph <matrix-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-DELETE-EDGES")
   (setf (aref (graph-matrix graph) from to) nil))
 
-(defclass <grid-graph> (<graph>)
+(defclass <grid-graph> (<single-edge-graph>)
   ((height :initarg :height :accessor grid-height)
    (width :initarg :width :accessor grid-width)
    (grid :initarg :grid :accessor graph-grid)
    (nodes :initarg :nodes :accessor graph-nodes)))
 
-(defun make-grid-graph (height width lines &key (wall #\#))
+(defun make-grid-graph (height width lines &key (wall #\#) (nodes nil))
   (make-instance '<grid-graph>
                  :height height
                  :width width
@@ -2248,41 +2838,64 @@ O(|s|)"
                                         (lambda (row)
                                           (map 'list
                                                (lambda (e)
-                                                 (if (eql e wall) +graph-cost-infinity+ 1))
+                                                 (if (eql e wall) *graph-cost-infinity* 1))
                                                row))
-                                        lines))))
+                                        lines))
+                 :nodes nodes))
 
 (defun grid-row (graph node) (floor node (grid-width graph)))
 (defun grid-column (graph node) (mod node (grid-width graph)))
 (defun grid-point-to-index (graph row column) (+ (* (grid-width graph) row) column))
 (defun grid-cost (graph row column) (aref (graph-grid graph) row column))
+(defun grid-node-wall-p (graph node)
+  (= (grid-cost graph (grid-row graph node) (grid-column graph node))
+     *graph-cost-infinity*))
 (defmethod graph-size ((graph <grid-graph>)) (* (grid-height graph) (grid-width graph)))
-(defmethod graph-node-ref ((graph <grid-graph>) node) (aref (graph-nodes graph) node))
+(defmethod graph-node-ref ((graph <grid-graph>) node)
+  (assert-graph-node-index graph node "GRAPH-NODE-REF")
+  (let ((nodes (graph-nodes graph)))
+    (if (null nodes)
+        (error "GRID-GRAPH nodes is NIL. Pass :NODES to MAKE-GRID-GRAPH before using GRAPH-NODE-REF.")
+        (aref nodes node))))
 
 (defmethod (setf graph-node-ref) (value (graph <grid-graph>) node)
-  (setf (aref (graph-nodes graph) node) value))
+  (assert-graph-node-index graph node "(SETF GRAPH-NODE-REF)")
+  (let ((nodes (graph-nodes graph)))
+    (when (null nodes)
+      (error "GRID-GRAPH nodes is NIL. Pass :NODES to MAKE-GRID-GRAPH before using (SETF GRAPH-NODE-REF)."))
+    (setf (aref nodes node) value)))
 
-(defmethod graph-edge-ref ((graph <grid-graph>) from to)
+(defmethod graph-low-level-edge-ref ((graph <grid-graph>) from to)
+  (assert-graph-edge-index graph from to "GRAPH-EDGE-REF")
   (let ((from-row (grid-row graph from))
         (from-col (grid-column graph from))
         (to-row (grid-row graph to))
         (to-col (grid-column graph to)))
-    (cond ((and (= from-row to-row) (= from-col to-col)) (make-edge from to :cost 0))
-          ((and (<= -1 (- from-row to-row) 1) (<= -1 (- from-col to-col) 1))
+    (cond ((or (grid-node-wall-p graph from)
+               (grid-node-wall-p graph to))
+           nil)
+          ((and (= from-row to-row) (= from-col to-col)) (make-edge from to :cost 0))
+          ((and (= 1 (+ (abs (- from-row to-row))
+                        (abs (- from-col to-col))))
+                (/= (grid-cost graph to-row to-col) *graph-cost-infinity*))
            (make-edge from to :cost (grid-cost graph to-row to-col)))
           (t nil))))
 
 (defmethod (setf graph-edge-ref) (edge (graph <grid-graph>) from to) (error "Unsupported method."))
 
 (defmethod graph-neighbors ((graph <grid-graph>) node)
+  (assert-graph-node-index graph node "GRAPH-NEIGHBORS")
   (let ((neighbors nil))
     (call-with-graph-neighbors graph node (lambda (edge) (push edge neighbors)))
     (nreverse neighbors)))
 
 (defmethod call-with-graph-neighbors ((graph <grid-graph>) node fn)
+  (assert-graph-node-index graph node "CALL-WITH-GRAPH-NEIGHBORS")
+  (when (grid-node-wall-p graph node)
+    (return-from call-with-graph-neighbors nil))
   (do-4neighbors ((y x) ((grid-row graph node) (grid-column graph node)))
     (when (and (< -1 y (grid-height graph)) (< -1 x (grid-width graph))
-               (/= (aref (graph-grid graph) y x) +graph-cost-infinity+))
+               (/= (aref (graph-grid graph) y x) *graph-cost-infinity*))
       (funcall fn (make-edge node (grid-point-to-index graph y x)
                              :cost (grid-cost graph y x))))))
 
@@ -2290,18 +2903,21 @@ O(|s|)"
   (declare (ignore graph from to cost))
   (error "Unsupported method."))
 
-(defmethod graph-delete-edge ((graph <grid-graph>) from to) (error "Unsupported method."))
+(defmethod graph-delete-edges ((graph <grid-graph>) from to) (error "Unsupported method."))
 
 (defun bfs (graph &key (start 0) end)
+  (assert-graph-node-index graph start "BFS")
+  (when end
+    (assert-graph-node-index graph end "BFS"))
   (loop with size = (graph-size graph)
-        with distances = (make-array size :initial-element +graph-cost-infinity+)
+        with distances = (make-array size :initial-element *graph-cost-infinity*)
         and usedp = (make-array size :initial-element nil)
         and deque = (make-deque)
         initially (setf (aref distances start) 0
                         (aref usedp start) t)
                   (deque-push-back deque start)
         until (deque-empty-p deque)
-        do (let ((node (deque-peak-front deque)))
+        do (let ((node (deque-peek-front deque)))
              (deque-pop-front deque)
              (do-graph-neighbors (edge graph node)
                (let ((next-node (edge-to edge)))
@@ -2315,7 +2931,7 @@ O(|s|)"
 
 (defun floyd-warshall (graph)
   (let* ((size (graph-size graph))
-         (distances (make-array (list size size) :initial-element +graph-cost-infinity+)))
+         (distances (make-array (list size size) :initial-element *graph-cost-infinity*)))
     (dotimes (i size)
       (dotimes (j size)
         (when-let ((edge (graph-edge-ref graph i j)))
@@ -2329,13 +2945,16 @@ O(|s|)"
 (defun dijkstra-next-distance (distance edge) (+ distance (edge-cost edge)))
 
 (defun dijkstra (graph &key (start 0) end (next-distance #'dijkstra-next-distance))
+  (assert-graph-node-index graph start "DIJKSTRA")
+  (when end
+    (assert-graph-node-index graph end "DIJKSTRA"))
   (labels ((make-search-node (from to distance) (vector from to distance))
            (search-node-to (search-node) (elt search-node 1))
            (search-node-distance (search-node) (elt search-node 2))
            (search-node-less (search-node1 search-node2)
              (< (search-node-distance search-node1) (search-node-distance search-node2))))
     (loop with size = (graph-size graph)
-          with distances = (make-array size :initial-element +graph-cost-infinity+)
+          with distances = (make-array size :initial-element *graph-cost-infinity*)
           and usedp = (make-array size :initial-element nil)
           and heap = (make-binary-heap #'search-node-less)
                 initially (setf (aref distances start) 0)
@@ -2367,7 +2986,7 @@ O(|s|)"
 ;;; algorithm
 ;;;
 (defpackage algorithm
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility)
   (:export :*default-sieve-max*
            :sieve-of-eratosthenes
            :linear-sieve
@@ -2459,7 +3078,7 @@ O(|s|)"
 
 (defun fast-divisors (n least-prime-factors)
   (loop with divisors = (list 1)
-        and factors = #?(fast-factorize n least-prime-factors)
+        and factors = (fast-factorize n least-prime-factors)
         for (factor . exp) in factors
         do (loop for d in divisors
                  for m = 1 then 1
@@ -2493,7 +3112,7 @@ O(|s|)"
     (map-with-index nil
                     (lambda (i x)
                       (setf (aref it (1+ i))
-                            (funcall op x (aref it i))))
+                            (funcall op (aref it i) x)))
                     sequence)))
 
 (defmacro dp (name params &body body)
@@ -2520,6 +3139,8 @@ O(|s|)"
 (defmacro array-dp (name param-and-maxs &body body)
   (let* ((tmp-name (gensym))
          (memo (gensym))
+         (none-value (gensym))
+         (memo-value (gensym))
          (params (mapcar #'car param-and-maxs))
          (maxs (mapcar #'cadr param-and-maxs))
          (args (mapcar #'(lambda (param)
@@ -2527,11 +3148,13 @@ O(|s|)"
                            (gensym))
                        params)))
     `(macrolet ((,name ,args `(,',tmp-name ,@(list ,@args))))
-       (let ((,memo (make-array (list ,@maxs) :initial-element nil)))
+       (let ((,memo (make-array (list ,@maxs) :initial-element ',none-value)))
          (labels ((,tmp-name ,params
-                    (or (aref ,memo ,@params)
-                        (setf (aref ,memo ,@params)
-                              (block ,name ,@body)))))
+                    (let ((,memo-value (aref ,memo ,@params)))
+                      (if (eq ,memo-value ',none-value)
+                          (setf (aref ,memo ,@params)
+                                (block ,name ,@body))
+                          ,memo-value))))
            #',tmp-name)))))
 
 ;;;
@@ -2540,7 +3163,7 @@ O(|s|)"
 (defpackage amb
   (:use :cl)
   (:export :*failed*
-           :reset
+           :amb-reset
            :amb
            :amb-bind
            ))
@@ -2549,7 +3172,7 @@ O(|s|)"
 (defvar *stack* nil)
 (defvar *failed* nil)
 
-(defun reset () (setf *stack* nil))
+(defun amb-reset () (setf *stack* nil))
 
 (defun fail ()
   (if (null *stack*)
@@ -2587,7 +3210,7 @@ O(|s|)"
 ;;; input
 ;;;
 (defpackage :input
-  (:use :cl :utility.v0 :utility.v1 :utility.v2)
+  (:use :cl :utility)
   (:export :input*
            :def-input-reader))
 (in-package :input)
@@ -2607,10 +3230,11 @@ O(|s|)"
               typespec))))
 
 (defun-always input-typespec-reader (typespec)
-  (let ((marker (input-typespec-marker typespec)))
-    (if (null marker)
-        nil
-        (funcall (get-input-reader marker) typespec))))
+  (let* ((marker (input-typespec-marker typespec))
+         (reader (and marker (get-input-reader marker))))
+    (if reader
+        (funcall reader typespec)
+        (error "Unknown input typespec: ~S (marker: ~S)" typespec marker))))
 
 (defun-always input-expand (forms)
   (if (null forms)
@@ -2635,57 +3259,68 @@ input
 10 20
 30 40
 => (2 2 10.5d0 \"input\" (1000000007 -1) (10 20) #(30 40))"
-    `(let* ,(input-expand forms) ,@body))
+    (let ((vars (mapcar #'car forms)))
+      `(let* ,(input-expand forms)
+         (declare (ignorable ,@vars))
+         ,@body)))
 
-(defmacro def-input-reader (marker params &body body)
+(defmacro def-input-reader (marker (typespec read-of) &body body)
   `(eval-always
      (set-input-reader ',marker
-                       (macrolet ((reader (typespec)
-                                    `(input-typespec-reader ,typespec)))
-                         (lambda (,@params &optional arg)
-                           (declare (ignore arg))
+                       (lambda (,typespec)
+                         (declare (ignorable ,typespec))
+                         (flet ((,read-of (sub-typespec)
+                                  (input-typespec-reader sub-typespec)))
                            ,@body)))
      ',marker))
 
-(def-input-reader fixnum () '(read))
-(def-input-reader fixnum1 () '(1- (read)))
-(def-input-reader double () '(let ((*read-default-float-format* 'double-float)) (read)))
-
-(def-input-reader double-float ()
+(def-input-reader fixnum (typespec read-of)
+  '(read))
+(def-input-reader fixnum1 (typespec read-of)
+  '(1- (read)))
+(def-input-reader double (typespec read-of)
   '(let ((*read-default-float-format* 'double-float)) (read)))
 
-(def-input-reader rational () '(let ((*read-default-float-format* 'rational)) (read)))
-(def-input-reader string () `(read-line))
-(def-input-reader symbol () '(read))
+(def-input-reader double-float (typespec read-of)
+  '(let ((*read-default-float-format* 'double-float)) (read)))
 
-(def-input-reader cons (typespec)
-  `(cons ,(reader (cadr typespec)) ,(reader (caddr typespec))))
+(def-input-reader rational (typespec read-of)
+  '(let ((*read-default-float-format* 'rational)) (read)))
+(def-input-reader string (typespec read-of)
+  '(read-line))
+(def-input-reader symbol (typespec read-of)
+  '(read))
 
-(def-input-reader cons* (typespec)
+(def-input-reader cons (typespec read-of)
+  `(cons ,(read-of (cadr typespec))
+         ,(read-of (caddr typespec))))
+
+(def-input-reader cons* (typespec read-of)
   (let ((elems (cdr typespec)))
     (if (null (cdr elems))
-        (reader (car elems))
-        `(cons ,(reader (car elems))
-               ,(reader (cons 'cons* (cdr elems)))))))
+        (read-of (car elems))
+        `(cons ,(read-of (car elems))
+               ,(read-of (cons 'cons* (cdr elems)))))))
 
-(def-input-reader null () nil)
+(def-input-reader null (typespec read-of)
+  nil)
 
-(def-input-reader list (typespec)
+(def-input-reader list (typespec read-of)
   (let ((elem (cadr typespec))
         (len (caddr typespec)))
     `(loop repeat ,len
-           collect ,(reader elem))))
+           collect ,(read-of elem))))
 
-(def-input-reader vector (typespec)
+(def-input-reader vector (typespec read-of)
   (let ((vec (gensym))
         (index (gensym))
         (elem (cadr typespec))
         (len (caddr typespec)))
     `(let ((,vec (make-array ,len)))
        (dotimes (,index ,len ,vec)
-         (setf (aref ,vec ,index) ,(reader elem))))))
+         (setf (aref ,vec ,index) ,(read-of elem))))))
 
-(def-input-reader array (typespec)
+(def-input-reader array (typespec read-of)
   (let ((arr (gensym))
         (index (gensym))
         (dimensions (gensym))
@@ -2698,7 +3333,8 @@ input
        (labels ((rec (,dims ,indexes)
                   (if (null (cdr ,dims))
                       (dotimes (,index (car ,dims))
-                        (setf (apply #'aref ,arr (reverse (cons ,index ,indexes))) ,(reader elem)))
+                        (setf (apply #'aref ,arr (reverse (cons ,index ,indexes)))
+                              ,(read-of elem)))
                       (dotimes (,index (car ,dims))
                         (rec (cdr ,dims) (cons ,index ,indexes))))))
          (rec ,dimensions nil)
@@ -2709,18 +3345,15 @@ input
 ;;;
 (defpackage atcoder
   (:use :cl
-        :utility.v0
-        :utility.v1
-        :utility.v2
-        :utility.v3
+        :utility
         :input
         :list-queue
         :deque
         :binary-heap
         :ordered-map
-        :vector
-        :matrix
-        :geometry
+        :linalg.vector
+        :linalg.matrix
+        :linalg.geometry
         :union-find
         :segment-tree
         :trie
@@ -2733,6 +3366,11 @@ input
            ))
 (in-package atcoder)
 
+(defun main ()
+  (input* ((a fixnum)
+           (b fixnum))
+    (format t "~A~%" (+ a b))))
+
 (defun test-case (input expect)
   (let ((output (with-output-to-string (*standard-output*)
                   (with-input-from-string (*standard-input* input)
@@ -2741,11 +3379,6 @@ input
                  (string-trim '(#\Space #\Newline) expect))
         (format t "Pass~%")
         (format t "Failed~%expect: ~A~%but actual: ~A~%" expect output))))
-
-(defun main ()
-  (input* ((a fixnum)
-           (b fixnum))
-    (format t "~A~%" (+ a b))))
 
 (defun test ()
   (test-case "1 2" "3")
