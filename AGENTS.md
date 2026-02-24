@@ -15,7 +15,7 @@
 - `test` ターゲット内で `sb-ext:unlock-package :sb-di` を呼び、SBCL + rove/dissect の package lock エラーを回避済み。
 
 ## 3. テスト方針
-- 外部アクセスを行う機能（`src/210-test.lisp`）は単体テストで必ずモック化する。
+- 外部アクセスを行う機能（`src/240-test.lisp`）は単体テストで必ずモック化する。
   - `tests/atcoder-test-test.lisp` では `symbol-function` 差し替えでネットワーク呼び出しをモック。
 
 ## 4. ここまでで追加済みの主な単体テスト

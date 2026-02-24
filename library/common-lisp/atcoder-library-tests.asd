@@ -9,6 +9,7 @@
                (:file "tests/utility-syntax-test")
                (:file "tests/list-queue-test")
                (:file "tests/deque-test")
+               (:file "tests/mint-test")
                (:file "tests/vector-bintree-test")
                (:file "tests/binary-heap-test")
                (:file "tests/linalg-vector-test")

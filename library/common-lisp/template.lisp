@@ -1181,6 +1181,98 @@ Usage:
          ,@(mapcar (lambda (clause)
                      (compile-match-clause value clause))
                    clauses)))))
+;;; mint
+;;;
+(defpackage :mint
+  (:use :cl :utility.number)
+  (:export :*mint-modulus*
+           :with-mint-modulus
+           :mint
+           :mintp
+           :make-mint
+           :mint-value
+           :mint+
+           :mint-
+           :mint*
+           :mint/
+           :mint-inv
+           :mint-pow))
+(in-package :mint)
+
+(defparameter *mint-modulus* 998244353)
+
+(defstruct (mint
+            (:constructor %make-mint (value)))
+  (value 0 :type integer))
+
+(declaim (inline normalize-mod as-integer as-mint))
+(defun normalize-mod (x)
+  (mod x *mint-modulus*))
+
+(defun as-integer (x)
+  (etypecase x
+    (integer x)
+    (mint (mint-value x))))
+
+(defun as-mint (x)
+  (if (mintp x)
+      x
+      (%make-mint (normalize-mod x))))
+
+(defun make-mint (x)
+  (%make-mint (normalize-mod (as-integer x))))
+
+(defun mint+ (&rest xs)
+  (make-mint (reduce #'+ xs :initial-value 0 :key #'as-integer)))
+
+(defun mint- (x &rest more)
+  (if (null more)
+      (make-mint (- (as-integer x)))
+      (make-mint (reduce #'- more :initial-value (as-integer x) :key #'as-integer))))
+
+(defun mint* (&rest xs)
+  (make-mint (reduce #'* xs :initial-value 1 :key #'as-integer)))
+
+(defun extended-gcd (a b)
+  (if (zerop b)
+      (values a 1 0)
+      (multiple-value-bind (g x y) (extended-gcd b (mod a b))
+        (values g y (- x (* (floor a b) y))))))
+
+(defun mint-inv (x)
+  (let* ((a (normalize-mod (as-integer x)))
+         (m *mint-modulus*))
+    (multiple-value-bind (g s _t) (extended-gcd a m)
+      (declare (ignore _t))
+      #-atcoder
+      (unless (= g 1)
+        (error "MINT-INV: inverse does not exist for ~S under modulus ~S." a m))
+      (make-mint s))))
+
+(defun mint/ (x &rest ys)
+  (reduce (lambda (acc y) (mint* acc (mint-inv y)))
+          ys
+          :initial-value (as-mint x)))
+
+(defun mint-pow (x n)
+  #-atcoder
+  (unless (and (integerp n) (<= 0 n))
+    (error "MINT-POW: exponent must be a non-negative integer, got ~S." n))
+  (let ((base (as-mint x))
+        (exp n)
+        (ret (make-mint 1)))
+    (loop while (> exp 0)
+          do (when (oddp exp)
+               (setf ret (mint* ret base)))
+             (setf base (mint* base base)
+                   exp (floor exp 2)))
+    ret))
+
+(defmacro with-mint-modulus ((modulus) &body body)
+  `(let ((*mint-modulus* ,modulus))
+     ,@body))
+
+;;;
 ;;; deque
 ;;;
 (defpackage deque

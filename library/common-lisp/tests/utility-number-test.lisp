@@ -22,6 +22,12 @@
   (ok (= 11111 (utility.number:repunit 5)))
   (ok (= #b1111 (utility.number:repunit 4 2))))
 
+(deftest modular-arithmetic-helpers
+  (multiple-value-bind (g x y) (utility.number:exgcd 30 18)
+    (ok (typep g 'unsigned-byte))
+    (ok (= 6 g))
+    (ok (= g (+ (* 30 x) (* 18 y))))))
+
 (deftest predicate-and-update-macros
   (ok (utility.number:maxp 10 1 2 3))
   (ok (not (utility.number:maxp 3 1 2 3)))

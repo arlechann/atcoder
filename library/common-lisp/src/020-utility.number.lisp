@@ -9,6 +9,8 @@
            :cube
            :cuber
            :pow
+           :to-integer
+           :exgcd
            :diff
            :triangular-number
            :next-pow2
@@ -27,7 +29,8 @@
            ))
 (in-package :utility.number)
 
-(declaim (inline onep 2* /2 square cube cuber diff triangular-number repunit maxp minp logmsb
+(declaim (inline onep 2* /2 square cube cuber
+                 diff triangular-number repunit maxp minp logmsb
                  approx= approx-zero-p approx<= approx>=))
 
 (declaim (ftype (function (number) t) onep))
@@ -44,6 +47,12 @@
 (declaim (ftype (function (t (function (t t) t)) t) cuber))
 (defun cuber (x op) (funcall op x (funcall op x x)))
 
+(defgeneric to-integer (x)
+  (:documentation "Convert X to an integer value."))
+
+(defmethod to-integer ((x integer))
+  x)
+
 (declaim (ftype (function (t unsigned-byte &key (:op (function (t t) t)) (:identity t)) t) pow))
 (defun pow (base power &key (op #'*) (identity 1))
   (nlet rec ((base base) (power power) (ret identity))
@@ -51,6 +60,20 @@
           ((oddp power)
            (rec (square base op) (floor power 2) (funcall op ret base)))
           (t (rec (square base op) (floor power 2) ret)))))
+
+(declaim (ftype (function (unsigned-byte unsigned-byte)
+                          (values unsigned-byte integer integer))
+                exgcd))
+(defun exgcd (a b)
+  (declare (type unsigned-byte a b))
+  (labels ((rec (x y)
+             (if (zerop y)
+                 (values x 1 0)
+                 (multiple-value-bind (g s u) (rec y (mod x y))
+                   (values g
+                           u
+                           (- s (* (floor x y) u)))))))
+    (rec a b)))
 
 (declaim (ftype (function (number number) (real 0 *)) diff))
 (defun diff (a b) (abs (- a b)))
