@@ -3,6 +3,7 @@
 (defpackage :math
   (:use :cl :utility.syntax :utility.number)
   (:export :exgcd
+           :crt
            :combinatorics-table
            :make-combinatorics-table
            :combinatorics-fact
@@ -26,6 +27,56 @@
                            u
                            (- s (* (floor x y) u)))))))
     (rec a b)))
+
+(defun crt (remainders moduli)
+  "一般化中国剰余定理で同時合同式を解く。
+
+引数:
+  REMAINDERS: 整数 a_i のリスト
+  MODULI:     正整数 m_i のリスト（REMAINDERS と同じ長さ）
+  解く対象は次の連立合同式:
+    x ≡ a_i (mod m_i)  (全ての i)
+
+返り値:
+  1) x : 統合後合同式の最小非負代表
+  2) m : 統合後の法（統合した法の最小公倍数）
+  したがって解集合は x + k*m（k は整数）。
+
+連立が不整合な場合は:
+  (values nil nil)
+
+備考:
+  - MODULI が互いに素である必要はない。
+  - 内部では EXGCD を使って条件を1本ずつマージする。
+  - 各マージは (a_i - 現在の x) が gcd(現在の m, m_i) で割り切れるときに限り可能。"
+  #-atcoder
+  (unless (and (listp remainders) (listp moduli) (= (length remainders) (length moduli)))
+    (error "CRT: REMAINDERS and MODULI must be lists with same length."))
+  (nlet rec ((rs remainders) (ms moduli) (x 0) (m 1))
+    (when (null rs)
+      (return-from crt (values x m)))
+    (let ((a (car rs))
+          (mi (car ms)))
+      #-atcoder
+      (unless (and (integerp a) (integerp mi) (> mi 0))
+        (error "CRT: each remainder must be integer and each modulus must be positive integer, got (~S mod ~S)." a mi))
+      (let ((ai (mod a mi)))
+        (multiple-value-bind (g p q) (exgcd m mi)
+          (declare (ignore q))
+          ;; Merge two congruences:
+          ;;   x ≡ current-x (mod m)
+          ;;   x ≡ ai        (mod mi)
+          ;; m*p + mi*q = g を使うと、
+          ;;   current-x + m*t ≡ ai (mod mi)
+          ;; の t を求められる。解があるのは (ai-current-x) が g で割り切れるときだけ。
+          (let ((delta (- ai x)))
+            (when (not (zerop (mod delta g)))
+              (return-from crt (values nil nil)))
+            (let* ((m2 (the unsigned-byte (floor mi g)))
+                   (step (mod (* (floor delta g) p) m2))
+                   (lcm (* m m2))
+                   (new-x (mod (+ x (* m step)) lcm)))
+              (rec (cdr rs) (cdr ms) new-x lcm))))))))
 
 (defstruct (combinatorics-table
             (:constructor %make-combinatorics-table

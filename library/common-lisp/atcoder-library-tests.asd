@@ -3,6 +3,7 @@
   :serial t
   :pathname "./"
   :components ((:file "tests/match-test")
+               (:file "tests/math-test")
                (:file "tests/utility-number-test")
                (:file "tests/utility-base-test")
                (:file "tests/utility-window-test")
