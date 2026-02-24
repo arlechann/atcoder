@@ -121,3 +121,23 @@
            (g2 (graph:make-grid-graph 3 3 lines :nodes nodes)))
       (setf (graph:graph-node-ref g2 4) :center)
       (ok (eq :center (graph:graph-node-ref g2 4))))))
+
+(deftest graph-dinic-max-flow
+  ;; classic small network:
+  ;; 0->1(3), 0->2(2), 1->2(1), 1->3(2), 2->3(3) => maxflow = 5
+  (let ((g (graph:make-adlist-multigraph 4)))
+    (graph:graph-add-edge g 0 1 :cost 3)
+    (graph:graph-add-edge g 0 2 :cost 2)
+    (graph:graph-add-edge g 1 2 :cost 1)
+    (graph:graph-add-edge g 1 3 :cost 2)
+    (graph:graph-add-edge g 2 3 :cost 3)
+    (ok (= 5 (graph:dinic g 0 3)))))
+
+(deftest graph-dinic-parallel-edges
+  ;; parallel edges 0->1 (2 and 3), 1->2(4), 0->2(1) => maxflow = 5
+  (let ((g (graph:make-adlist-multigraph 3)))
+    (graph:graph-add-edge g 0 1 :cost 2)
+    (graph:graph-add-edge g 0 1 :cost 3)
+    (graph:graph-add-edge g 1 2 :cost 4)
+    (graph:graph-add-edge g 0 2 :cost 1)
+    (ok (= 5 (graph:dinic g 0 2)))))
