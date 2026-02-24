@@ -10,7 +10,6 @@
            :cuber
            :pow
            :to-integer
-           :exgcd
            :diff
            :triangular-number
            :next-pow2
@@ -60,20 +59,6 @@
           ((oddp power)
            (rec (square base op) (floor power 2) (funcall op ret base)))
           (t (rec (square base op) (floor power 2) ret)))))
-
-(declaim (ftype (function (unsigned-byte unsigned-byte)
-                          (values unsigned-byte integer integer))
-                exgcd))
-(defun exgcd (a b)
-  (declare (type unsigned-byte a b))
-  (labels ((rec (x y)
-             (if (zerop y)
-                 (values x 1 0)
-                 (multiple-value-bind (g s u) (rec y (mod x y))
-                   (values g
-                           u
-                           (- s (* (floor x y) u)))))))
-    (rec a b)))
 
 (declaim (ftype (function (number number) (real 0 *)) diff))
 (defun diff (a b) (abs (- a b)))
@@ -146,29 +131,5 @@
   (let ((comp (if touchp #'< #'<=)))
     (not (or (funcall comp (max a1 a2) (min b1 b2))
              (funcall comp (max b1 b2) (min a1 a2))))))
-
-(let* ((dp-combination-max 0)
-       (memo (make-array (list dp-combination-max dp-combination-max)
-                         :element-type 'unsigned-byte
-                         :initial-element 0)))
-  (defun set-dp-combination-max (max)
-    (setf dp-combination-max max)
-    (setf memo (make-array (list dp-combination-max dp-combination-max)
-                           :element-type 'unsigned-byte
-                           :initial-element 0))
-    (proclaim `(ftype (function ((mod ,dp-combination-max) (mod ,dp-combination-max))
-                                unsigned-byte)
-                      dp-combination)))
-  (set-dp-combination-max 2501)
-  (defun dp-combination (n k)
-    (cond ((< n k) 0)
-          ((= n k) 1)
-          ((zerop k) 1)
-          (t (let ((memo-value (aref memo n k)))
-               (if (> memo-value 0)
-                   memo-value
-                   (setf (aref memo n k)
-                         (+ (dp-combination (1- n) (1- k))
-                            (dp-combination (1- n) k)))))))))
 
 ;;;

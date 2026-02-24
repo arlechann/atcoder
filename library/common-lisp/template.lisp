@@ -267,6 +267,14 @@
            :cube
            :cuber
            :pow
+           :to-integer
+           :exgcd
+           :combinatorics-table
+           :make-combinatorics-table
+           :combinatorics-fact
+           :combinatorics-ifact
+           :combinatorics-nck
+           :combinatorics-npk
            :diff
            :triangular-number
            :next-pow2
@@ -285,7 +293,8 @@
            ))
 (in-package :utility.number)
 
-(declaim (inline onep 2* /2 square cube cuber diff triangular-number repunit maxp minp logmsb
+(declaim (inline onep 2* /2 square cube cuber
+                 diff triangular-number repunit maxp minp logmsb
                  approx= approx-zero-p approx<= approx>=))
 
 (declaim (ftype (function (number) t) onep))
@@ -301,6 +310,12 @@
 (defun cube (x &optional (op #'*)) (funcall op (funcall op x x) x))
 (declaim (ftype (function (t (function (t t) t)) t) cuber))
 (defun cuber (x op) (funcall op x (funcall op x x)))
+
+(defgeneric to-integer (x)
+  (:documentation "Convert X to an integer value."))
+
+(defmethod to-integer ((x integer))
+  x)
 
 (declaim (ftype (function (t unsigned-byte &key (:op (function (t t) t)) (:identity t)) t) pow))
 (defun pow (base power &key (op #'*) (identity 1))
@@ -1005,6 +1020,94 @@
       (export sym :utility))))
 
 ;;;
+;;; utility.number math
+;;;
+(in-package :utility.number)
+
+(declaim (ftype (function (unsigned-byte unsigned-byte)
+                          (values unsigned-byte integer integer))
+                exgcd))
+(defun exgcd (a b)
+  (declare (type unsigned-byte a b))
+  (labels ((rec (x y)
+             (if (zerop y)
+                 (values x 1 0)
+                 (multiple-value-bind (g s u) (rec y (mod x y))
+                   (values g
+                           u
+                           (- s (* (floor x y) u)))))))
+    (rec a b)))
+
+(defstruct (combinatorics-table
+            (:constructor %make-combinatorics-table
+                (max-n facts ifacts mul zero from-integer)))
+  (max-n 0 :type fixnum :read-only t)
+  (facts #() :type simple-vector :read-only t)
+  (ifacts #() :type simple-vector :read-only t)
+  (mul #'* :type function :read-only t)
+  (zero 0 :type t :read-only t)
+  (from-integer #'identity :type function :read-only t))
+
+(defun make-combinatorics-table (max-n &key (one 1) (zero 0) (mul #'*)
+                                         (from-integer #'identity) inv)
+  #-atcoder
+  (unless (and (integerp max-n) (<= 0 max-n))
+    (error "MAKE-COMBINATORICS-TABLE: MAX-N must be a non-negative integer, got ~S." max-n))
+  #-atcoder
+  (unless inv
+    (error "MAKE-COMBINATORICS-TABLE: :INV is required."))
+  (let* ((n (the fixnum max-n))
+         (facts (make-array (1+ n) :element-type t :initial-element one))
+         (ifacts (make-array (1+ n) :element-type t :initial-element zero)))
+    (loop for i fixnum from 1 to n
+          do (setf (svref facts i)
+                   (funcall mul (svref facts (1- i))
+                            (funcall from-integer i))))
+    (setf (svref ifacts n) (funcall inv (svref facts n)))
+    (loop for i fixnum from n downto 1
+          do (setf (svref ifacts (1- i))
+                   (funcall mul (svref ifacts i)
+                            (funcall from-integer i))))
+    (%make-combinatorics-table n facts ifacts mul zero from-integer)))
+
+(declaim (inline %combinatorics-check-index))
+(defun %combinatorics-check-index (table n)
+  #-atcoder
+  (unless (and (integerp n) (<= 0 n (combinatorics-table-max-n table)))
+    (error "COMBINATORICS index out of range: ~S (max ~S)"
+           n (combinatorics-table-max-n table))))
+
+(defun combinatorics-fact (table n)
+  (%combinatorics-check-index table n)
+  (svref (combinatorics-table-facts table) n))
+
+(defun combinatorics-ifact (table n)
+  (%combinatorics-check-index table n)
+  (svref (combinatorics-table-ifacts table) n))
+
+(defun combinatorics-nck (table n k)
+  (%combinatorics-check-index table n)
+  (if (or (< k 0) (> k n))
+      (combinatorics-table-zero table)
+      (let ((mul (combinatorics-table-mul table))
+            (facts (combinatorics-table-facts table))
+            (ifacts (combinatorics-table-ifacts table)))
+        (funcall mul
+                 (svref facts n)
+                 (funcall mul
+                          (svref ifacts k)
+                          (svref ifacts (- n k)))))))
+
+(defun combinatorics-npk (table n k)
+  (%combinatorics-check-index table n)
+  (if (or (< k 0) (> k n))
+      (combinatorics-table-zero table)
+      (let ((mul (combinatorics-table-mul table))
+            (facts (combinatorics-table-facts table))
+            (ifacts (combinatorics-table-ifacts table)))
+        (funcall mul (svref facts n) (svref ifacts (- n k))))))
+
+;;;
 (defpackage match
   (:use :cl :utility)
   (:export :if-match
@@ -1188,88 +1291,127 @@ Usage:
   (:export :*mint-modulus*
            :with-mint-modulus
            :mint
-           :mintp
+           :mint-p
            :make-mint
+           :to-mint
            :mint-value
            :mint+
            :mint-
            :mint*
            :mint/
            :mint-inv
-           :mint-pow))
+           :mint-pow
+           :make-mint-combinatorics
+           :mint-fact
+           :mint-ifact
+           :mint-nck
+           :mint-npk))
 (in-package :mint)
 
 (defparameter *mint-modulus* 998244353)
 
 (defstruct (mint
             (:constructor %make-mint (value)))
-  (value 0 :type integer))
+  (value 0 :type fixnum))
 
-(declaim (inline normalize-mod as-integer as-mint))
-(defun normalize-mod (x)
-  (mod x *mint-modulus*))
+(declaim (inline normalize-mint-value))
+(defun normalize-mod (value modulus)
+  #-atcoder
+  (unless (and (integerp modulus) (> modulus 0))
+    (error "NORMALIZE-MOD: modulus must be a positive integer, got ~S." modulus))
+  (mod value modulus))
 
-(defun as-integer (x)
-  (etypecase x
-    (integer x)
-    (mint (mint-value x))))
+(defun normalize-mint-value (x)
+  (the fixnum (normalize-mod x *mint-modulus*)))
 
-(defun as-mint (x)
-  (if (mintp x)
-      x
-      (%make-mint (normalize-mod x))))
+(defun mod-inv (value modulus)
+  (multiple-value-bind (g x _y)
+      (exgcd (normalize-mod value modulus) modulus)
+    (declare (ignore _y))
+    (when (= (abs g) 1)
+      (normalize-mod x modulus))))
+
+(defmethod to-integer ((x mint))
+  (mint-value x))
+
+(defgeneric to-mint (x)
+  (:documentation "Convert X to mint."))
+
+(defmethod to-mint ((x mint))
+  x)
+
+(defmethod to-mint ((x integer))
+  (%make-mint (normalize-mint-value x)))
+
+(defmethod to-mint ((x rational))
+  (let* ((num (numerator x))
+         (den (denominator x))
+         (inv (mod-inv den *mint-modulus*)))
+    #-atcoder
+    (unless inv
+      (error "TO-MINT: denominator ~S has no inverse under modulus ~S." den *mint-modulus*))
+    (make-mint (* num (or inv 0)))))
 
 (defun make-mint (x)
-  (%make-mint (normalize-mod (as-integer x))))
+  (%make-mint (normalize-mint-value (to-integer x))))
 
 (defun mint+ (&rest xs)
-  (make-mint (reduce #'+ xs :initial-value 0 :key #'as-integer)))
+  (make-mint (reduce #'+ xs :initial-value 0 :key #'to-integer)))
 
 (defun mint- (x &rest more)
   (if (null more)
-      (make-mint (- (as-integer x)))
-      (make-mint (reduce #'- more :initial-value (as-integer x) :key #'as-integer))))
+      (make-mint (- (to-integer x)))
+      (make-mint (reduce #'- more :initial-value (to-integer x) :key #'to-integer))))
 
 (defun mint* (&rest xs)
-  (make-mint (reduce #'* xs :initial-value 1 :key #'as-integer)))
-
-(defun extended-gcd (a b)
-  (if (zerop b)
-      (values a 1 0)
-      (multiple-value-bind (g x y) (extended-gcd b (mod a b))
-        (values g y (- x (* (floor a b) y))))))
+  (make-mint (reduce #'* xs :initial-value 1 :key #'to-integer)))
 
 (defun mint-inv (x)
-  (let* ((a (normalize-mod (as-integer x)))
-         (m *mint-modulus*))
-    (multiple-value-bind (g s _t) (extended-gcd a m)
-      (declare (ignore _t))
+  (let* ((a (normalize-mint-value (to-integer x)))
+         (m *mint-modulus*)
+         (inv (mod-inv a m)))
       #-atcoder
-      (unless (= g 1)
+      (unless inv
         (error "MINT-INV: inverse does not exist for ~S under modulus ~S." a m))
-      (make-mint s))))
+      (make-mint (or inv 0))))
 
 (defun mint/ (x &rest ys)
   (reduce (lambda (acc y) (mint* acc (mint-inv y)))
           ys
-          :initial-value (as-mint x)))
+          :initial-value (to-mint x)))
 
 (defun mint-pow (x n)
   #-atcoder
   (unless (and (integerp n) (<= 0 n))
     (error "MINT-POW: exponent must be a non-negative integer, got ~S." n))
-  (let ((base (as-mint x))
-        (exp n)
-        (ret (make-mint 1)))
-    (loop while (> exp 0)
-          do (when (oddp exp)
-               (setf ret (mint* ret base)))
-             (setf base (mint* base base)
-                   exp (floor exp 2)))
-    ret))
+  (pow (to-mint x) n :op #'mint* :identity (make-mint 1)))
+
+(defun make-mint-combinatorics (max-n)
+  (make-combinatorics-table
+   max-n
+   :one (make-mint 1)
+   :zero (make-mint 0)
+   :mul #'mint*
+   :inv #'mint-inv
+   :from-integer #'make-mint))
+
+(defun mint-fact (table n)
+  (combinatorics-fact table n))
+
+(defun mint-ifact (table n)
+  (combinatorics-ifact table n))
+
+(defun mint-nck (table n k)
+  (combinatorics-nck table n k))
+
+(defun mint-npk (table n k)
+  (combinatorics-npk table n k))
 
 (defmacro with-mint-modulus ((modulus) &body body)
   `(let ((*mint-modulus* ,modulus))
+     #-atcoder
+     (unless (and (typep *mint-modulus* 'fixnum) (> *mint-modulus* 0))
+       (error "WITH-MINT-MODULUS: modulus must be a positive fixnum, got ~S." *mint-modulus*))
      ,@body))
 
 ;;;

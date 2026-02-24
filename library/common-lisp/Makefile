@@ -1,6 +1,6 @@
 PARTS := $(sort $(wildcard src/*.lisp))
 
-.PHONY: all template test clean
+.PHONY: all template test benchmark benchmark-match benchmark-pascal clean
 
 all: template
 
@@ -19,6 +19,14 @@ test:
 		--eval "(asdf:load-system \"atcoder-library-tests\" :force t)" \
 		--eval "(rove:run \"atcoder-library-tests\")" \
 		--quit
+
+benchmark: benchmark-match benchmark-pascal
+
+benchmark-match:
+	cd ../.. && sbcl --noinform --script library/common-lisp/tests/match-benchmark.lisp
+
+benchmark-pascal:
+	cd ../.. && sbcl --noinform --script library/common-lisp/tests/pascal-benchmark.lisp
 
 clean:
 	rm -f template.lisp

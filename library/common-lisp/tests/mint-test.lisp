@@ -28,3 +28,12 @@
     (ok (handler-case
             (progn (mint:mint/ 5 6) nil)
           (error () t)))))
+
+(deftest mint-combinatorics
+  (mint:with-mint-modulus (998244353)
+    (let ((table (mint:make-mint-combinatorics 10)))
+      (ok (= 120 (mint:mint-value (mint:mint-fact table 5))))
+      (ok (= 856826403 (mint:mint-value (mint:mint-ifact table 5))))
+      (ok (= 120 (mint:mint-value (mint:mint-nck table 10 3))))
+      (ok (= 720 (mint:mint-value (mint:mint-npk table 10 3))))
+      (ok (= 0 (mint:mint-value (mint:mint-nck table 3 5)))))))

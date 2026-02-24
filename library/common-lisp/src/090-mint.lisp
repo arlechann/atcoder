@@ -1,7 +1,7 @@
 ;;; mint
 ;;;
 (defpackage :mint
-  (:use :cl :utility.number)
+  (:use :cl :utility.number :math)
   (:export :*mint-modulus*
            :with-mint-modulus
            :mint
@@ -14,7 +14,12 @@
            :mint*
            :mint/
            :mint-inv
-           :mint-pow))
+           :mint-pow
+           :make-mint-combinatorics
+           :mint-fact
+           :mint-ifact
+           :mint-nck
+           :mint-npk))
 (in-package :mint)
 
 (defparameter *mint-modulus* 998244353)
@@ -94,6 +99,27 @@
   (unless (and (integerp n) (<= 0 n))
     (error "MINT-POW: exponent must be a non-negative integer, got ~S." n))
   (pow (to-mint x) n :op #'mint* :identity (make-mint 1)))
+
+(defun make-mint-combinatorics (max-n)
+  (make-combinatorics-table
+   max-n
+   :one (make-mint 1)
+   :zero (make-mint 0)
+   :mul #'mint*
+   :inv #'mint-inv
+   :from-integer #'make-mint))
+
+(defun mint-fact (table n)
+  (combinatorics-fact table n))
+
+(defun mint-ifact (table n)
+  (combinatorics-ifact table n))
+
+(defun mint-nck (table n k)
+  (combinatorics-nck table n k))
+
+(defun mint-npk (table n k)
+  (combinatorics-npk table n k))
 
 (defmacro with-mint-modulus ((modulus) &body body)
   `(let ((*mint-modulus* ,modulus))
