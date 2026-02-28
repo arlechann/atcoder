@@ -121,7 +121,7 @@
        (compile-pattern (list-pattern->cons-pattern pat) target env))
 
       (t
-       (values `(equal ',pat ,target) nil env)))))
+       (values `(equal ',pat ,target) nil env))))
 
   (defun compile-match-clause (target clause)
     (let ((pattern (car clause))
@@ -134,7 +134,7 @@
             `(,test
               (let* ,bindings
                 (declare (ignorable ,@(mapcar #'car bindings)))
-                ,@body))))))
+                ,@body)))))))
 
 (defmacro if-match (pattern expr then &optional else)
   "Match EXPR against PATTERN. If matched, evaluate THEN, else evaluate ELSE.
