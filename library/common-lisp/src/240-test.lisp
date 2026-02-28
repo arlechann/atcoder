@@ -2,12 +2,16 @@
 ;;;
 (defpackage :atcoder.test
   (:use :cl :utility)
-  (:export :test-case
-           :*atcoder-session-cookie*
-           :fetch-atcoder-samples
+  (:export :*atcoder-session-cookie*
+           :test
+           :test-case
            :test-url
-           :test))
+           :fetch-atcoder-samples))
 (in-package :atcoder.test)
+
+(defparameter *atcoder-session-cookie* nil
+  "AtCoder session cookie string for authenticated fetch.
+Either full cookie pair (e.g. \"REVEL_SESSION=...\") or just cookie value.")
 
 (defun normalize-whitespaces (string)
   (with-output-to-string (out)
@@ -104,10 +108,6 @@
                      (setf pos (+ h3-close (length "</h3>")))))
                (setf pos (1+ h3-open)))))
     (nreverse cases)))
-
-(defparameter *atcoder-session-cookie* nil
-  "AtCoder session cookie string for authenticated fetch.
-Either full cookie pair (e.g. \"REVEL_SESSION=...\") or just cookie value.")
 
 (defun normalize-atcoder-cookie (cookie)
   (cond ((null cookie) nil)
