@@ -117,6 +117,7 @@
                          (declare (ignorable ,typespec))
                          (flet ((,read-of (sub-typespec)
                                   (input-typespec-reader sub-typespec)))
+                           (declare (ignorable (function ,read-of)))
                            ,@body)))
      ',marker))
 
