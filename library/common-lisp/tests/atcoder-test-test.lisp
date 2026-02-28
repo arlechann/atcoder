@@ -33,13 +33,13 @@
   (let* ((html
            (concatenate
             'string
-            "<h3>入力例 1</h3><pre>1 2</pre>"
-            "<h3>出力例 1</h3><pre>3</pre>"
+            (format nil "<h3>入力例 1</h3><pre>1 2~A~A3 4~A~A</pre>" #\CR #\LF #\CR #\LF)
+            "<h3>出力例 1</h3><pre>5</pre>"
             "<h3>Sample Input 2</h3><pre>a&lt;b&amp;c</pre>"
             "<h3>Sample Output 2</h3><pre>ok&quot;yes&#39;</pre>"))
          (cases (atcoder.test::parse-atcoder-samples-from-html html)))
-    (ok (equal '(("1 2" "3")
-                 ("a<b&c" "ok\"yes'"))
+    (ok (equal (list (list (format nil "1 2~A3 4" #\NewLine) "5")
+                     '("a<b&c" "ok\"yes'"))
                cases))))
 
 (deftest atcoder-test-fetch-url-mocked

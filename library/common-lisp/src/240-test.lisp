@@ -67,9 +67,11 @@ Either full cookie pair (e.g. \"REVEL_SESSION=...\") or just cookie value.")
 
 (defun atcoder-clean-pre-text (text)
   (let* ((lines (split-string text :separator '(#\Newline)))
-         (filtered (loop for line in lines
-                         unless (string-prefix-p "```" (trim-spaces line))
-                           collect line)))
+         (filtered (nmap #'(lambda (line)
+                             (delete #\CR line))
+                         (delete-if #'(lambda (line)
+                                        (string-prefix-p "```" (trim-spaces line)))
+                                    lines))))
     (trim-spaces (atcoder-html-unescape (strjoin filtered)))))
 
 (defun detect-sample-kind (heading)
