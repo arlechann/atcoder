@@ -27,9 +27,23 @@ Either full cookie pair (e.g. \"REVEL_SESSION=...\") or just cookie value.")
                    (setf wrote-char-p t)
                    (setf pending-space nil))))))
 
+(defun normalize-line-endings (string)
+  (with-output-to-string (out)
+    (loop with length = (length string)
+          for index from 0 below length
+          for ch = (char string index)
+          do (cond ((char= ch #\Return)
+                    (write-char #\Newline out)
+                    (when (and (< (1+ index) length)
+                               (char= (char string (1+ index)) #\Newline))
+                      (incf index)))
+                   (t
+                    (write-char ch out))))))
+
 (defun test-case (fn input expect)
   (let ((output (with-output-to-string (*standard-output*)
-                  (with-input-from-string (*standard-input* input)
+                  (with-input-from-string (*standard-input*
+                                           (normalize-line-endings input))
                     (funcall fn)))))
     (if (string= (normalize-whitespaces output)
                  (normalize-whitespaces expect))

@@ -29,6 +29,17 @@
     (ok (search "Failed" fail-out))
     (ok (search "expect:" fail-out))))
 
+(deftest atcoder-test-case-normalizes-crlf-input
+  (let ((printed (with-output-to-string (*standard-output*)
+                   (atcoder.test:test-case
+                    (lambda ()
+                      (let ((line1 (read-line))
+                            (line2 (read-line)))
+                        (format t "~A|~A" line1 line2)))
+                    (format nil "ab~C~Ccd~C~C" #\Return #\Linefeed #\Return #\Linefeed)
+                    "ab|cd"))))
+    (ok (search "Pass" printed))))
+
 (deftest atcoder-test-parse-samples
   (let* ((html
            (concatenate
