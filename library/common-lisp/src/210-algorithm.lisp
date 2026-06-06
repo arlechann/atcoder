@@ -16,7 +16,7 @@
            :upper-bound
            :cumulate
            :dp
-           :array-dp
+           :dp-labels
            ))
 (in-package algorithm)
 
@@ -144,48 +144,108 @@
                             (funcall op (aref it i) x)))
                     sequence)))
 
-(defmacro dp (name params &body body)
-  "ハッシュ表メモ化付き再帰関数を生成して返す。"
-  (let ((tmp-name (gensym))
-        (args (mapcar #'(lambda (param)
-                          (declare (ignore param))
-                          (gensym))
-                      params))
-        (memo (gensym))
-        (key (gensym))
-        (memo-value (gensym))
-        (none-value (gensym)))
-    `(macrolet ((,name ,args `(,',tmp-name ,@(list ,@args))))
-       (let ((,memo (make-hash-table :test 'equal)))
-          (labels ((,tmp-name ,params
-                     (let* ((,key (list ,@params))
-                            (,memo-value (gethash ,key ,memo ',none-value)))
-                       (if (not (eq ,memo-value ',none-value))
-                           ,memo-value
-                           (setf (gethash ,key ,memo)
-                                 (block ,name ,@body))))))
-            #',tmp-name)))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun parse-dp-definition (definition)
+    (let ((for nil)
+          (uncomputed nil)
+          (uncomputed-p nil)
+          (cases nil))
+      (loop for (key value) on definition by #'cddr
+            do (ecase key
+                 (:for (setf for value))
+                 (:uncomputed (setf uncomputed value
+                                    uncomputed-p t))
+                 (:case (setf cases value))))
+      (unless for
+        (error "DP requires :FOR."))
+      (unless cases
+        (error "DP requires :CASE."))
+      (values for cases uncomputed uncomputed-p)))
+  (defun dp-for-array-p (for)
+    (and (listp for)
+         (every (lambda (entry)
+                  (and (consp entry)
+                       (symbolp (car entry))
+                       (consp (cdr entry))
+                       (null (cddr entry))))
+                for)))
+  (defun make-array-dp-components (name for cases uncomputed uncomputed-p)
+    (let ((sentinel (gensym))
+          (memo (gensym))
+          (memo-value (gensym))
+          (params (mapcar #'car for))
+          (maxs (mapcar #'cadr for)))
+      (values
+       `((,sentinel ,(if uncomputed-p uncomputed '(gensym "UNCOMPUTED-")))
+         (,memo (make-array (list ,@maxs) :initial-element ,sentinel)))
+       `(,name ,params
+          (let ((,memo-value (aref ,memo ,@params)))
+            (if (eq ,memo-value ,sentinel)
+                (setf (aref ,memo ,@params)
+                      (block ,name
+                        (cond ,@cases)))
+                ,memo-value))))))
+  (defun make-hash-dp-components (name for cases uncomputed uncomputed-p)
+    (let ((sentinel (gensym))
+          (memo (gensym))
+          (key (gensym))
+          (memo-value (gensym)))
+      (values
+       `((,sentinel ,(if uncomputed-p uncomputed '(gensym "UNCOMPUTED-")))
+         (,memo (make-hash-table :test 'equal)))
+       `(,name ,for
+          (let* ((,key (list ,@for))
+                 (,memo-value (gethash ,key ,memo ,sentinel)))
+            (if (eq ,memo-value ,sentinel)
+                (setf (gethash ,key ,memo)
+                      (block ,name
+                        (cond ,@cases)))
+                ,memo-value))))))
+  (defun make-dp-label-components (binding)
+    (destructuring-bind (name &rest definition) binding
+      (multiple-value-bind (for cases uncomputed uncomputed-p)
+          (parse-dp-definition definition)
+        (if (dp-for-array-p for)
+            (make-array-dp-components
+             name for cases uncomputed uncomputed-p)
+            (make-hash-dp-components
+             name for cases uncomputed uncomputed-p)))))
+  )
 
-(defmacro array-dp (name param-and-maxs &body body)
-  "配列メモ化付き再帰関数を生成して返す。各引数の上限を指定する。"
-  (let* ((tmp-name (gensym))
-         (memo (gensym))
-         (none-value (gensym))
-         (memo-value (gensym))
-         (params (mapcar #'car param-and-maxs))
-         (maxs (mapcar #'cadr param-and-maxs))
-         (args (mapcar #'(lambda (param)
-                           (declare (ignore param))
-                           (gensym))
-                       params)))
-    `(macrolet ((,name ,args `(,',tmp-name ,@(list ,@args))))
-       (let ((,memo (make-array (list ,@maxs) :initial-element ',none-value)))
-         (labels ((,tmp-name ,params
-                    (let ((,memo-value (aref ,memo ,@params)))
-                      (if (eq ,memo-value ',none-value)
-                          (setf (aref ,memo ,@params)
-                                (block ,name ,@body))
-                          ,memo-value))))
-           #',tmp-name)))))
+(defmacro dp (name &rest definition)
+  "メモ化付き再帰関数を生成して返す。:FOR で状態を、:CASE で再帰式を指定し、:UNCOMPUTED を与えると未計算値を上書きする。
+
+例:
+  (let ((fib (dp fib
+               :for (n)
+               :case (((<= n 1) n)
+                      (t (+ (fib (1- n))
+                            (fib (- n 2))))))))
+    (funcall fib 10))
+  => 55
+
+  (let ((paths (dp paths
+                 :for ((y 4) (x 4))
+                 :uncomputed -1
+                 :case (((or (= y 0) (= x 0)) 1)
+                        (t (+ (paths (1- y) x)
+                              (paths y (1- x))))))))
+    (funcall paths 3 3))
+  => 20"
+  `(dp-labels ((,name ,@definition))
+     #',name))
+
+(defmacro dp-labels (bindings &body body)
+  "DP 関数群をローカル関数として束縛する。各定義は DP と同じ DSL を使う。"
+  (let ((let-bindings nil)
+        (label-bindings nil))
+    (dolist (binding bindings)
+      (multiple-value-bind (new-let-bindings label-binding)
+          (make-dp-label-components binding)
+        (setf let-bindings (append let-bindings new-let-bindings))
+        (push label-binding label-bindings)))
+    `(let* ,let-bindings
+       (labels ,(nreverse label-bindings)
+         ,@body))))
 
 ;;;

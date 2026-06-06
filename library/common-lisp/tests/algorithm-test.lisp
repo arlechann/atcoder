@@ -56,18 +56,45 @@
              (coerce (algorithm:cumulate '(1 2 3 4) :op #'* :id 1) 'list))))
 
 (deftest algorithm-dp-macros
-  (let ((fib (algorithm:dp fib (n)
-               (if (<= n 1)
-                   n
-                   (+ (fib (1- n))
-                      (fib (- n 2)))))))
+  (let ((fib (algorithm:dp fib
+               :for (n)
+               :case (((<= n 1) n)
+                      (t (+ (fib (1- n))
+                            (fib (- n 2))))))))
     (ok (= 0 (funcall fib 0)))
     (ok (= 1 (funcall fib 1)))
     (ok (= 55 (funcall fib 10))))
-  (let ((paths (algorithm:array-dp paths ((y 4) (x 4))
-                 (if (or (= y 0) (= x 0))
-                     1
-                     (+ (paths (1- y) x)
-                        (paths y (1- x)))))))
+  (let ((paths (algorithm:dp paths
+                 :for ((y 4) (x 4))
+                 :uncomputed -1
+                 :case (((or (= y 0) (= x 0)) 1)
+                        (t (+ (paths (1- y) x)
+                              (paths y (1- x))))))))
     (ok (= 20 (funcall paths 3 3)))
     (ok (= 6 (funcall paths 2 2)))))
+
+(deftest algorithm-dp-labels
+  (multiple-value-bind (even-dp odd-dp)
+      (algorithm:dp-labels
+          ((even-dp
+             :for (n)
+             :case (((zerop n) t)
+                    (t (odd-dp (1- n)))))
+           (odd-dp
+             :for (n)
+             :case (((zerop n) nil)
+                    (t (even-dp (1- n))))))
+        (values #'even-dp #'odd-dp))
+    (ok (funcall even-dp 10))
+    (ok (not (funcall even-dp 11)))
+    (ok (funcall odd-dp 11))
+    (ok (not (funcall odd-dp 10))))
+  (ok (= 20
+         (algorithm:dp-labels
+             ((paths
+                :for ((y 4) (x 4))
+                :uncomputed -1
+                :case (((or (= y 0) (= x 0)) 1)
+                       (t (+ (paths (1- y) x)
+                             (paths y (1- x)))))))
+           (paths 3 3)))))
