@@ -20,16 +20,27 @@
     (ok (eq :n1 (graph:graph-node-ref g 1)))
 
     (graph:graph-add-edge g 0 1 :cost 5)
-    (graph:graph-add-edge g 0 1 :cost 3) ; single-edge keeps smaller cost
+    (graph:graph-add-edge g 0 1 :cost 3)
     (let ((e (graph:graph-edge-ref g 0 1)))
       (ok (= 0 (graph:edge-from e)))
       (ok (= 1 (graph:edge-to e)))
-      (ok (= 3 (graph:edge-cost e))))
+      #-atcoder
+      (ok (= 3 (graph:edge-cost e)))
+      #+atcoder
+      (ok (= 5 (graph:edge-cost e))))
 
-    (ok (equal '((0 1 3))
-               (mapcar #'edge->triple (graph:graph-multi-edges-ref g 0 1))))
-    (ok (equal '((0 1 3))
-               (edges->triples (graph:graph-neighbors g 0))))
+    #-atcoder
+    (progn
+      (ok (equal '((0 1 3))
+                 (mapcar #'edge->triple (graph:graph-multi-edges-ref g 0 1))))
+      (ok (equal '((0 1 3))
+                 (edges->triples (graph:graph-neighbors g 0)))))
+    #+atcoder
+    (progn
+      (ok (equal '((0 1 3) (0 1 5))
+                 (edges->triples (graph:graph-multi-edges-ref g 0 1))))
+      (ok (equal '((0 1 3) (0 1 5))
+                 (edges->triples (graph:graph-neighbors g 0)))))
 
     (graph:graph-delete-edges g 0 1)
     (ok (null (graph:graph-edge-ref g 0 1)))

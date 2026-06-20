@@ -5,7 +5,6 @@
   (:export :<graph>
            :<single-edge-graph>
            :<multigraph>
-           :<edge>
            :graph-size
            :graph-node-ref
            :graph-edge-ref
@@ -70,22 +69,36 @@ For single-edge graphs, EDGES must be empty or singleton."))
 (defgeneric graph-low-level-multi-edges-ref (graph from to))
 (defgeneric (setf graph-low-level-multi-edges-ref) (edges graph from to))
 
-(defgeneric edge-from (edge))
-(defgeneric edge-to (edge))
-(defgeneric edge-cost (edge))
-
 (defmacro do-graph-neighbors ((var graph node &optional result) &body body)
   `(progn (call-with-graph-neighbors ,graph ,node (lambda (,var) ,@body))
           ,result))
 
 (defclass <graph> () ())
 
-(defclass <edge> ()
-  ((from :initarg :from :accessor edge-from)
-   (to :initarg :to :accessor edge-to)
-   (cost :initarg :cost :initform 1 :accessor edge-cost)))
+(defun make-edge (from to &key (cost 1))
+  (let ((edge (make-array 3)))
+    (setf (svref edge 0) from
+          (svref edge 1) to
+          (svref edge 2) cost)
+    edge))
 
-(defun make-edge (from to &key (cost 1)) (make-instance '<edge> :from from :to to :cost cost))
+(defun edge-from (edge)
+  (svref (the simple-vector edge) 0))
+
+(defun (setf edge-from) (value edge)
+  (setf (svref (the simple-vector edge) 0) value))
+
+(defun edge-to (edge)
+  (svref (the simple-vector edge) 1))
+
+(defun (setf edge-to) (value edge)
+  (setf (svref (the simple-vector edge) 1) value))
+
+(defun edge-cost (edge)
+  (svref (the simple-vector edge) 2))
+
+(defun (setf edge-cost) (value edge)
+  (setf (svref (the simple-vector edge) 2) value))
 
 (defun graph-node-index-valid-p (graph node)
   (and (integerp node)
@@ -127,10 +140,14 @@ For single-edge graphs, EDGES must be empty or singleton."))
 
 (defmethod graph-add-edge ((graph <single-edge-graph>) from to &key (cost 1))
   (assert-graph-edge-index graph from to "GRAPH-ADD-EDGE")
+  #-atcoder
   (let ((current-edge (graph-edge-ref graph from to)))
     (when (or (null current-edge)
               (< cost (edge-cost current-edge)))
-      (setf (graph-edge-ref graph from to) (make-edge from to :cost cost)))))
+      (setf (graph-edge-ref graph from to) (make-edge from to :cost cost))))
+  #+atcoder
+  (push (make-edge from to :cost cost)
+        (aref (graph-adlist graph) from)))
 
 (defclass <multigraph> (<graph>) ())
 
@@ -426,9 +443,15 @@ For single-edge graphs, EDGES must be empty or singleton."))
   (assert-graph-node-index graph start "DIJKSTRA")
   (when end
     (assert-graph-node-index graph end "DIJKSTRA"))
-  (labels ((make-search-node (from to distance) (vector from to distance))
-           (search-node-to (search-node) (elt search-node 1))
-           (search-node-distance (search-node) (elt search-node 2))
+  (labels ((make-search-node (to distance)
+             (let ((search-node (make-array 2)))
+               (setf (svref search-node 0) to
+                     (svref search-node 1) distance)
+               search-node))
+           (search-node-to (search-node)
+             (svref (the simple-vector search-node) 0))
+           (search-node-distance (search-node)
+             (svref (the simple-vector search-node) 1))
            (search-node-less (search-node1 search-node2)
              (< (search-node-distance search-node1) (search-node-distance search-node2))))
     (loop with size = (graph-size graph)
@@ -436,7 +459,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
           and usedp = (make-array size :initial-element nil)
           and heap = (make-binary-heap #'search-node-less)
                 initially (setf (aref distances start) 0)
-                          (binary-heap-push (make-search-node start start 0) heap)
+                          (binary-heap-push (make-search-node start 0) heap)
           until (binary-heap-empty-p heap)
           do (let* ((top (binary-heap-top heap))
                     (node (search-node-to top))
@@ -451,7 +474,7 @@ For single-edge graphs, EDGES must be empty or singleton."))
                          (next-distance (funcall next-distance distance edge)))
                      (when (< next-distance (aref distances next-node))
                        (setf (aref distances next-node) next-distance)
-                       (binary-heap-push (make-search-node node next-node next-distance)
+                       (binary-heap-push (make-search-node next-node next-distance)
                                          heap))))))
           finally (return distances))))
 
