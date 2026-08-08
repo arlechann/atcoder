@@ -55,6 +55,18 @@
   (ok (equal '(1 1 2 6 24)
              (coerce (algorithm:cumulate '(1 2 3 4) :op #'* :id 1) 'list))))
 
+(deftest algorithm-frequencies
+  (ok (equal '(2 1 3 1)
+             (coerce (algorithm:frequencies #(2 0 2 1 2 3 0)) 'list)))
+  (ok (equal '(0 2 0 1)
+             (coerce (algorithm:frequencies '(1 1 3)) 'list)))
+  (ok (equal '(0 2 0 1 0 0)
+             (coerce (algorithm:frequencies '(1 1 3) 5) 'list)))
+  (ok (equal '()
+             (coerce (algorithm:frequencies #()) 'list)))
+  (ok (equal '(0 0 0)
+             (coerce (algorithm:frequencies #() 2) 'list))))
+
 (deftest algorithm-dp-macros
   (let ((fib (algorithm:dp fib
                :for (n)

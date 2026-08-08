@@ -15,6 +15,7 @@
            :lower-bound
            :upper-bound
            :cumulate
+           :frequencies
            :dp
            :dp-labels
            ))
@@ -143,6 +144,17 @@
                       (setf (aref it (1+ i))
                             (funcall op (aref it i) x)))
                     sequence)))
+
+(defun frequencies (sequence &optional max)
+  "非負 FIXNUM の SEQUENCE から、値ごとの出現回数ベクタを返す。"
+  (setf max (or max (reduce #'max sequence :initial-value -1)))
+  (aprog1 (make-array (1+ max)
+                      :element-type 'fixnum
+                      :initial-element 0)
+    (map nil
+         #'(lambda (x)
+             (incf (aref it x)))
+         sequence)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun parse-dp-definition (definition)
