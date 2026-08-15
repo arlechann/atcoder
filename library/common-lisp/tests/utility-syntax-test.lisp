@@ -27,6 +27,10 @@
 
 (deftest let-family
   (ok (= 3
+         (utility.syntax:if-let ((a 1) (b 2))
+           (+ a b)
+           -1)))
+  (ok (= 3
          (utility.syntax:if-let* ((a 1) (b 2))
            (+ a b)
            -1)))
@@ -39,9 +43,32 @@
            (+ a b c))))
   (ok (null
        (utility.syntax:when-let* ((a 1) (b nil))
-         (+ a b)))))
+         (+ a b))))
+  (ok (= 10
+         (utility.syntax:and-let* ((a 1) (b (+ a 2)) (c (+ b 3)))
+           (+ a b c))))
+  (ok (null
+       (utility.syntax:and-let* ((a 1) (b nil))
+         (+ a b))))
+  (ok (= 20
+         (utility.syntax:acond
+           (nil 0)
+           ((+ 10 10) utility.syntax:it)
+           (t -1)))))
 
 (deftest iteration-macros
+  (let ((i 0)
+        (acc nil))
+    (utility.syntax:until (= i 3)
+      (push i acc)
+      (incf i))
+    (ok (equal '(0 1 2) (nreverse acc))))
+  (let ((i 0)
+        (acc nil))
+    (utility.syntax:while (< i 3)
+      (push i acc)
+      (incf i))
+    (ok (equal '(0 1 2) (nreverse acc))))
   (let ((sum 0))
     (ok (= 6
            (utility.syntax:do-array (x #(1 2 3) sum)
@@ -80,6 +107,12 @@
     (ok (member '(3 4) points :test #'equal))))
 
 (deftest misc-syntax
+  (let ((x nil)
+        (y nil))
+    (utility.syntax:with-gensyms (x y)
+      (ok (symbolp x))
+      (ok (symbolp y))
+      (ok (not (eq x y)))))
   (ok (= 5
          (utility.syntax:let-dyn ((x 2) (y 3))
            (+ x y))))

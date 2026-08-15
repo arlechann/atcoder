@@ -25,6 +25,16 @@
     (ok (= 42 (utility.base:force p)))
     (ok (= 1 cnt))))
 
+(deftest function-helpers
+  (ok (= 7 (funcall (utility.base:flip #'-) 3 10)))
+  (ok (= 8 (funcall (utility.base:pa #'+ :$1 :$0) 3 5)))
+  (let ((x 10))
+    (let ((f (utility.base:pa* #'+ x :$0)))
+      (setf x 100)
+      (ok (= 13 (funcall f 3)))))
+  (let ((f (utility.base:pa #'list :$0 :$@)))
+    (ok (equal '(1 2 3) (funcall f 1 2 3)))))
+
 (deftest sequence-helpers
   (ok (= 6 (utility.base:sum #(1 2 3))))
   (let ((v #(3 1 2)))
@@ -40,6 +50,23 @@
   (let ((v (vector 1 2 3)))
     (utility.base:nmap (lambda (x) (* x 2)) v)
     (ok (equal '(2 4 6) (coerce v 'list))))
+  (ok (= 11
+         (utility.base:reduce-with-index
+          (lambda (i acc x) (+ acc (* i x)))
+          #(2 3 4)
+          :initial-value 0)))
+  (ok (equal '(2 . 5)
+             (utility.base:find-with-index
+              (lambda (i x) (and (= i 2) (oddp x)))
+              #(2 4 5 6))))
+  (ok (= 3 (utility.base:argmax #(1 4 2 7 3))))
+  (ok (= 0 (utility.base:argmin #(1 4 2 7 3))))
+  (ok (= 2
+         (utility.base:argopt #'>
+                              #(1 4 2 7 3)
+                              :start 1
+                              :end 3
+                              :key #'-)))
   (ok (equal '((a . 2) (b . 3))
              (utility.base:run-length-encode '(a a b b b)))))
 
@@ -64,10 +91,24 @@
   (ok (utility.base:length= '(1 2 3) 3))
   (ok (utility.base:length< '(1 2) 3))
   (ok (utility.base:length<= '(1 2) 2))
+  (ok (utility.base:length> '(1 2 3) 2))
+  (ok (utility.base:length>= '(1 2 3) 3))
   (ok (utility.base:singlep '(x)))
+  (let ((pointer nil))
+    (setf pointer (utility.base:tconc pointer 'a))
+    (setf pointer (utility.base:tconc pointer 'b))
+    (setf pointer (utility.base:tconc pointer 'c))
+    (ok (equal '(a b c) (car pointer))))
+  (ok (equal '(2 4 6)
+             (utility.base:filter-map (lambda (x) (and (evenp x) x))
+                                      '(1 2 3 4 5 6))))
   (ok (equal '(0 2 4) (utility.base:iota 3 :start 0 :step 2)))
   (ok (equal '(1 2 3 4 5) (utility.base:flatten '(1 (2 (3)) (4 5)))))
   (ok (equal '(a :sep b :sep c) (utility.base:join '(a b c) :sep)))
+  (utility.base:with-collector (collect)
+    (collect 1)
+    (collect 2)
+    (ok (equal '(1 2) (collect))))
   (ok (equal '((1 2) (3 4) (5))
              (utility.base:chunks '(1 2 3 4 5) 2 :fractionp t)))
   (ok (equal '((1 2) (3 4))

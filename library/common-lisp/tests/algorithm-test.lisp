@@ -47,7 +47,12 @@
     (ok (= 0 (algorithm:lower-bound v 0))))
   ;; meguru-method: predicate x^2 <= 30 となる最大整数
   (ok (= 5
-         (algorithm:meguru-method 0 10 (lambda (x) (<= (* x x) 30))))))
+         (algorithm:meguru-method 0 10 (lambda (x) (<= (* x x) 30)))))
+  (ok (utility.number:approx=
+       (sqrt 2d0)
+       (algorithm:binary-search 1d0 2d0
+                                (lambda (x) (<= (* x x) 2d0))
+                                :eps 1d-13))))
 
 (deftest algorithm-cumulate
   (ok (equal '(0 1 3 6 10)

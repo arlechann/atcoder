@@ -7,6 +7,7 @@
   (:export :it
            :self
            :eval-always
+           :with-gensyms
            :defun-always
            :defalias
            :defabbrev
@@ -15,10 +16,14 @@
            :def-delimiter-macro
            :named-let
            :nlet
+           :until
+           :while
            :aif
            :alambda
            :aand
+           :acond
            :aprog1
+           :and-let*
            :if-let*
            :when-let
            :when-let*
@@ -43,6 +48,12 @@
 
 (defmacro eval-always (&body body)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
+     ,@body))
+
+(defmacro with-gensyms (symbols &body body)
+  `(let ,(mapcar (lambda (s)
+                   `(,s (gensym)))
+                 symbols)
      ,@body))
 
 (defmacro defun-always (name params &body body) `(eval-always (defun ,name ,params ,@body)))
@@ -140,11 +151,38 @@
         (t `(let ((it ,(car body)))
               (and it (aand ,@(cdr body)))))))
 
+(defmacro acond (&rest clauses)
+  (if (null clauses)
+      nil
+      (let ((head (car clauses))
+            (sym (gensym)))
+        `(let ((,sym ,(car head)))
+           (if ,sym
+               (let ((it ,sym))
+                 ,@(cdr head))
+               (acond ,@(cdr clauses)))))))
+
 (defmacro aprog1 (result &body body) `(let ((it ,result)) (prog1 it ,@body)))
 
 (defmacro if-let* (binds then &optional else)
   `(let* ,binds
      (if (and ,@(mapcar #'car binds)) ,then ,else)))
+
+(defmacro and-let* (binds &body body)
+  (labels ((expand (rest-binds)
+             (if (null rest-binds)
+                 (if body
+                     `(progn ,@body)
+                     t)
+                 (destructuring-bind (var value-form) (car rest-binds)
+                   `(let ((,var ,value-form))
+                      (and ,var
+                           ,(if (null (cdr rest-binds))
+                                (if body
+                                    `(progn ,@body)
+                                    var)
+                                (expand (cdr rest-binds)))))))))
+    (expand binds)))
 
 (defmacro when-let (binds &body body)
   `(let ,binds

@@ -11,7 +11,12 @@
                 :println)
   (:export ;; function / memoize
            :do-nothing
+           :flip
            :compose
+           :conjoin
+           :disjoin
+           :pa
+           :pa*
            :memoize-lambda
            :array-memoize-lambda
            ;; lazy
@@ -24,6 +29,11 @@
            :map-into-with-index
            :nmap
            :nmap-with-index
+           :reduce-with-index
+           :find-with-index
+           :argopt
+           :argmax
+           :argmin
            :run-length-encode
            :next-permutation
            :do-permutations
@@ -42,17 +52,22 @@
            :length=
            :length<=
            :length<
+           :length>
+           :length>=
            :singlep
            :last1
            :mklist
            :take
            :drop
+           :tconc
+           :filter-map
            :longerp
            :longer
            :iota
            :reverse-nconc
            :unfold
            :unique
+           :with-collector
            :chunks
            :permutations
            :flatten
@@ -83,7 +98,140 @@
 ;;; function
 
 (defun do-nothing (&rest args) (declare (ignore args)))
+(defun flip (function)
+  (lambda (&rest args)
+    (apply function (reverse args))))
 (defun compose (&rest fns) (lambda (x) (reduce #'funcall fns :initial-value x :from-end t)))
+
+(eval-always
+  (defun %predicate-chain-expansion (predicates terminal-value short-circuit-op)
+    (cond ((null predicates) `(constantly ,terminal-value))
+          ((null (cdr predicates)) (car predicates))
+          (t (let ((args (gensym)))
+               `#'(lambda (&rest ,args)
+                    (,short-circuit-op
+                     ,@(mapcar (lambda (predicate)
+                                 `(apply ,predicate ,args))
+                               predicates))))))))
+
+(defun conjoin (&rest predicates)
+  (cond ((null predicates) (constantly t))
+        ((null (cdr predicates)) (car predicates))
+        (t (lambda (&rest args)
+             (dolist (predicate predicates t)
+               (unless (apply predicate args)
+                 (return nil)))))))
+
+(defun disjoin (&rest predicates)
+  (cond ((null predicates) (constantly nil))
+        ((null (cdr predicates)) (car predicates))
+        (t (lambda (&rest args)
+             (dolist (predicate predicates nil)
+               (when (apply predicate args)
+                 (return t)))))))
+
+(define-compiler-macro conjoin (&whole form &rest predicates)
+  (if (every #'constantp predicates)
+      (%predicate-chain-expansion predicates t 'and)
+      form))
+
+(define-compiler-macro disjoin (&whole form &rest predicates)
+  (if (every #'constantp predicates)
+      (%predicate-chain-expansion predicates nil 'or)
+      form))
+
+(eval-always
+  (defun %pa-placeholder-index (form)
+    (when (keywordp form)
+      (let ((name (symbol-name form)))
+        (when (and (> (length name) 1)
+                   (char= (char name 0) #\$))
+          (multiple-value-bind (value position)
+              (parse-integer name :start 1 :junk-allowed t)
+            (when (= position (length name))
+              value)))))))
+
+(eval-always
+  (defun %pa-rest-placeholder-p (form)
+    (and (keywordp form)
+         (string= (symbol-name form) "$@"))))
+
+(eval-always
+  (defun %pa-max-index (forms)
+    (loop for form in forms
+          for index = (%pa-placeholder-index form)
+          when index maximize index into max-index
+          finally (return (or max-index -1)))))
+
+(eval-always
+  (defun %pa-lambda-vars (max-index)
+    (loop repeat (1+ max-index) collect (gensym "ARG"))))
+
+(eval-always
+  (defun %pa-call-expression (function-form forms expanded-forms restp)
+    (if restp
+        `(apply ,function-form
+                (append
+                 ,@(mapcar (lambda (form expanded-form)
+                             (if (%pa-rest-placeholder-p form)
+                                 expanded-form
+                                 `(list ,expanded-form)))
+                           forms
+                           expanded-forms)))
+        `(funcall ,function-form ,@expanded-forms))))
+
+(eval-always
+  (defun %pa-lambda-form (vars rest-var call-form)
+    `#'(lambda ,(append vars (if rest-var `(&rest ,rest-var) nil))
+         ,call-form)))
+
+(eval-always
+  (defun %pa-form (function forms)
+    (let* ((max-index (%pa-max-index forms))
+           (vars (%pa-lambda-vars max-index))
+           (restp (find-if #'%pa-rest-placeholder-p forms))
+           (rest-var (and restp (gensym "REST")))
+           (expanded-forms
+             (mapcar (lambda (form)
+                       (let ((index (%pa-placeholder-index form)))
+                         (cond (index (nth index vars))
+                               ((%pa-rest-placeholder-p form) rest-var)
+                               (t form))))
+                     forms))
+           (call-form (%pa-call-expression function forms expanded-forms restp)))
+      (%pa-lambda-form vars rest-var call-form))))
+
+(eval-always
+  (defun %pa*-form (function forms)
+    (let* ((max-index (%pa-max-index forms))
+           (vars (%pa-lambda-vars max-index))
+           (restp (find-if #'%pa-rest-placeholder-p forms))
+           (rest-var (and restp (gensym "REST")))
+           (bindings nil)
+           (function-var (gensym "FUNCTION"))
+           (expanded-forms
+             (mapcar (lambda (form)
+                       (let ((index (%pa-placeholder-index form)))
+                         (cond (index (nth index vars))
+                               ((%pa-rest-placeholder-p form) rest-var)
+                               (t
+                                (let ((temp (gensym "FIXED")))
+                                  (push (list temp form) bindings)
+                                  temp)))))
+                     forms))
+           (call-form (%pa-call-expression function-var forms expanded-forms restp)))
+      (push (list function-var function) bindings)
+      `(let ,(nreverse bindings)
+         ,(%pa-lambda-form vars rest-var call-form)))))
+
+(defmacro pa (function &rest forms)
+  "FUNCTION と :$0, :$1, ... , :$@ プレースホルダから関数を構築する。
+プレースホルダでない式は、返された関数の呼び出し時に評価される。"
+  (%pa-form function forms))
+
+(defmacro pa* (function &rest forms)
+  "PA と同様に関数を構築するが、プレースホルダでない式は生成時に評価して束縛する。"
+  (%pa*-form function forms))
 
 (defmacro memoize-lambda (args &body body)
   (let ((memo (gensym))
@@ -170,6 +318,110 @@
                (incf index)))
            sequence
            more-sequences)))
+
+(declaim (ftype (function ((or (function (unsigned-byte t t) t) symbol)
+                           sequence
+                           &rest t
+                           &key (:key t) (:from-end t) (:start fixnum) (:end fixnum) (:initial-value t))
+                          t)
+                reduce-with-index))
+(defun reduce-with-index (function sequence
+                          &rest args
+                          &key key from-end (start 0) end (initial-value nil ivp))
+  (declare (ignore args))
+  (let* ((end (or end (length sequence)))
+         (transform (or key #'identity)))
+    (cond
+      ((= start end)
+       (if ivp
+           initial-value
+           (error "REDUCE-WITH-INDEX requires an initial value for an empty sequence.")))
+      (from-end
+       (let ((acc (if ivp
+                      initial-value
+                      (funcall transform (elt sequence (1- end))))))
+         (loop for index downfrom (if ivp
+                                      (1- end)
+                                      (- end 2))
+               to start
+               do (setf acc (funcall function
+                                     index
+                                     acc
+                                     (funcall transform (elt sequence index)))))
+         acc))
+      (t
+       (let ((acc (if ivp
+                      initial-value
+                      (funcall transform (elt sequence start)))))
+         (loop for index from (if ivp start (1+ start))
+               below end
+               do (setf acc (funcall function
+                                     index
+                                     acc
+                                     (funcall transform (elt sequence index)))))
+         acc)))))
+
+(declaim (ftype (function ((or (function (unsigned-byte t) t) symbol)
+                           sequence
+                           &rest t
+                           &key (:from-end t) (:start fixnum) (:end fixnum) (:key t))
+                          (or null (cons fixnum t)))
+                find-with-index))
+(defun find-with-index (predicate sequence &rest args &key from-end start end key)
+  (declare (ignore args))
+  (let* ((start (or start 0))
+         (end (or end (length sequence)))
+         (transform (or key #'identity)))
+    (if from-end
+        (loop for index downfrom (1- end) to start
+              for item = (elt sequence index)
+              when (funcall predicate index (funcall transform item))
+                do (return (cons index item)))
+        (loop for index from start below end
+              for item = (elt sequence index)
+              when (funcall predicate index (funcall transform item))
+                do (return (cons index item))))))
+
+(declaim (ftype (function ((or (function (t t) boolean) symbol)
+                           sequence
+                           &rest t
+                           &key (:key t) (:from-end t) (:start fixnum) (:end fixnum)) t)
+                argopt))
+(defun argopt (predicate sequence &rest args &key key from-end start end)
+  (declare (ignore args))
+  (let* ((start (or start 0))
+         (end (or end (length sequence)))
+         (transform (or key #'identity)))
+    (when (< start end)
+      (if from-end
+          (let* ((best-index (1- end))
+                 (best-value (funcall transform (elt sequence best-index))))
+            (loop for index downfrom (- end 2) to start
+                  for value = (funcall transform (elt sequence index))
+                  when (funcall predicate value best-value)
+                    do (setf best-index index
+                             best-value value))
+            best-index)
+          (let* ((best-index start)
+                 (best-value (funcall transform (elt sequence best-index))))
+            (loop for index from (1+ start) below end
+                  for value = (funcall transform (elt sequence index))
+                  when (funcall predicate value best-value)
+                    do (setf best-index index
+                             best-value value))
+            best-index)))))
+
+(declaim (ftype (function (sequence &rest t &key (:key t) (:from-end t) (:start fixnum) (:end fixnum)) t)
+                argmax))
+(defun argmax (sequence &rest args &key key from-end start end)
+  (declare (ignore key from-end start end))
+  (apply #'argopt #'> sequence args))
+
+(declaim (ftype (function (sequence &rest t &key (:key t) (:from-end t) (:start fixnum) (:end fixnum)) t)
+                argmin))
+(defun argmin (sequence &rest args &key key from-end start end)
+  (declare (ignore key from-end start end))
+  (apply #'argopt #'< sequence args))
 
 (declaim (ftype (function (sequence &key (:test (or symbol (function (t t) t))))
                           list)
@@ -267,6 +519,14 @@
           ((null lst) t)
           (t (rec (cdr lst) (1- n))))))
 
+(declaim (ftype (function (list unsigned-byte) boolean) length>))
+(defun length> (lst n)
+  (not (length<= lst n)))
+
+(declaim (ftype (function (list unsigned-byte) boolean) length>=))
+(defun length>= (lst n)
+  (not (length< lst n)))
+
 (declaim (ftype (function (list unsigned-byte) boolean) length<=))
 (defun length<= (lst n)
   (nlet rec ((lst lst) (n n))
@@ -294,6 +554,26 @@
 (defun drop (lst n)
   (nlet rec ((lst lst) (n n))
     (if (or (null lst) (zerop n)) lst (rec (cdr lst) (1- n)))))
+
+(declaim (ftype (function (list t) cons) tconc))
+(defun tconc (pointer obj)
+  (when (null pointer)
+    (setf pointer (cons nil nil)))
+  (let ((cell (cons obj nil)))
+    (if (null (car pointer))
+        (setf (car pointer) cell
+              (cdr pointer) cell)
+        (setf (cdr (cdr pointer)) cell
+              (cdr pointer) cell))
+    pointer))
+
+(declaim (ftype (function ((function (t &rest t) t) list &rest list) list) filter-map))
+(defun filter-map (fn lst &rest more-lst)
+  (do ((lists (cons lst more-lst) (mapcar #'cdr lists))
+       (acc nil))
+      ((some #'null lists) (nreverse acc))
+    (when-let ((item (apply fn (mapcar #'car lists))))
+      (push item acc))))
 
 (declaim (ftype (function (list list) list) longerp))
 (defun longerp (lst1 lst2)
@@ -335,6 +615,23 @@
 (defun unique (lst &key (test #'eql))
   (nreverse (reduce (lambda (acc x)  (if (funcall test x (car acc)) acc (cons x acc))) lst
                     :initial-value nil)))
+
+(defmacro with-collector ((&rest collectors) &body body)
+  (let ((lists (mapcar (lambda (collector)
+                         (declare (ignore collector))
+                         (gensym))
+                       collectors)))
+    `(let ,(mapcar (lambda (list)
+                     `(,list (cons nil nil)))
+                   lists)
+       (flet ,(mapcar (lambda (collector list)
+                        `(,collector (&optional (value nil supplied-p))
+                           (when supplied-p
+                             (tconc ,list value))
+                           (car ,list)))
+                      collectors
+                      lists)
+         ,@body))))
 
 (declaim (ftype (function (list (integer 1 *) &key (:fractionp t)) list) chunks))
 (defun chunks (lst size &key (fractionp t))

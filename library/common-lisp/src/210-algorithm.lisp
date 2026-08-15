@@ -12,6 +12,7 @@
            :trivial-divisors
            :fast-divisors
            :meguru-method
+           :binary-search
            :lower-bound
            :upper-bound
            :cumulate
@@ -119,6 +120,22 @@
              (if (funcall pred mid)
                  (setf ok mid)
                  (setf ng mid)))
+        finally (return ok)))
+
+(declaim (ftype (function (real real (function (real) boolean)
+                           &key (:eps real) (:max-iteration fixnum))
+                          real)
+                binary-search))
+(defun binary-search (ok ng predicate &key (eps utility.number:*eps*) (max-iteration 300))
+  (loop with iteration = 0
+        while (and (> (abs (- ok ng)) eps)
+                   (< iteration max-iteration))
+        for middle = (/ (+ ok ng) 2)
+        if (funcall predicate middle)
+          do (setf ok middle)
+        else
+          do (setf ng middle)
+        do (incf iteration)
         finally (return ok)))
 
 (defun find-bound (vector element &key (compare #'<=) (start 0) end)

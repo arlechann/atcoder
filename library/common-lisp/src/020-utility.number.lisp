@@ -3,6 +3,7 @@
 (defpackage utility.number
   (:use :cl :utility.syntax)
   (:export ;; number
+           :*eps*
            :2*
            :/2
            :square
@@ -14,6 +15,7 @@
            :triangular-number
            :next-pow2
            :repunit
+           :clamp
            :maxp
            :minp
            :maxf
@@ -63,6 +65,9 @@
 (declaim (ftype (function (number number) (real 0 *)) diff))
 (defun diff (a b) (abs (- a b)))
 
+(declaim (type real *eps*))
+(defparameter *eps* 1d-12)
+
 (declaim (ftype (function (unsigned-byte) unsigned-byte) triangular-number))
 (defun triangular-number (n)
   (values (floor (* n (1+ n)) 2)))
@@ -82,6 +87,9 @@
   (nlet rec ((n n) (acc 0))
     (if (zerop n) acc
         (rec (1- n) (+ (* base acc) 1)))))
+
+(declaim (ftype (function (real real real) real) clamp))
+(defun clamp (x low high) (max low (min x high)))
 
 (declaim (ftype (function (real &rest real) boolean) maxp))
 (defun maxp (x &rest args)
@@ -109,20 +117,20 @@
           (t (rec (1+ i) (ash k 1))))))
 
 (declaim (ftype (function (real real &key (:eps real)) boolean) approx=))
-(defun approx= (x y &key (eps 1d-12))
+(defun approx= (x y &key (eps *eps*))
   (<= (abs (- x y)) eps))
 
 (declaim (ftype (function (real &key (:eps real)) boolean) approx-zero-p))
-(defun approx-zero-p (x &key (eps 1d-12))
+(defun approx-zero-p (x &key (eps *eps*))
   (<= (abs x) eps))
 
 (declaim (ftype (function (real real &key (:eps real)) boolean) approx<=))
-(defun approx<= (x y &key (eps 1d-12))
+(defun approx<= (x y &key (eps *eps*))
   (or (< x y)
       (approx= x y :eps eps)))
 
 (declaim (ftype (function (real real &key (:eps real)) boolean) approx>=))
-(defun approx>= (x y &key (eps 1d-12))
+(defun approx>= (x y &key (eps *eps*))
   (or (> x y)
       (approx= x y :eps eps)))
 

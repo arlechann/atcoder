@@ -10,7 +10,9 @@
   (ok (= 25 (utility.number:square 5)))
   (ok (= 125 (utility.number:cube 5)))
   (ok (= 64 (utility.number:cuber 4 #'*)))
-  (ok (= 5 (utility.number:diff 3 8))))
+  (ok (= 5 (utility.number:diff 3 8)))
+  (ok (= 5 (utility.number:clamp 7 0 5)))
+  (ok (= 0 (utility.number:clamp -2 0 5))))
 
 (deftest pow-and-sequences
   (ok (= 1024 (utility.number:pow 2 10)))
@@ -42,6 +44,7 @@
   (ok (= -1 (utility.number:logmsb 0))))
 
 (deftest approx-helpers
+  (ok (= 1d-12 utility.number:*eps*))
   (ok (utility.number:approx= 1d0 (+ 1d0 1d-13)))
   (ok (not (utility.number:approx= 1d0 (+ 1d0 1d-6) :eps 1d-12)))
   (ok (utility.number:approx-zero-p 1d-13))
