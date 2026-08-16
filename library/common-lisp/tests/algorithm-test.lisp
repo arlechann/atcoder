@@ -52,7 +52,12 @@
        (sqrt 2d0)
        (algorithm:binary-search 1d0 2d0
                                 (lambda (x) (<= (* x x) 2d0))
-                                :eps 1d-13))))
+                                :eps 1d-13)))
+  (ok (= 0.5d0
+         (algorithm:binary-search 0d0 1d0
+                                  (constantly t)
+                                  :eps -1d0
+                                  :max-iteration 1))))
 
 (deftest algorithm-cumulate
   (ok (equal '(0 1 3 6 10)

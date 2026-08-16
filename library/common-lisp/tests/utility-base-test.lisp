@@ -27,6 +27,10 @@
 
 (deftest function-helpers
   (ok (= 7 (funcall (utility.base:flip #'-) 3 10)))
+  (ok (funcall (utility.base:conjoin #'plusp #'evenp) 4))
+  (ok (not (funcall (utility.base:conjoin #'plusp #'evenp) 3)))
+  (ok (funcall (utility.base:disjoin #'minusp #'evenp) 4))
+  (ok (not (funcall (utility.base:disjoin #'minusp #'evenp) 5)))
   (ok (= 8 (funcall (utility.base:pa #'+ :$1 :$0) 3 5)))
   (let ((x 10))
     (let ((f (utility.base:pa* #'+ x :$0)))
