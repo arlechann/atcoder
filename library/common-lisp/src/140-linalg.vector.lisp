@@ -1,6 +1,7 @@
 ;;; linalg.vector
 ;;;
 (defpackage linalg.vector
+  (:shadow :vector*)
   (:use :cl :utility)
   (:export :make-vector
            :vector

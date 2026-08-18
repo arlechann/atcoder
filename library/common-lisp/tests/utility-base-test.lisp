@@ -44,6 +44,18 @@
   (let ((v #(3 1 2)))
     (utility.base:sortf v #'<)
     (ok (equal '(1 2 3) (coerce v 'list))))
+  (let ((lst (list 1 2 3)))
+    (utility.base:reversef lst)
+    (ok (equal '(3 2 1) lst)))
+  (let ((lst nil))
+    (utility.base:reversef lst)
+    (ok (null lst)))
+  (let ((lst (list 1 2 3)))
+    (utility.base:nreversef lst)
+    (ok (equal '(3 2 1) lst)))
+  (let ((lst nil))
+    (utility.base:nreversef lst)
+    (ok (null lst)))
   (ok (equal '(10 21 32)
              (utility.base:map-with-index 'list
                                           (lambda (i x) (+ (* 10 i) x))
@@ -118,6 +130,17 @@
   (ok (equal '((1 2) (3 4))
              (utility.base:chunks '(1 2 3 4 5) 2 :fractionp nil))))
 
+(deftest vector-helpers
+  (let ((v (utility.base:vector* 1 2 3)))
+    (ok (equal '(1 2 3) (coerce v 'list)))
+    (ok (array-has-fill-pointer-p v))
+    (ok (adjustable-array-p v)))
+  (let* ((v #(1 2 3 4))
+         (sub (utility.base:displaced-subvec v :start 1 :end 3)))
+    (ok (equal '(2 3) (coerce sub 'list)))
+    (setf (aref sub 0) 20)
+    (ok (= 20 (aref v 1)))))
+
 (deftest char-and-string-helpers
   (ok (= 26 (utility.base:count-alphabet)))
   (ok (= 0 (utility.base:lower-to-index #\a)))
@@ -128,7 +151,7 @@
   (ok (= 7 (utility.base:char-digit #\7)))
   (ok (equal "a,b,c" (utility.base:strjoin '("a" "b" "c") :spacer ",")))
   (ok (equal "abc"
-             (utility.base:trim-spaces
+             (utility.base:trim-whitespace
               (concatenate 'string (string #\Space) (string #\Tab) "abc"
                            (string #\Newline) (string #\Return)))))
   (ok (= 2 (aref (utility.base:count-chars "abca") 0))))

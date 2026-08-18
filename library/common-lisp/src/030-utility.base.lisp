@@ -25,6 +25,8 @@
            ;; sequence
            :sum
            :sortf
+           :reversef
+           :nreversef
            :map-with-index
            :map-into-with-index
            :nmap
@@ -56,7 +58,6 @@
            :length>=
            :singlep
            :last1
-           :mklist
            :take
            :drop
            :tconc
@@ -64,7 +65,6 @@
            :longerp
            :longer
            :iota
-           :reverse-nconc
            :unfold
            :unique
            :with-collector
@@ -72,10 +72,13 @@
            :permutations
            :flatten
            :join
+           ;; vector
+           :vector*
+           :displaced-subvec
            ;; string / char
            :split-string
            :strjoin
-           :trim-spaces
+           :trim-whitespace
            :string-prefix-p
            :string-suffix-p
            :strcat
@@ -268,10 +271,10 @@
 (declaim (ftype (function (sequence) number) sum))
 (defun sum (seq) (reduce #'+ seq :initial-value 0))
 
-(define-modify-macro sortf (compare &rest args)
-  (lambda (sequence compare &rest args &key key)
-    (declare (ignore key))
-    (apply #'sort sequence compare args)))
+(define-modify-macro sortf (compare &rest args) sort)
+
+(define-modify-macro reversef () reverse)
+(define-modify-macro nreversef () nreverse)
 
 (declaim (ftype (function ((or cons symbol class)
                            (or (function (unsigned-byte t &rest t) t) symbol)
@@ -469,7 +472,7 @@
 
 ;;; list
 
-(declaim (inline ensure-car ensure-list xcons singlep last1 mklist))
+(declaim (inline ensure-car ensure-list xcons singlep last1))
 
 (defun-always ensure-car (x) (if (consp x) (car x) x))
 (defun-always ensure-list (x) (if (listp x) x (list x)))
@@ -540,9 +543,6 @@
 (declaim (ftype (function (list) t) last1))
 (defun last1 (lst) (car (last lst)))
 
-(declaim (ftype (function (t) list) mklist))
-(defun mklist (obj) (if (listp obj) obj (list obj)))
-
 (declaim (ftype (function (list unsigned-byte) list) take))
 (defun take (lst n)
   (nlet rec ((lst lst) (n n) (acc nil))
@@ -585,13 +585,6 @@
 (declaim (ftype (function (list list) list) longer))  
 (defun longer (lst1 lst2) (if (longerp lst1 lst2) lst1 lst2))
 
-(declaim (ftype (function (list t) t) reverse-nconc))
-(defun reverse-nconc (lst tail)
-  (nlet rec ((lst lst) (tail tail))
-    (if (null lst)
-        tail
-        (rec (cdr lst) (rplacd lst tail)))))
-
 (declaim (ftype (function (unsigned-byte &key (:start number) (:step number)) list) iota))
 (defun iota (n &key (start 0) (step 1))
   (nlet rec ((n n) (start start) (acc nil))
@@ -608,7 +601,7 @@
     (if (funcall predicate seed)
         (if (null tail)
             (nreverse acc)
-            (reverse-nconc acc (funcall tail seed)))
+            (nreconc acc (funcall tail seed)))
         (rec (funcall next-generator seed) (cons (funcall fn seed) acc)))))
 
 (declaim (ftype (function (list &key (:test (function (t t) t))) list) unique))
@@ -674,8 +667,8 @@
 
 ;;; vector
 
-(declaim (ftype (function (&rest list) vector) dvector))
-(defun dvector (&rest contents)
+(declaim (ftype (function (&rest t) vector) vector*))
+(defun vector* (&rest contents)
   (make-array (length contents)
               :initial-contents contents
               :adjustable t
@@ -683,8 +676,8 @@
 
 (declaim (ftype (function (vector &key (:start unsigned-byte) (:end unsigned-byte))
                           vector)
-                subvec/shared))
-(defun subvec/shared (vector &key (start 0) end)
+                displaced-subvec))
+(defun displaced-subvec (vector &key (start 0) end)
   (make-array (- (or end (length vector)) start)
               :element-type (array-element-type vector)
               :displaced-to vector
@@ -709,7 +702,7 @@
     (dolist (item (join strings spacer))
       (write-string item out))))
 
-(defun trim-spaces (string)
+(defun trim-whitespace (string)
   (string-trim '(#\Space #\Tab #\Newline #\Return) string))
 
 (defun count-chars (string)

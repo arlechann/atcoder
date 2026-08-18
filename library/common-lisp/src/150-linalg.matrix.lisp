@@ -1,6 +1,7 @@
 ;;; linalg.matrix
 ;;;
 (defpackage linalg.matrix
+  (:shadow :vector*)
   (:use :cl :utility :linalg.vector)
   (:export :make-matrix
            :matrix

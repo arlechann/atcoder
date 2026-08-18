@@ -1,6 +1,7 @@
 ;;; linalg.geometry
 ;;;
 (defpackage linalg.geometry
+  (:shadow :vector*)
   (:use :cl :utility :linalg.vector :linalg.matrix)
   (:export :radian-to-degree
            :degree-to-radian

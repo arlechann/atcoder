@@ -99,8 +99,8 @@
 (defun minp (x &rest args)
   (or (null args)
       (< x (apply #'min args))))
-(defmacro maxf (place &rest args) `(setf ,place (max ,place ,@args)))
-(defmacro minf (place &rest args) `(setf ,place (min ,place ,@args)))
+(define-modify-macro maxf (&rest args) max)
+(define-modify-macro minf (&rest args) min)
 
 (declaim (ftype (function (unsigned-byte &rest unsigned-byte) unsigned-byte) logipop))
 (defun logipop (n &rest indexes)

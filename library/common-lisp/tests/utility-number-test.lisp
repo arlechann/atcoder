@@ -34,7 +34,17 @@
     (ok (= 10 x)))
   (let ((x 5))
     (utility.number:minf x 10 3)
-    (ok (= 3 x))))
+    (ok (= 3 x)))
+  (let ((vec (vector 3 7 5))
+        (index 0))
+    (utility.number:maxf (aref vec (prog1 index (incf index))) 10 4)
+    (ok (= 1 index))
+    (ok (equalp #(10 7 5) vec)))
+  (let ((vec (vector 3 7 5))
+        (index 1))
+    (utility.number:minf (aref vec (prog1 index (incf index))) 10 1)
+    (ok (= 2 index))
+    (ok (equalp #(3 1 5) vec))))
 
 (deftest bit-helpers
   (ok (= #b10101 (utility.number:logipop 0 0 2 4)))
