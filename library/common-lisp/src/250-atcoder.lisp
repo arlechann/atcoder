@@ -8,9 +8,6 @@
         :deque
         :binary-heap
         :ordered-map
-        :linalg.vector
-        :linalg.matrix
-        :linalg.geometry
         :union-find
         :segment-tree
         :trie
