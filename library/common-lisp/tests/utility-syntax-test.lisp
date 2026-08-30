@@ -25,6 +25,24 @@
          (utility.syntax:aprog1 (+ 7 3)
            (+ utility.syntax:it 100)))))
 
+(deftest block-lambdas
+  (ok (= 42
+         (funcall (utility.syntax:block-lambda ()
+                    (return-from nil 42)
+                    0))))
+  (ok (= 120
+         (funcall (utility.syntax:named-lambda fact (n)
+                    (if (<= n 1)
+                        1
+                        (* n (fact (1- n)))))
+                  5)))
+  (ok (eq :done
+          (funcall (utility.syntax:named-lambda walker (xs)
+                     (if (endp xs)
+                         (return-from walker :done)
+                         (walker (cdr xs))))
+                   '(1 2 3)))))
+
 (deftest let-family
   (ok (= 3
          (utility.syntax:if-let ((a 1) (b 2))
