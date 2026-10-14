@@ -1,3 +1,5 @@
+;;; Project repository: https://github.com/arlechann/atcoder
+
 (in-package :cl-user)
 
 (require :asdf)
