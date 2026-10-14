@@ -1,4 +1,5 @@
 ;;; Project repository: https://github.com/arlechann/atcoder
+;;; License: CC0-1.0
 
 (in-package :cl-user)
 
