@@ -37,6 +37,7 @@
            :dijkstra
            :dinic
            :floyd-warshall
+           :make-lca
            :find-leaf))
 (in-package graph)
 
@@ -546,6 +547,47 @@ EDGE-COST is treated as capacity by default."
                        while (> pushed 0)
                        do (incf max-flow pushed))
               finally (return max-flow))))))
+
+(declaim (ftype (function (<graph> unsigned-byte)
+                          (function (unsigned-byte unsigned-byte) unsigned-byte))
+                make-lca))
+(defun make-lca (graph root)
+  "ROOT を根とする木の最小共通祖先を返すクエリ関数を構築する。
+GRAPH は両方向の辺を持つ非空の木とし、自己辺と辺のコストは無視する。
+返す関数は2頂点の番号を受け取り、ROOT に関する最小共通祖先の番号を返す。
+隣接リストでは構築時間・空間 O(N log N)、各クエリ O(log N)。"
+  (assert-graph-node-index graph root "MAKE-LCA")
+  (let* ((size (graph-size graph))
+         (parents (make-array size :initial-element root))
+         (distances (make-array size :initial-element 0)))
+    (labels ((rec (node parent dist)
+               (setf (aref parents node) parent
+                     (aref distances node) dist)
+               (do-graph-neighbors (edge graph node)
+                 (let ((next (edge-to edge)))
+                   (unless (or (= next parent) (= next node))
+                     (rec next node (1+ dist)))))))
+      (rec root root 0))
+    (let* ((max-level (max 1 (integer-length (1- size))))
+           (doubling (algorithm:make-doubling
+                      max-level size #'(lambda (node) (aref parents node)))))
+      (block-lambda (u v)
+        (assert-graph-node-index graph u "LCA")
+        (assert-graph-node-index graph v "LCA")
+        (when (> (aref distances u) (aref distances v))
+          (rotatef u v))
+        (let ((diff (- (aref distances v) (aref distances u))))
+          (loop for k below (integer-length diff)
+                when (logbitp k diff)
+                  do (setf v (aref doubling k v))))
+        (when (= u v)
+          (return u))
+        (loop for k from (1- max-level) downto 0
+              until (= (aref parents u) (aref parents v))
+              do (loop until (= (aref doubling k u) (aref doubling k v))
+                       do (setf u (aref doubling k u)
+                                v (aref doubling k v))))
+        (aref parents u)))))
 
 (defun find-leaf (graph)
   (dotimes (node (graph-size graph))

@@ -14,6 +14,39 @@
               (and (= (second a) (second b))
                    (< (third a) (third b)))))))
 
+(deftest graph-make-lca
+  (dolist (constructor (list #'graph:make-adlist-single-edge-graph
+                             #'graph:make-adlist-multigraph
+                             #'graph:make-matrix-graph))
+    (let ((singleton (funcall constructor 1)))
+      (ok (= 0 (funcall (graph:make-lca singleton 0) 0 0))))
+    (let ((tree (funcall constructor 9)))
+      ;; 分岐と深さの差がある木。辺のコストには依存しない。
+      (dolist (edge '((0 1) (0 2) (1 3) (1 4) (2 5) (2 6) (5 7) (7 8)))
+        (destructuring-bind (u v) edge
+          (graph:graph-add-edge tree u v :cost 7)
+          (graph:graph-add-edge tree v u :cost 7)))
+      (dolist (case '((0 ((0 8 0) (3 4 1) (3 8 0) (6 8 2)
+                                  (5 8 5) (7 8 7) (8 8 8)))
+                      (4 ((3 8 1) (3 4 4) (0 8 0) (6 8 2)
+                                  (1 8 1) (8 8 8)))))
+        (destructuring-bind (root queries) case
+          (let ((lca (graph:make-lca tree root)))
+            (dolist (query queries)
+              (destructuring-bind (u v expected) query
+                (ok (= expected (funcall lca u v)))
+                (ok (= expected (funcall lca v u)))))))))
+    (let ((chain (funcall constructor 9)))
+      (loop for node from 1 below 9 do
+        (graph:graph-add-edge chain (1- node) node)
+        (graph:graph-add-edge chain node (1- node)))
+      (let ((from-start (graph:make-lca chain 0))
+            (from-end (graph:make-lca chain 8)))
+        (ok (loop for u below 9
+                  always (loop for v below 9
+                               always (and (= (min u v) (funcall from-start u v))
+                                           (= (max u v) (funcall from-end u v))))))))))
+
 (deftest graph-adlist-single-edge-basic
   (let ((g (graph:make-adlist-single-edge-graph 4)))
     (setf (graph:graph-node-ref g 1) :n1)
