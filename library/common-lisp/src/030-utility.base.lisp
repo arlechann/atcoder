@@ -189,16 +189,15 @@
 
 (eval-always
   (defun %walk-placeholder-form (form atom-fn quote-fn combine-fn)
-    (labels ((rec (form)
-               (cond ((atom form)
-                      (funcall atom-fn form))
-                     ((%quoted-or-function-symbol-form-p form)
-                      (funcall quote-fn form))
-                     (t
-                      (funcall combine-fn
-                               (rec (car form))
-                               (rec (cdr form)))))))
-      (rec form))))
+    (nlet rec ((form form))
+      (cond ((atom form)
+             (funcall atom-fn form))
+            ((%quoted-or-function-symbol-form-p form)
+             (funcall quote-fn form))
+            (t
+             (funcall combine-fn
+                      (rec (car form))
+                      (rec (cdr form))))))))
 
 (eval-always
   (defun %placeholder-max-index-in-form (form)
@@ -722,7 +721,7 @@
 
 (declaim (ftype (function (list unsigned-byte) boolean) length-n-p))
 (defun length-n-p (lst n)
-  (nlet rec ((lst lst) (n n))
+  (iter-let rec ((lst lst) (n n))
     (cond ((zerop n) (null lst))
           ((null lst) nil)
           (t (rec (cdr lst) (1- n))))))
@@ -732,7 +731,7 @@
 
 (declaim (ftype (function (list unsigned-byte) boolean) length<))
 (defun length< (lst n)
-  (nlet rec ((lst lst) (n n))
+  (iter-let rec ((lst lst) (n n))
     (cond ((zerop n) nil)
           ((null lst) t)
           (t (rec (cdr lst) (1- n))))))
@@ -747,7 +746,7 @@
 
 (declaim (ftype (function (list unsigned-byte) boolean) length<=))
 (defun length<= (lst n)
-  (nlet rec ((lst lst) (n n))
+  (iter-let rec ((lst lst) (n n))
     (cond ((zerop n) (null lst))
           ((null lst) t)
           (t (rec (cdr lst) (1- n))))))
@@ -760,14 +759,14 @@
 
 (declaim (ftype (function (list unsigned-byte) list) take))
 (defun take (lst n)
-  (nlet rec ((lst lst) (n n) (acc nil))
+  (iter-let rec ((lst lst) (n n) (acc nil))
     (if (or (null lst) (zerop n))
         (nreverse acc)
         (rec (cdr lst) (1- n) (cons (car lst) acc)))))
 
 (declaim (ftype (function (list unsigned-byte) list) drop))
 (defun drop (lst n)
-  (nlet rec ((lst lst) (n n))
+  (iter-let rec ((lst lst) (n n))
     (if (or (null lst) (zerop n)) lst (rec (cdr lst) (1- n)))))
 
 (declaim (ftype (function (list t) cons) tconc))
@@ -792,7 +791,7 @@
 
 (declaim (ftype (function (list list) list) longerp))
 (defun longerp (lst1 lst2)
-  (nlet rec ((lst1 lst1) (lst2 lst2))
+  (iter-let rec ((lst1 lst1) (lst2 lst2))
     (cond ((null lst1) nil)
           ((null lst2) lst1)
           (t (rec (cdr lst1) (cdr lst2))))))
@@ -802,7 +801,7 @@
 
 (declaim (ftype (function (unsigned-byte &key (:start number) (:step number)) list) iota))
 (defun iota (n &key (start 0) (step 1))
-  (nlet rec ((n n) (start start) (acc nil))
+  (iter-let rec ((n n) (start start) (acc nil))
     (if (zerop n)
         (nreverse acc)
         (rec (1- n) (+ start step) (cons start acc)))))
@@ -812,7 +811,7 @@
                           list)
                 unfold))
 (defun unfold (predicate fn next-generator seed &optional tail)
-  (nlet rec ((seed seed) (acc nil))
+  (iter-let rec ((seed seed) (acc nil))
     (if (funcall predicate seed)
         (if (null tail)
             (nreverse acc)
@@ -843,10 +842,10 @@
 
 (declaim (ftype (function (list (integer 1 *) &key (:fractionp t)) list) chunks))
 (defun chunks (lst size &key (fractionp t))
-  (nlet outer ((lst lst) (acc nil))
+  (iter-let outer ((lst lst) (acc nil))
     (if (null lst)
         (nreverse acc)
-        (nlet inner ((lst lst) (rest size) (chunk nil) (acc acc))
+        (iter-let inner ((lst lst) (rest size) (chunk nil) (acc acc))
           (cond ((zerop rest) (outer lst (cons (nreverse chunk) acc)))
                 ((null lst) (outer nil (if fractionp (cons (nreverse chunk) acc) acc)))
                 (t (inner (cdr lst) (1- rest) (cons (car lst) chunk) acc)))))))
@@ -854,14 +853,13 @@
 (declaim (ftype (function (list) list) permutations))
 (defun permutations (lst)
   (let ((ret nil))
-    (labels ((rec (lst acc)
-               (if (null lst)
-                   (push acc ret)
-                   (dolist (item lst)
-                     (rec (remove-if (lambda (x) (eql x (car item)))
-                                     lst :key #'car)
-                          (cons (cdr item) acc))))))
-      (rec (mapcar-with-index #'cons lst) nil))
+    (nlet rec ((lst (mapcar-with-index #'cons lst)) (acc nil))
+      (if (null lst)
+          (push acc ret)
+          (dolist (item lst)
+            (rec (remove-if (lambda (x) (eql x (car item)))
+                            lst :key #'car)
+                 (cons (cdr item) acc)))))
     ret))
 
 (declaim (ftype (function (list) list) flatten))
@@ -875,7 +873,7 @@
 (defun join (lst separator)
   (when (null lst)
     (return-from join nil))
-  (nlet rec ((lst (cdr lst)) (acc (list (car lst))))
+  (iter-let rec ((lst (cdr lst)) (acc (list (car lst))))
     (if (null lst)
         (nreverse acc)
         (rec (cdr lst) (cons (car lst) (cons separator acc))))))

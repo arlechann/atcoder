@@ -16,6 +16,38 @@
                acc
                (rec (1+ i) (+ acc i)))))))
 
+(deftest nlet-recursion
+  (ok (= 120
+         (utility.syntax:nlet fact ((n 5))
+           (if (<= n 1)
+               1
+               (* n (fact (1- n)))))))
+  (let ((visited nil))
+    (utility.syntax:nlet visit ((tree '(0 (1 (3)) (2 (4) (5)))))
+      (push (first tree) visited)
+      (mapc (lambda (child) (visit child)) (rest tree)))
+    (ok (equal '(0 1 3 2 4 5) (nreverse visited)))))
+
+(deftest iter-let
+  (ok (= 4999950000
+         (utility.syntax:iter-let rec ((i 0) (acc 0))
+           (if (= i 100000)
+               acc
+               (rec (1+ i) (+ acc i))))))
+  (let ((initializations 0))
+    (ok (equal '(2 1)
+               (multiple-value-list
+                (utility.syntax:iter-let swap ((steps 1)
+                                               (left (progn (incf initializations) 1))
+                                               (right (progn (incf initializations) 2)))
+                  (if (zerop steps)
+                      (values left right)
+                      (swap (1- steps) right left))))))
+    (ok (= 2 initializations)))
+  (ok (eq :done
+          (utility.syntax:iter-let finish ()
+            (return-from finish :done)))))
+
 (deftest anaphoric-macros
   (ok (= 4 (utility.syntax:aif (+ 2 2) utility.syntax:it -1)))
   (ok (null (utility.syntax:aif nil utility.syntax:it nil)))

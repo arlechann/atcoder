@@ -19,14 +19,13 @@
                 exgcd))
 (defun exgcd (a b)
   (declare (type unsigned-byte a b))
-  (labels ((rec (x y)
-             (if (zerop y)
-                 (values x 1 0)
-                 (multiple-value-bind (g s u) (rec y (mod x y))
-                   (values g
-                           u
-                           (- s (* (floor x y) u)))))))
-    (rec a b)))
+  (nlet rec ((x a) (y b))
+    (if (zerop y)
+        (values x 1 0)
+        (multiple-value-bind (g s u) (rec y (mod x y))
+          (values g
+                  u
+                  (- s (* (floor x y) u)))))))
 
 (defun crt (remainders moduli)
   "一般化中国剰余定理で同時合同式を解く。
@@ -52,7 +51,7 @@
   #-atcoder
   (unless (and (listp remainders) (listp moduli) (= (length remainders) (length moduli)))
     (error "CRT: REMAINDERS and MODULI must be lists with same length."))
-  (nlet rec ((rs remainders) (ms moduli) (x 0) (m 1))
+  (iter-let rec ((rs remainders) (ms moduli) (x 0) (m 1))
     (when (null rs)
       (return-from crt (values x m)))
     (let ((a (car rs))

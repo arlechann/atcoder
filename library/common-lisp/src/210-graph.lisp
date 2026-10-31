@@ -560,14 +560,13 @@ GRAPH は両方向の辺を持つ非空の木とし、自己辺と辺のコス�
   (let* ((size (graph-size graph))
          (parents (make-array size :initial-element root))
          (distances (make-array size :initial-element 0)))
-    (labels ((rec (node parent dist)
-               (setf (aref parents node) parent
-                     (aref distances node) dist)
-               (do-graph-neighbors (edge graph node)
-                 (let ((next (edge-to edge)))
-                   (unless (or (= next parent) (= next node))
-                     (rec next node (1+ dist)))))))
-      (rec root root 0))
+    (nlet rec ((node root) (parent root) (dist 0))
+      (setf (aref parents node) parent
+            (aref distances node) dist)
+      (do-graph-neighbors (edge graph node)
+        (let ((next (edge-to edge)))
+          (unless (or (= next parent) (= next node))
+            (rec next node (1+ dist))))))
     (let* ((max-level (max 1 (integer-length (1- size))))
            (doubling (algorithm:make-doubling
                       max-level size #'(lambda (node) (aref parents node)))))
