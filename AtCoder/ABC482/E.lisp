@@ -5025,22 +5025,16 @@ Returns a list of (input output)."
         l))))
 
 (defun make-doubling (len fn)
-  (let* ((max-depth (loop with k = 1
-                          for i from 0
-                          while (<= k len)
-                          do (setf k (* k 2))
-                          finally (return i)))
-         (doubling (make-array (list max-depth len) :initial-element 0)))
+  (let* ((max-level (max 1 (integer-length (1- len))))
+         (doubling (make-array (list max-level len) :initial-element 0)))
     (dotimes (i len)
       (setf (aref doubling 0 i)
             (funcall fn i)))
-    (loop for d from 1 below max-depth
+    (loop for d from 1 below max-level
           do (dotimes (i len)
                (setf (aref doubling d i)
                      (aref doubling (1- d) (aref doubling (1- d) i)))))
-    (values #'(lambda (i k)
-                (aref doubling k i))
-            max-depth)))
+    doubling))
 
 (defun make-lca (edges root)
   (let* ((len (length edges))
@@ -5058,13 +5052,10 @@ Returns a list of (input output)."
                                    (unless (= next parent)
                                      (rec next node (1+ dist))))))
                         (rec root root 0))))
-         (max-depth 0)
-         (doubling (multiple-value-bind (d m)
-                       (make-doubling len
-                                      #'(lambda (node)
-                                          (aref parents node)))
-                     (setf max-depth m)
-                     d)))
+         (doubling (make-doubling len
+                                  #'(lambda (node)
+                                      (aref parents node))))
+         (max-level (array-dimension doubling 0)))
     (block-lambda (u v)
       (when (> (aref distances u)
                (aref distances v))
@@ -5074,17 +5065,19 @@ Returns a list of (input output)."
         (let ((d (- (aref distances v)
                     (aref distances u))))
           (loop for i from 0
+                until (= (aref distances v)
+                         (aref distances u))
                 when (not (zerop (logand (ash d (- i)) 1)))
-                  do (setf v (funcall doubling v i)))))
+                  do (setf v (aref doubling i v)))))
       (when (= u v)
         (return u))
-      (loop for k from max-depth downto 0
+      (loop for k from (1- max-level) downto 0
             until (= (aref parents u)
                      (aref parents v))
-            do (loop until (= (funcall doubling u k)
-                              (funcall doubling v k))
-                     do (setf u (funcall doubling u k)
-                              v (funcall doubling v k))))
+            do (loop until (= (aref doubling k u)
+                              (aref doubling k v))
+                     do (setf u (aref doubling k u)
+                              v (aref doubling k v))))
       (aref parents u))))
 
 (defun main ()
@@ -5098,6 +5091,5 @@ Returns a list of (input output)."
                              (push v (aref it u)))))
            (lca (make-lca edges root)))
       )))
-    
 
 #+atcoder (main)

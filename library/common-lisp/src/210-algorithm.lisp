@@ -17,6 +17,7 @@
            :upper-bound
            :cumulate
            :frequencies
+           :make-doubling
            :dp
            :dp-labels
            ))
@@ -172,6 +173,26 @@
          #'(lambda (x)
              (incf (aref it x)))
          sequence)))
+
+(declaim (ftype (function ((integer 1 *) unsigned-byte
+                           (or (function (unsigned-byte) unsigned-byte) symbol))
+                          (simple-array t (* *)))
+                make-doubling))
+(defun make-doubling (max-level size transition)
+  "状態 0..SIZE-1 の遷移 TRANSITION に対するダブリング表を返す。
+SIZE は非負整数、TRANSITION の戻り値は 0..SIZE-1 の整数とする。
+(aref table k node) は NODE から TRANSITION を 2^k 回適用した状態。
+MAX-LEVEL は正整数で、最大添字ではなく段数を指定する。
+SIZE が0なら MAX-LEVEL 行0列の配列を返す。
+構築時間・空間は O(SIZE * MAX-LEVEL)。"
+  (let ((table (make-array (list max-level size) :initial-element 0)))
+    (dotimes (node size)
+      (setf (aref table 0 node) (funcall transition node)))
+    (loop for k from 1 below max-level
+          do (dotimes (node size)
+               (setf (aref table k node)
+                     (aref table (1- k) (aref table (1- k) node)))))
+    table))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun parse-dp-definition (definition)

@@ -7,6 +7,44 @@
 (defun sorted-copy (xs)
   (sort (copy-list xs) #'<))
 
+(deftest algorithm-make-doubling-boundaries
+  (dolist (case '((0 1) (1 1) (2 1) (7 3) (8 3) (9 4)))
+    (destructuring-bind (size levels) case
+      (let ((table (algorithm:make-doubling levels size #'identity)))
+        (ok (equal (array-dimensions table) (list levels size)))
+        (ok (loop for k below levels
+                  always (loop for node below size
+                               always (= node (aref table k node)))))))))
+
+(deftest algorithm-make-doubling-transitions
+  ;; 根で止まる祖先遷移、循環、複数の連結成分を持つ遷移。
+  (dolist (mapping '(#(0 0 1 2 3 4 5 6 7)
+                     #(1 2 3 4 5 6 0)
+                     #(1 0 2 4 5 3 5 6)))
+    (let ((table (algorithm:make-doubling
+                  4 (length mapping) (lambda (node) (aref mapping node)))))
+      (ok (loop for k below (array-dimension table 0)
+                always (loop for node below (length mapping)
+                             always (let ((expected node))
+                                      (dotimes (step (expt 2 k))
+                                        (setf expected (aref mapping expected)))
+                                      (= expected (aref table k node)))))))))
+
+(deftest algorithm-make-doubling-max-level
+  (dolist (levels '(1 4 60))
+    (let ((table (algorithm:make-doubling
+                  levels 3 (lambda (node) (mod (1+ node) 3)))))
+      (ok (equal (array-dimensions table) (list levels 3)))
+      (ok (loop for k below levels
+                always (loop for node below 3
+                             always (= (mod (+ node (expt 2 k)) 3)
+                                       (aref table k node)))))))
+  (let ((table (algorithm:make-doubling 1 9 #'identity)))
+    (ok (equal (array-dimensions table) '(1 9)))
+    (ok (loop for node below 9 always (= node (aref table 0 node)))))
+  (ok (equal (array-dimensions (algorithm:make-doubling 4 0 #'identity))
+             '(4 0))))
+
 (deftest algorithm-sieve-and-primes
   (let ((s (algorithm:sieve-of-eratosthenes 20)))
     (ok (aref s 2))
