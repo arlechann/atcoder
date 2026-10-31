@@ -30,7 +30,7 @@
   (unless (and (integerp size) (> size 0))
     (error "MAKE-SEGMENT-TREE: size must be a positive integer, got ~S." size))
   (let* ((logical-size size)
-         (capacity (next-pow2 size))
+         (capacity (ceil-pow2 size))
          (bintree-size (1- (* capacity 2)))
          (bintree (make-vector-bintree bintree-size :initial-element id)))
     (unless (null initial-contents)

@@ -13,13 +13,17 @@
            :to-integer
            :diff
            :triangular-number
-           :next-pow2
+           :ceil-pow2
            :repunit
            :clamp
            :maxp
            :minp
            :maxf
            :minf
+           :prodf
+           :floorf
+           :ceilingf
+           :modf
            :logipop
            :logmsb
            :approx=
@@ -72,14 +76,13 @@
 (defun triangular-number (n)
   (values (floor (* n (1+ n)) 2)))
 
-(declaim (ftype (function (unsigned-byte) unsigned-byte) next-pow2))
-(defun next-pow2 (n)
+(declaim (ftype (function (unsigned-byte) unsigned-byte) ceil-pow2))
+(defun ceil-pow2 (n)
+  "N 以上で最小の2の冪を返す。ただし N が0なら0を返す。"
   (declare (type unsigned-byte n))
-  (if (zerop (logand n (1- n))) n
-      (iter-let rec ((n n) (acc 1))
-        (if (zerop n)
-            acc
-            (rec (ash n -1) (ash acc 1))))))
+  (if (zerop n)
+      0
+      (ash 1 (integer-length (1- n)))))
 
 (declaim (ftype (function (unsigned-byte &optional unsigned-byte) unsigned-byte) repunit))
 (defun repunit (n &optional (base 10))
@@ -101,6 +104,14 @@
       (< x (apply #'min args))))
 (define-modify-macro maxf (&rest args) max)
 (define-modify-macro minf (&rest args) min)
+(define-modify-macro prodf (factor) *
+  "PLACE の値に必須引数 FACTOR を掛けて更新し、更新後の値を返す。")
+(define-modify-macro floorf (divisor) floor
+  "PLACE の値を必須引数 DIVISOR で割り、負の無限大へ丸めた商で更新する。")
+(define-modify-macro ceilingf (divisor) ceiling
+  "PLACE の値を必須引数 DIVISOR で割り、正の無限大へ丸めた商で更新する。")
+(define-modify-macro modf (divisor) mod
+  "PLACE の値を必須引数 DIVISOR に対する MOD の剰余で更新する。")
 
 (declaim (ftype (function (unsigned-byte &rest unsigned-byte) unsigned-byte) logipop))
 (defun logipop (n &rest indexes)
